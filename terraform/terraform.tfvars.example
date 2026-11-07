@@ -1,0 +1,50 @@
+tenancy_ocid     = "ocid1.tenancy.oc1.."
+user_ocid        = "ocid1.user.oc1.."
+fingerprint      = "aa:bb:cc:..."
+compartment_ocid = "ocid1.compartment.oc1.."
+oci_region       = "sa-bogota-1"
+
+# Default: public IP + nginx + proxied A record (no tunnel)
+use_cloudflare_tunnel = false
+assign_public_ip      = true
+# After first public-IP apply (route on IGW), optional second apply:
+# delete_nat_gateway = true
+
+# Required in public mode — same key as SSH_PRIVATE_KEY in GitHub Actions
+# ssh_public_key = "ssh-ed25519 AAAA..."
+
+# Optional: restrict SSH (default public mode = 22 open worldwide, key-only)
+# ssh_ingress_cidrs = ["203.0.113.10/32"]
+
+# Serial console (optional)
+# instance_console_user = "opc"
+
+# Always Free A1.Flex (default): Ubuntu 24.04 + Docker apt repo (Ampere-friendly)
+# os_name    = "Canonical Ubuntu"
+# os_version = "24.04"
+# instance_console_user = "ubuntu"
+# Oracle Linux instead:
+# os_name = "Oracle Linux"
+# os_version = "9"
+# instance_console_user = "opc"
+
+cloudflare_account_id = "699d98642c564d2e855e9661899b7252"
+cloudflare_zone_id    = "023e105f4ecef8ad9ca31a8372d0c353"
+
+tunnel_hostname  = "erp.example.com"
+frappe_site_name = "erp.example.com"
+
+# Tunnel-only legacy mode:
+# use_cloudflare_tunnel = true
+# assign_public_ip      = false
+# tunnel_name           = "rekov-erp"
+
+erpnext_image = "frappe/erpnext:v16.54.0"
+
+# Set via environment or a private untracked file (never commit)
+# erpnext_admin_password      = "change-me"
+# erpnext_mysql_root_password = "change-me-db"
+
+# Do not commit real values for these:
+# private_key            = "... set via TF_VAR_private_key ..."
+# cloudflare_api_token   = "... set via TF_VAR_cloudflare_api_token ..."

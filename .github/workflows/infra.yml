@@ -1,0 +1,332 @@
+name: Infra
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      replace_oci_instance:
+        description: "Run terraform apply with -replace=oci_core_instance.this (cloud-init / broken VM)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: infra-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  terraform-validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Infisical secrets (OIDC)
+        if: ${{ vars.INFISICAL_IDENTITY_ID != '' }}
+        uses: Infisical/secrets-action@v1.0.18
+        with:
+          method: oidc
+          identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
+          project-slug: ${{ vars.INFISICAL_PROJECT_SLUG }}
+          env-slug: ${{ vars.INFISICAL_ENV_SLUG }}
+
+      - name: Export TF_VAR from GitHub Secrets (if not using Infisical)
+        if: ${{ vars.INFISICAL_IDENTITY_ID == '' }}
+        env:
+          TF_VAR_tenancy_ocid: ${{ secrets.TF_VAR_tenancy_ocid }}
+          TF_VAR_user_ocid: ${{ secrets.TF_VAR_user_ocid }}
+          TF_VAR_fingerprint: ${{ secrets.TF_VAR_fingerprint }}
+          TF_VAR_private_key: ${{ secrets.TF_VAR_private_key }}
+          TF_VAR_compartment_ocid: ${{ secrets.TF_VAR_compartment_ocid }}
+          TF_VAR_oci_region: ${{ secrets.TF_VAR_oci_region }}
+          TF_VAR_oci_private_key_password: ${{ secrets.TF_VAR_oci_private_key_password }}
+          TF_VAR_cloudflare_api_token: ${{ secrets.TF_VAR_cloudflare_api_token }}
+          TF_VAR_cloudflare_account_id: ${{ secrets.TF_VAR_cloudflare_account_id }}
+          TF_VAR_cloudflare_zone_id: ${{ secrets.TF_VAR_cloudflare_zone_id }}
+          TF_VAR_tunnel_name: ${{ secrets.TF_VAR_tunnel_name }}
+          TF_VAR_tunnel_hostname: ${{ secrets.TF_VAR_tunnel_hostname }}
+          TF_VAR_frappe_site_name: ${{ secrets.TF_VAR_frappe_site_name }}
+          TF_VAR_erpnext_admin_password: ${{ secrets.TF_VAR_erpnext_admin_password }}
+          TF_VAR_erpnext_mysql_root_password: ${{ secrets.TF_VAR_erpnext_mysql_root_password }}
+          TF_VAR_instance_console_password: ${{ secrets.TF_VAR_instance_console_password }}
+          TF_VAR_ssh_public_key: ${{ secrets.TF_VAR_ssh_public_key }}
+          TF_VAR_use_cloudflare_tunnel: ${{ secrets.TF_VAR_use_cloudflare_tunnel }}
+          TF_VAR_ssh_ingress_cidrs: ${{ secrets.TF_VAR_ssh_ingress_cidrs }}
+        run: |
+          set -euo pipefail
+          req='TF_VAR_tenancy_ocid TF_VAR_user_ocid TF_VAR_fingerprint TF_VAR_private_key TF_VAR_compartment_ocid TF_VAR_oci_region TF_VAR_cloudflare_api_token TF_VAR_cloudflare_account_id TF_VAR_cloudflare_zone_id TF_VAR_tunnel_hostname TF_VAR_frappe_site_name TF_VAR_erpnext_admin_password TF_VAR_erpnext_mysql_root_password TF_VAR_ssh_public_key'
+          for name in $req; do
+            eval "v=\${$name-}"
+            if [ -z "${v:-}" ]; then
+              echo "Missing $name in GitHub Secrets (or enable Infisical)." >&2
+              exit 1
+            fi
+            printf '%s<<__TFVAR_EOF__\n' "$name" >> "$GITHUB_ENV"
+            printf '%s\n' "$v" >> "$GITHUB_ENV"
+            echo __TFVAR_EOF__ >> "$GITHUB_ENV"
+          done
+          if [ -n "${TF_VAR_oci_private_key_password:-}" ]; then
+            printf 'TF_VAR_oci_private_key_password<<__TFVAR_EOF__\n' >> "$GITHUB_ENV"
+            printf '%s\n' "$TF_VAR_oci_private_key_password" >> "$GITHUB_ENV"
+            echo __TFVAR_EOF__ >> "$GITHUB_ENV"
+          fi
+          if [ -n "${TF_VAR_instance_console_password:-}" ]; then
+            printf 'TF_VAR_instance_console_password<<__TFVAR_EOF__\n' >> "$GITHUB_ENV"
+            printf '%s\n' "$TF_VAR_instance_console_password" >> "$GITHUB_ENV"
+            echo __TFVAR_EOF__ >> "$GITHUB_ENV"
+          fi
+          if [ -n "${TF_VAR_use_cloudflare_tunnel:-}" ]; then
+            printf 'TF_VAR_use_cloudflare_tunnel<<__TFVAR_EOF__\n' >> "$GITHUB_ENV"
+            printf '%s\n' "$TF_VAR_use_cloudflare_tunnel" >> "$GITHUB_ENV"
+            echo __TFVAR_EOF__ >> "$GITHUB_ENV"
+          fi
+          if [ -n "${TF_VAR_ssh_ingress_cidrs:-}" ]; then
+            printf 'TF_VAR_ssh_ingress_cidrs<<__TFVAR_EOF__\n' >> "$GITHUB_ENV"
+            printf '%s\n' "$TF_VAR_ssh_ingress_cidrs" >> "$GITHUB_ENV"
+            echo __TFVAR_EOF__ >> "$GITHUB_ENV"
+          fi
+          if [ "${TF_VAR_use_cloudflare_tunnel:-false}" = "true" ] && [ -n "${TF_VAR_tunnel_name:-}" ]; then
+            printf 'TF_VAR_tunnel_name<<__TFVAR_EOF__\n' >> "$GITHUB_ENV"
+            printf '%s\n' "$TF_VAR_tunnel_name" >> "$GITHUB_ENV"
+            echo __TFVAR_EOF__ >> "$GITHUB_ENV"
+          fi
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.9"
+
+      - name: Terraform Format
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Init (local backend)
+        run: terraform init -backend=false -input=false -upgrade
+
+      - name: Terraform Validate
+        run: terraform validate
+
+  terraform-apply:
+    needs: [terraform-validate]
+    if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    defaults:
+      run:
+        working-directory: terraform
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Infisical secrets (OIDC)
+        if: ${{ vars.INFISICAL_IDENTITY_ID != '' }}
+        uses: Infisical/secrets-action@v1.0.18
+        with:
+          method: oidc
+          identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
+          project-slug: ${{ vars.INFISICAL_PROJECT_SLUG }}
+          env-slug: ${{ vars.INFISICAL_ENV_SLUG }}
+
+      - name: Export TF_VAR from GitHub Secrets (if not using Infisical)
+        if: ${{ vars.INFISICAL_IDENTITY_ID == '' }}
+        env:
+          TF_VAR_tenancy_ocid: ${{ secrets.TF_VAR_tenancy_ocid }}
+          TF_VAR_user_ocid: ${{ secrets.TF_VAR_user_ocid }}
+          TF_VAR_fingerprint: ${{ secrets.TF_VAR_fingerprint }}
+          TF_VAR_private_key: ${{ secrets.TF_VAR_private_key }}
+          TF_VAR_compartment_ocid: ${{ secrets.TF_VAR_compartment_ocid }}
+          TF_VAR_oci_region: ${{ secrets.TF_VAR_oci_region }}
+          TF_VAR_oci_private_key_password: ${{ secrets.TF_VAR_oci_private_key_password }}
+          TF_VAR_cloudflare_api_token: ${{ secrets.TF_VAR_cloudflare_api_token }}
+          TF_VAR_cloudflare_account_id: ${{ secrets.TF_VAR_cloudflare_account_id }}
+          TF_VAR_cloudflare_zone_id: ${{ secrets.TF_VAR_cloudflare_zone_id }}
+          TF_VAR_tunnel_name: ${{ secrets.TF_VAR_tunnel_name }}
+          TF_VAR_tunnel_hostname: ${{ secrets.TF_VAR_tunnel_hostname }}
+          TF_VAR_frappe_site_name: ${{ secrets.TF_VAR_frappe_site_name }}
+          TF_VAR_erpnext_admin_password: ${{ secrets.TF_VAR_erpnext_admin_password }}
+          TF_VAR_erpnext_mysql_root_password: ${{ secrets.TF_VAR_erpnext_mysql_root_password }}
+          TF_VAR_instance_console_password: ${{ secrets.TF_VAR_instance_console_password }}
+          TF_VAR_ssh_public_key: ${{ secrets.TF_VAR_ssh_public_key }}
+          TF_VAR_use_cloudflare_tunnel: ${{ secrets.TF_VAR_use_cloudflare_tunnel }}
+          TF_VAR_ssh_ingress_cidrs: ${{ secrets.TF_VAR_ssh_ingress_cidrs }}
+        run: |
+          set -euo pipefail
+          req='TF_VAR_tenancy_ocid TF_VAR_user_ocid TF_VAR_fingerprint TF_VAR_private_key TF_VAR_compartment_ocid TF_VAR_oci_region TF_VAR_cloudflare_api_token TF_VAR_cloudflare_account_id TF_VAR_cloudflare_zone_id TF_VAR_tunnel_hostname TF_VAR_frappe_site_name TF_VAR_erpnext_admin_password TF_VAR_erpnext_mysql_root_password TF_VAR_ssh_public_key'
+          for name in $req; do
+            eval "v=\${$name-}"
+            if [ -z "${v:-}" ]; then
+              echo "Missing $name in GitHub Secrets (or enable Infisical)." >&2
+              exit 1
+            fi
+            printf '%s<<__TFVAR_EOF__\n' "$name" >> "$GITHUB_ENV"
+            printf '%s\n' "$v" >> "$GITHUB_ENV"
+            echo __TFVAR_EOF__ >> "$GITHUB_ENV"
+          done
+          if [ -n "${TF_VAR_oci_private_key_password:-}" ]; then
+            printf 'TF_VAR_oci_private_key_password<<__TFVAR_EOF__\n' >> "$GITHUB_ENV"
+            printf '%s\n' "$TF_VAR_oci_private_key_password" >> "$GITHUB_ENV"
+            echo __TFVAR_EOF__ >> "$GITHUB_ENV"
+          fi
+          if [ -n "${TF_VAR_instance_console_password:-}" ]; then
+            printf 'TF_VAR_instance_console_password<<__TFVAR_EOF__\n' >> "$GITHUB_ENV"
+            printf '%s\n' "$TF_VAR_instance_console_password" >> "$GITHUB_ENV"
+            echo __TFVAR_EOF__ >> "$GITHUB_ENV"
+          fi
+          if [ -n "${TF_VAR_use_cloudflare_tunnel:-}" ]; then
+            printf 'TF_VAR_use_cloudflare_tunnel<<__TFVAR_EOF__\n' >> "$GITHUB_ENV"
+            printf '%s\n' "$TF_VAR_use_cloudflare_tunnel" >> "$GITHUB_ENV"
+            echo __TFVAR_EOF__ >> "$GITHUB_ENV"
+          fi
+          if [ -n "${TF_VAR_ssh_ingress_cidrs:-}" ]; then
+            printf 'TF_VAR_ssh_ingress_cidrs<<__TFVAR_EOF__\n' >> "$GITHUB_ENV"
+            printf '%s\n' "$TF_VAR_ssh_ingress_cidrs" >> "$GITHUB_ENV"
+            echo __TFVAR_EOF__ >> "$GITHUB_ENV"
+          fi
+          if [ "${TF_VAR_use_cloudflare_tunnel:-false}" = "true" ] && [ -n "${TF_VAR_tunnel_name:-}" ]; then
+            printf 'TF_VAR_tunnel_name<<__TFVAR_EOF__\n' >> "$GITHUB_ENV"
+            printf '%s\n' "$TF_VAR_tunnel_name" >> "$GITHUB_ENV"
+            echo __TFVAR_EOF__ >> "$GITHUB_ENV"
+          fi
+
+      - name: Export R2 state backend (GitHub Secrets if not using Infisical)
+        if: ${{ vars.INFISICAL_IDENTITY_ID == '' }}
+        env:
+          R2_STORAGE_BUCKET: ${{ secrets.R2_STORAGE_BUCKET }}
+          R2_STORAGE_STATE_KEY: ${{ secrets.R2_STORAGE_STATE_KEY }}
+          R2_STORAGE_ENDPOINT: ${{ secrets.R2_STORAGE_ENDPOINT }}
+          R2_STORAGE_REGION: ${{ secrets.R2_STORAGE_REGION }}
+          R2_STORAGE_ACCESS_KEY_ID: ${{ secrets.R2_STORAGE_ACCESS_KEY_ID }}
+          R2_STORAGE_SECRET_ACCESS_KEY: ${{ secrets.R2_STORAGE_SECRET_ACCESS_KEY }}
+        run: |
+          set -euo pipefail
+          req='R2_STORAGE_BUCKET R2_STORAGE_STATE_KEY R2_STORAGE_ENDPOINT R2_STORAGE_REGION R2_STORAGE_ACCESS_KEY_ID R2_STORAGE_SECRET_ACCESS_KEY'
+          for name in $req; do
+            eval "v=\${$name-}"
+            if [ -z "${v:-}" ]; then
+              echo "Missing $name in GitHub Secrets (or add the same keys in Infisical)." >&2
+              exit 1
+            fi
+            printf '%s<<__R2_EOF__\n' "$name" >> "$GITHUB_ENV"
+            printf '%s\n' "$v" >> "$GITHUB_ENV"
+            echo __R2_EOF__ >> "$GITHUB_ENV"
+          done
+
+      - name: Map R2 credentials for Terraform S3 backend
+        run: |
+          set -euo pipefail
+          : "${R2_STORAGE_BUCKET:?missing R2_STORAGE_BUCKET}"
+          : "${R2_STORAGE_STATE_KEY:?missing R2_STORAGE_STATE_KEY}"
+          : "${R2_STORAGE_ENDPOINT:?missing R2_STORAGE_ENDPOINT}"
+          : "${R2_STORAGE_REGION:?missing R2_STORAGE_REGION}"
+          : "${R2_STORAGE_ACCESS_KEY_ID:?missing R2_STORAGE_ACCESS_KEY_ID}"
+          : "${R2_STORAGE_SECRET_ACCESS_KEY:?missing R2_STORAGE_SECRET_ACCESS_KEY}"
+          printf 'AWS_ACCESS_KEY_ID<<__AWS_EOF__\n' >> "$GITHUB_ENV"
+          printf '%s\n' "$R2_STORAGE_ACCESS_KEY_ID" >> "$GITHUB_ENV"
+          echo __AWS_EOF__ >> "$GITHUB_ENV"
+          printf 'AWS_SECRET_ACCESS_KEY<<__AWS_EOF__\n' >> "$GITHUB_ENV"
+          printf '%s\n' "$R2_STORAGE_SECRET_ACCESS_KEY" >> "$GITHUB_ENV"
+          echo __AWS_EOF__ >> "$GITHUB_ENV"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.9"
+          terraform_wrapper: false
+
+      - name: Terraform Init (R2 / S3-compatible backend)
+        run: |
+          set -euo pipefail
+          terraform init -input=false -upgrade \
+            -backend-config="bucket=$R2_STORAGE_BUCKET" \
+            -backend-config="key=$R2_STORAGE_STATE_KEY" \
+            -backend-config="region=$R2_STORAGE_REGION" \
+            -backend-config="endpoint=$R2_STORAGE_ENDPOINT" \
+            -backend-config="skip_credentials_validation=true" \
+            -backend-config="skip_metadata_api_check=true" \
+            -backend-config="skip_requesting_account_id=true" \
+            -backend-config="skip_region_validation=true"
+
+      - name: Terraform Plan
+        run: |
+          set -euo pipefail
+          args=(-no-color -input=false -out=tfplan)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.replace_oci_instance }}" = "true" ]; then
+            args+=(-replace=oci_core_instance.this)
+          fi
+          terraform plan "${args[@]}"
+
+      - name: Terraform Apply
+        run: terraform apply -no-color -input=false -auto-approve tfplan
+
+      - name: Install OCI CLI (boot watch)
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y jq
+          python3 -m pip install --user oci-cli
+          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Configure OCI CLI (boot watch)
+        env:
+          TF_VAR_private_key: ${{ env.TF_VAR_private_key }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.oci
+          printf '%s\n' "$TF_VAR_private_key" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+          {
+            echo "[DEFAULT]"
+            echo "user=${TF_VAR_user_ocid}"
+            echo "fingerprint=${TF_VAR_fingerprint}"
+            echo "tenancy=${TF_VAR_tenancy_ocid}"
+            echo "region=${TF_VAR_oci_region}"
+            echo "key_file=${HOME}/.oci/oci_api_key.pem"
+          } > ~/.oci/config
+          if [ -n "${TF_VAR_oci_private_key_password:-}" ]; then
+            echo "pass_phrase=${TF_VAR_oci_private_key_password}" >> ~/.oci/config
+          fi
+
+      - name: Boot watch (SSH or tunnel → HTTPS)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ env.TF_VAR_cloudflare_api_token }}
+          SSH_PRIVATE_KEY_INFISICAL: ${{ env.SSH_PRIVATE_KEY }}
+          SSH_PRIVATE_KEY_GH: ${{ secrets.SSH_PRIVATE_KEY }}
+          WORK: .
+        run: |
+          set -euo pipefail
+          export SSH_PRIVATE_KEY="${SSH_PRIVATE_KEY_INFISICAL:-${SSH_PRIVATE_KEY_GH:-}}"
+          if [ -z "$SSH_PRIVATE_KEY" ]; then
+            echo "::error::SSH_PRIVATE_KEY missing (Infisical or GitHub Secrets)" >&2
+            exit 1
+          fi
+          bash ../scripts/ci/verify-post-apply.sh
+
+      - name: Setup Node.js (Worker)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: workers/orchestrator/package-lock.json
+
+      - name: Deploy Cloudflare Worker
+        working-directory: workers/orchestrator
+        run: |
+          set -euo pipefail
+          export CLOUDFLARE_API_TOKEN="${CLOUDFLARE_API_TOKEN:-$TF_VAR_cloudflare_api_token}"
+          export CLOUDFLARE_ACCOUNT_ID="${CLOUDFLARE_ACCOUNT_ID:-$TF_VAR_cloudflare_account_id}"
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "Missing Cloudflare credentials." >&2
+            exit 1
+          fi
+          npm ci
+          npx wrangler deploy

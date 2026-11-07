@@ -1,0 +1,23 @@
+#cloud-config
+package_update: true
+package_upgrade: false
+
+%{ if os_family == "ubuntu" ~}
+packages:
+  - ca-certificates
+  - curl
+  - gnupg
+%{ else ~}
+packages:
+  - dnf-plugins-core
+%{ endif ~}
+
+write_files:
+  - path: /usr/local/sbin/rekov-first-boot.sh
+    permissions: "0755"
+    owner: root:root
+    encoding: b64
+    content: ${rekov_first_boot_b64}
+
+runcmd:
+  - /usr/local/sbin/rekov-first-boot.sh

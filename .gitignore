@@ -1,0 +1,20 @@
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.pem
+*.auto.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+backend.tf
+
+# Node (Workers)
+**/node_modules/
+
+# Secrets / env
+.env
+.env.*
+!.env.example

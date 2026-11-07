@@ -1,0 +1,29 @@
+# R2 remote state (S3-compatible). Copy to backend.tf (gitignored) or pass -backend-config in CI.
+#
+# Create an R2 bucket + API token with Object Read & Write on that bucket. Endpoint:
+#   https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+#
+# terraform init \
+#   -backend-config="bucket=YOUR_BUCKET_NAME" \
+#   -backend-config="key=terraform.tfstate" \
+#   -backend-config="region=auto" \
+#   -backend-config="endpoint=https://xxxxxxxx.r2.cloudflarestorage.com" \
+#   -backend-config="skip_credentials_validation=true" \
+#   -backend-config="skip_metadata_api_check=true" \
+#   -backend-config="skip_requesting_account_id=true" \
+#   -backend-config="skip_region_validation=true"
+#
+# AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY = R2 S3 API credentials (or use env from Infisical).
+
+terraform {
+  backend "s3" {
+    bucket         = "YOUR_BUCKET_NAME"
+    key            = "terraform.tfstate"
+    region         = "auto"
+    endpoint       = "https://xxxxxxxx.r2.cloudflarestorage.com"
+    skip_credentials_validation = true
+    skip_metadata_api_check     = true
+    skip_requesting_account_id  = true
+    skip_region_validation      = true
+  }
+}

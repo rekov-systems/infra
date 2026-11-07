@@ -1,0 +1,7 @@
+name = "rekov-orchestrator"
+main = "src/index.ts"
+compatibility_date = "2025-11-01"
+
+[vars]
+# ERPNext URL (Tunnel) — set per environment in Cloudflare dashboard or `wrangler secret put`
+# ERPNEXT_URL = "https://erp.example.com"

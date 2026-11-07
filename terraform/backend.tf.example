@@ -1,0 +1,16 @@
+# Copy to backend.tf and fill namespace/name from your Object Storage bucket.
+# First-time bootstrap: create the bucket (Console/CLI), then use this backend.
+#
+# terraform init -backend-config="address=terraform-state.par.$${namespace}.oraclecloud.com"
+#   (see OCI Object Storage native Terraform backend docs for the full address format)
+
+terraform {
+  backend "oci" {
+    bucket      = "terraform-state"
+    namespace   = "YOUR_OBJECT_STORAGE_NAMESPACE"
+    key         = "rekov/infra/terraform.tfstate"
+    region      = "sa-bogota-1"
+    # Optional locking (recommended once a locking bucket exists):
+    # state_encryption_algorithm = "aes256"
+  }
+}

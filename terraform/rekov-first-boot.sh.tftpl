@@ -1,0 +1,218 @@
+#!/bin/bash
+# First-boot only (cloud-init runcmd). Logs: /var/log/rekov-boot.log and /var/log/rekov/phases/
+set -euxo pipefail
+
+LOG=/var/log/rekov-boot.log
+PHASEDIR=/var/log/rekov/phases
+FAILMARK=/var/log/rekov/FAILED
+mkdir -p "$PHASEDIR"
+exec >>"$LOG" 2>&1
+
+console_emit() {
+  local msg="REKOV: $*"
+  echo "$msg"
+  printf '%s\n' "$msg" >/dev/ttyS0 2>/dev/null || true
+}
+
+phase_ok() {
+  touch "$PHASEDIR/$1.done"
+  echo "=== PHASE OK: $1 ==="
+  console_emit "PHASE_OK $1"
+}
+
+phase_fail() {
+  echo "PHASE=$1" >"$FAILMARK"
+  echo "=== PHASE FAILED: $1 (see $LOG and /var/log/cloud-init-output.log) ===" >&2
+  console_emit "PHASE_FAIL $1"
+  exit 1
+}
+
+trap 'phase_fail "$${CURRENT_PHASE:-unknown}"' ERR
+
+%{ if instance_console_password_b64 != "" ~}
+CURRENT_PHASE=console_password
+_pw="$(printf '%s' '${instance_console_password_b64}' | base64 -d)"
+printf '%s:%s\n' '${instance_console_user}' "$_pw" | chpasswd
+phase_ok console_password
+%{ endif ~}
+
+CURRENT_PHASE=docker
+%{ if os_family == "ubuntu" ~}
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y
+apt-get install -y ca-certificates curl gnupg
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+chmod a+r /etc/apt/keyrings/docker.asc
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $${VERSION_CODENAME}) stable" > /etc/apt/sources.list.d/docker.list
+apt-get update -y
+apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+systemctl enable --now docker
+docker version
+phase_ok docker
+%{ else ~}
+ARCH="$(uname -m)"
+case "$ARCH" in
+  aarch64|arm64)
+    dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
+    ;;
+  x86_64|amd64)
+    dnf config-manager --add-repo https://download.docker.com/linux/oracle/docker-ce.repo
+    ;;
+  *)
+    phase_fail docker
+    ;;
+esac
+for _repo in /etc/yum.repos.d/docker*.repo; do
+  [ -f "$_repo" ] || continue
+  sed -i -e 's/\$releasever/9/g' -e "s/\\\$basearch/$${ARCH}/g" "$_repo"
+done
+dnf makecache -y
+dnf install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+systemctl enable --now docker
+docker version
+phase_ok docker
+%{ endif ~}
+
+%{ if !use_cloudflare_tunnel ~}
+CURRENT_PHASE=edge_nginx
+%{ if os_family == "ubuntu" ~}
+apt-get install -y nginx openssl
+rm -f /etc/nginx/sites-enabled/default
+%{ else ~}
+dnf install -y nginx openssl
+%{ endif ~}
+install -d -m 0755 /etc/nginx/rekov
+openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+  -keyout /etc/nginx/rekov/origin.key \
+  -out /etc/nginx/rekov/origin.crt \
+  -subj "/CN=${app_hostname}"
+cat >/etc/nginx/conf.d/rekov-edge.conf <<'NGINX'
+server {
+  listen 80 default_server;
+  listen [::]:80 default_server;
+  server_name ${app_hostname};
+  location / {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 120s;
+    client_max_body_size 50m;
+  }
+}
+server {
+  listen 443 ssl default_server;
+  listen [::]:443 ssl default_server;
+  server_name ${app_hostname};
+  ssl_certificate     /etc/nginx/rekov/origin.crt;
+  ssl_certificate_key /etc/nginx/rekov/origin.key;
+  ssl_protocols       TLSv1.2 TLSv1.3;
+  location / {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 120s;
+    client_max_body_size 50m;
+  }
+}
+NGINX
+nginx -t
+systemctl enable --now nginx
+systemctl is-active nginx || phase_fail edge_nginx
+phase_ok edge_nginx
+%{ endif ~}
+
+%{ if use_cloudflare_tunnel ~}
+CURRENT_PHASE=cloudflared_binary
+ARCH="$(uname -m)"
+case "$ARCH" in
+  aarch64|arm64) CF_ARCH=arm64 ;;
+  x86_64|amd64) CF_ARCH=amd64 ;;
+  *) echo "unsupported arch: $ARCH" >&2; phase_fail cloudflared_binary ;;
+esac
+VER="${cloudflared_version}"
+URL="https://github.com/cloudflare/cloudflared/releases/download/$${VER}/cloudflared-linux-$${CF_ARCH}"
+TMP="$(mktemp)"
+curl -fsSL "$URL" -o "$TMP"
+install -m 0755 "$TMP" /usr/local/bin/cloudflared
+rm -f "$TMP"
+/usr/local/bin/cloudflared --version
+phase_ok cloudflared_binary
+
+CURRENT_PHASE=cloudflared_service
+install -d -m 0700 /etc/cloudflared
+umask 077
+echo '${tunnel_token}' > /etc/cloudflared/token
+cat >/etc/systemd/system/cloudflared.service <<'UNIT'
+[Unit]
+Description=Cloudflare Tunnel
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/cloudflared --no-autoupdate tunnel run --token-file /etc/cloudflared/token
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+systemctl daemon-reload
+systemctl enable --now cloudflared
+for i in $(seq 1 30); do
+  if systemctl is-active --quiet cloudflared; then
+    break
+  fi
+  sleep 2
+done
+systemctl is-active cloudflared || phase_fail cloudflared_service
+phase_ok cloudflared_service
+%{ endif ~}
+
+CURRENT_PHASE=erpnext_layout
+install -d -m 0755 /opt/rekov/erpnext
+echo '${erpnext_compose_b64}' | base64 -d > /opt/rekov/erpnext/docker-compose.yml
+echo '${erpnext_env_b64}' | base64 -d > /opt/rekov/erpnext/.env
+chmod 600 /opt/rekov/erpnext/.env
+phase_ok erpnext_layout
+
+CURRENT_PHASE=erpnext_compose_pull
+cd /opt/rekov/erpnext
+export DOCKER_CLI_HINTS=false
+console_emit "docker pull: starting"
+( while sleep 45; do
+    console_emit "docker pull heartbeat: ps=$(docker ps --format '{{.Names}}:{{.Status}}' 2>/dev/null | tr '\n' ' ')"
+  done ) &
+_hb=$!
+docker compose --env-file .env pull 2>&1 | while IFS= read -r _line; do echo "$_line"; console_emit "pull: $_line"; done
+kill "$_hb" 2>/dev/null || true
+wait "$_hb" 2>/dev/null || true
+phase_ok erpnext_compose_pull
+
+CURRENT_PHASE=erpnext_compose_up
+export COMPOSE_ANSI=never
+docker compose --env-file .env up -d
+docker compose --env-file .env ps
+console_emit "docker compose ps after up:"
+docker compose --env-file .env ps 2>&1 | while IFS= read -r _line; do console_emit "$_line"; done
+phase_ok erpnext_compose_up
+
+_i=1
+while [ "$_i" -le 24 ]; do
+  console_emit "--- create-site / frontend snapshot ($_i/24) ---"
+  docker compose --env-file .env ps 2>&1 | while IFS= read -r _line; do console_emit "$_line"; done
+  docker compose --env-file .env logs create-site --tail=12 2>&1 | while IFS= read -r _line; do console_emit "create-site: $_line"; done
+  docker compose --env-file .env logs frontend --tail=8 2>&1 | while IFS= read -r _line; do console_emit "frontend: $_line"; done
+  _i=$((_i + 1))
+  sleep 60
+done
+
+echo "=== rekov first boot finished (ERPNext may still be initializing create-site) ==="
+console_emit "first-boot script exit (create-site may continue in Docker)"
