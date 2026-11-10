@@ -258,6 +258,7 @@ cd "$bench_root"
 bench_cli_site_packages="$(find /home/frappe/.local/lib -maxdepth 3 -type d -name site-packages -print -quit)"
 [[ -n "$bench_cli_site_packages" ]] || { echo 'frappe-bench Python module is missing.' >&2; exit 1; }
 HOME=/home/frappe PYTHONPATH="$bench_cli_site_packages${PYTHONPATH:+:$PYTHONPATH}" \
+  PIP_BREAK_SYSTEM_PACKAGES=1 \
   /home/frappe/.local/bin/bench setup production frappe
 
 # bench setup production leaves a self-signed origin cert; Cloudflare Full (strict)
