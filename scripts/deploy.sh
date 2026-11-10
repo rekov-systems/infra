@@ -34,7 +34,7 @@ terraform init -input=false -reconfigure \
   -backend-config="bucket=$R2_STORAGE_BUCKET" \
   -backend-config="key=$R2_STORAGE_STATE_KEY" \
   -backend-config="region=$R2_STORAGE_REGION" \
-  -backend-config="endpoints.s3=$R2_STORAGE_ENDPOINT" \
+  -backend-config="endpoint=$R2_STORAGE_ENDPOINT" \
   -backend-config="skip_credentials_validation=true" \
   -backend-config="skip_metadata_api_check=true" \
   -backend-config="skip_requesting_account_id=true" \
