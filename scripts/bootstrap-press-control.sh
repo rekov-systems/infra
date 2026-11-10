@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Run as root on the OCI control VM.
-# Required: PRESS_CONTROL_HOSTNAME, PRESS_ADMIN_PASSWORD, PRESS_DB_ROOT_PASSWORD.
+# Required: PRESS_CONTROL_HOSTNAME, PRESS_ADMIN_PASSWORD, PRESS_DB_ROOT_PASSWORD,
+# PRESS_SSH_PRIVATE_KEY.
 set -Eeuo pipefail
 
 trap 'status=$?; echo "Press bootstrap failed at line ${BASH_LINENO[0]}: ${BASH_COMMAND} (exit ${status})" >&2; exit "$status"' ERR
@@ -8,6 +9,7 @@ trap 'status=$?; echo "Press bootstrap failed at line ${BASH_LINENO[0]}: ${BASH_
 : "${PRESS_CONTROL_HOSTNAME:?Set PRESS_CONTROL_HOSTNAME}"
 : "${PRESS_ADMIN_PASSWORD:?Set PRESS_ADMIN_PASSWORD}"
 : "${PRESS_DB_ROOT_PASSWORD:?Set PRESS_DB_ROOT_PASSWORD}"
+: "${PRESS_SSH_PRIVATE_KEY:?Set PRESS_SSH_PRIVATE_KEY}"
 
 # These two revisions are a compatibility unit.  Do not replace either with a
 # moving branch: Press still imports ``init_telemetry`` and Frappe removed that
@@ -46,6 +48,10 @@ bench_python="$(command -v python3.14)"
 
 id frappe >/dev/null 2>&1 || useradd --create-home --shell /bin/bash frappe
 install -d -o frappe -g frappe /home/frappe
+install -d -o frappe -g frappe -m 0700 /home/frappe/.ssh
+printf '%s\n' "$PRESS_SSH_PRIVATE_KEY" > /home/frappe/.ssh/id_ed25519
+chown frappe:frappe /home/frappe/.ssh/id_ed25519
+chmod 0600 /home/frappe/.ssh/id_ed25519
 if [[ -d "$bench_root/apps/frappe" ]] && bench_env_python_ok; then
   chown -R frappe:frappe "$bench_root"
 else
@@ -364,10 +370,15 @@ as_frappe env PATH="/home/frappe/.local/bin:$PATH" bash -c "
 "
 # This control plane is served only over HTTPS. Certbot can still use its
 # standalone HTTP challenge while Nginx is stopped during certificate renewal.
-sed -i -E \
-  -e 's/^[[:space:]]*listen 80;$/    # HTTP disabled; HTTPS is served on 443;/' \
-  -e 's/^[[:space:]]*listen \[::\]:80;$/    # IPv6 HTTP disabled; HTTPS is served on 443;/' \
-  "${bench_root}/config/nginx.conf"
+# Bench may generate the HTTP server in either config/nginx.conf or a file in
+# conf.d, so disable every plain-HTTP listener before restarting Nginx.
+while IFS= read -r nginx_config; do
+  sed -i -E \
+    -e 's/^[[:space:]]*listen[[:space:]]+80([[:space:]]+[^;]+)?;/    # HTTP disabled; HTTPS is served on 443;/' \
+    -e 's/^[[:space:]]*listen[[:space:]]+\[::\]:80([[:space:]]+[^;]+)?;/    # IPv6 HTTP disabled; HTTPS is served on 443;/' \
+    "${nginx_config}"
+done < <(find -L "${bench_root}/config" /etc/nginx/conf.d /etc/nginx/sites-enabled \
+  -type f -name '*.conf' -print 2>/dev/null | sort -u)
 rm -f /etc/nginx/sites-enabled/default
 cat >"/etc/nginx/conf.d/${bench_name}-ssl.conf" <<EOF
 # HTTPS listener for the Press control plane. Bench's generated config on
@@ -436,10 +447,15 @@ systemctl is-active --quiet nginx || {
   journalctl -u nginx -n 80 --no-pager >&2 || true
   exit 1
 }
-ss -ltn '( sport = :80 or sport = :443 )' >&2 || {
-  echo 'Nginx is active but is not listening on ports 80/443.' >&2
+ss -ltn '( sport = :443 )' >&2 || {
+  echo 'Nginx is active but is not listening on port 443.' >&2
   exit 1
 }
+if ss -ltn '( sport = :80 )' | grep -q LISTEN; then
+  echo 'Nginx is unexpectedly listening on plain HTTP port 80.' >&2
+  nginx -T >&2 || true
+  exit 1
+fi
 curl --fail --silent --show-error --insecure --max-time 15 \
   --resolve "${press_host}:443:127.0.0.1" \
   "https://${press_host}/login" -o /dev/null || {

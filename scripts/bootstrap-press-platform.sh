@@ -6,6 +6,7 @@ set -Eeuo pipefail
 : "${PRESS_ROOT_DOMAIN:?Set PRESS_ROOT_DOMAIN}"
 : "${PRESS_TENANT_NODE_PUBLIC_IP:?Set PRESS_TENANT_NODE_PUBLIC_IP}"
 : "${PRESS_SSH_PUBLIC_KEY:?Set PRESS_SSH_PUBLIC_KEY}"
+: "${PRESS_DB_ROOT_PASSWORD:?Set PRESS_DB_ROOT_PASSWORD}"
 
 bench_root=/home/frappe/press-bench
 source_file=/tmp/rekov/rekov_press_platform.py
@@ -19,5 +20,6 @@ runuser -u frappe -- env \
   PRESS_ROOT_DOMAIN="$PRESS_ROOT_DOMAIN" \
   PRESS_TENANT_NODE_PUBLIC_IP="$PRESS_TENANT_NODE_PUBLIC_IP" \
   PRESS_SSH_PUBLIC_KEY="$PRESS_SSH_PUBLIC_KEY" \
+  PRESS_DB_ROOT_PASSWORD="$PRESS_DB_ROOT_PASSWORD" \
   PATH="/home/frappe/.local/bin:$PATH" \
   bash -lc "cd '$bench_root' && bench --site '$PRESS_CONTROL_HOSTNAME' execute press.rekov_press_platform.bootstrap"
