@@ -75,12 +75,22 @@ def bootstrap() -> dict:
     contabo_ip = required("PRESS_TENANT_NODE_PUBLIC_IP")
     ssh_public_key = required("PRESS_SSH_PUBLIC_KEY")
 
+    cloud_provider = ensure_doc(
+        "Cloud Provider",
+        "Generic",
+        {
+            "title": "Generic",
+            # Press requires an image for Cloud Provider records. The image is
+            # presentation-only for a self-hosted provider.
+            "image": "/assets/press/oci.png",
+        },
+    )
     cluster = ensure_doc(
         "Cluster",
         "rekov-hybrid",
         {
             "title": "Rekov Hybrid",
-            "cloud_provider": "Generic",
+            "cloud_provider": cloud_provider,
             "hybrid": 1,
             "public": 0,
             "status": "Active",
@@ -101,6 +111,7 @@ def bootstrap() -> dict:
             "cluster": cluster,
             "enabled": 1,
             "platform": "amd64",
+            "cloud_provider": cloud_provider,
             "vcpu": 2,
             "memory": 4096,
             "disk": 50,
