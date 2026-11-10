@@ -232,9 +232,9 @@ if 'from ansible.plugins.loader import init_plugin_loader' not in text:
         raise SystemExit('unexpected Press runner imports')
     text = text.replace(old_import, new_import, 1)
 
-old_load = '        playbook = Playbook.load(\n'
-new_load = '        init_plugin_loader()\n        playbook = Playbook.load(\n'
-if '        init_plugin_loader()\n        playbook = Playbook.load(' not in text:
+old_load = '\t\tplaybook = Playbook.load(\n'
+new_load = '\t\tinit_plugin_loader()\n\t\tplaybook = Playbook.load(\n'
+if '\t\tinit_plugin_loader()\n\t\tplaybook = Playbook.load(' not in text:
     if old_load not in text:
         raise SystemExit('unexpected Press runner playbook loader')
     text = text.replace(old_load, new_load, 1)
