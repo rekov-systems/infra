@@ -37,7 +37,9 @@ services:
     networks: [frappe]
     depends_on:
       configurator: {condition: service_completed_successfully}
-      db: {condition: service_started}
+      # A TCP listener appears while MariaDB is still running its first-start
+      # initialization. Frappe then races CREATE USER and gets errno 111.
+      db: {condition: service_healthy}
       redis-cache: {condition: service_started}
       redis-queue: {condition: service_started}
 
@@ -100,6 +102,12 @@ services:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
     volumes: ["db:/var/lib/mysql"]
     networks: [frappe]
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
 
   redis-cache:
     image: redis:7-alpine
