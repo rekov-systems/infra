@@ -362,6 +362,62 @@ as_frappe env PATH="/home/frappe/.local/bin:$PATH" bash -c "
   bench --site '${press_host}' set-config force_ssl 1
   bench setup nginx --yes --logging none
 "
+# This control plane is served only over HTTPS. Certbot can still use its
+# standalone HTTP challenge while Nginx is stopped during certificate renewal.
+sed -i -E \
+  -e 's/^[[:space:]]*listen 80;$/    # HTTP disabled; HTTPS is served on 443;/' \
+  -e 's/^[[:space:]]*listen \[::\]:80;$/    # IPv6 HTTP disabled; HTTPS is served on 443;/' \
+  "${bench_root}/config/nginx.conf"
+rm -f /etc/nginx/sites-enabled/default
+cat >"/etc/nginx/conf.d/${bench_name}-ssl.conf" <<EOF
+# HTTPS listener for the Press control plane. Bench's generated config on
+# this Ubuntu image only creates the HTTP server block.
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name ${press_host};
+    root ${bench_root}/sites;
+
+    ssl_certificate ${le_dir}/fullchain.pem;
+    ssl_certificate_key ${le_dir}/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    add_header X-Frame-Options "SAMEORIGIN";
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+    add_header X-Content-Type-Options nosniff;
+
+    location /assets {
+        try_files \$uri =404;
+        add_header Cache-Control "max-age=31536000";
+    }
+
+    location /socket.io {
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header X-Frappe-Site-Name ${press_host};
+        proxy_set_header Origin \$scheme://\$http_host;
+        proxy_set_header Host \$host;
+        proxy_pass http://press-bench-socketio-server;
+    }
+
+    location / {
+        try_files /${press_host}/public\$uri @press_webserver;
+    }
+
+    location @press_webserver {
+        proxy_http_version 1.1;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Frappe-Site-Name ${press_host};
+        proxy_set_header Host \$host;
+        proxy_set_header X-Use-X-Accel-Redirect True;
+        proxy_read_timeout 120;
+        proxy_redirect off;
+        proxy_pass http://press-bench-frappe;
+    }
+}
+EOF
 systemctl enable --now nginx
 systemctl reload-or-restart nginx
 install -d -m 0755 /etc/letsencrypt/renewal-hooks/deploy
