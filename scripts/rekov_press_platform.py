@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 
 import frappe
+from press.runner import Ansible as PressAnsible
 
 
 def required(name: str) -> str:
@@ -327,7 +328,18 @@ def bootstrap() -> dict:
         # Ansible Play it creates instead of trusting the stale server row.
         server_doc.status = "Pending"
         server_doc.save(ignore_permissions=True)
-        server_doc.ping_ansible()
+        try:
+            PressAnsible(
+                playbook="ping.yml",
+                server=server_doc,
+                user=server_doc.ssh_user or "root",
+                port=server_doc.ssh_port or 22,
+            ).run()
+        except Exception as exc:
+            raise RuntimeError(
+                "Press could not execute the tenant node Ansible ping: "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
         server_doc.reload()
         ping_play = frappe.get_all(
             "Ansible Play",
@@ -338,7 +350,7 @@ def bootstrap() -> dict:
         )
         if not ping_play or ping_play[0].status != "Success":
             play_status = ping_play[0].status if ping_play else "not created"
-            frappe.throw(
+            raise RuntimeError(
                 "Press could not complete the tenant node Ansible ping "
                 f"(Ansible Play: {play_status}). Check the Ansible Play log."
             )
