@@ -149,7 +149,8 @@ if [[ ! -f "sites/$PRESS_CONTROL_HOSTNAME/site_config.json" ]]; then
     --admin-password "$PRESS_ADMIN_PASSWORD"
 fi
 if ! bench --site "$PRESS_CONTROL_HOSTNAME" list-apps 2>/dev/null | grep -qxF press; then
-  bench --site "$PRESS_CONTROL_HOSTNAME" install-app press
+  # Resume after failed CI runs: Module Def rows can exist without a finished install.
+  bench --site "$PRESS_CONTROL_HOSTNAME" install-app press --force
 fi
 bench --site "$PRESS_CONTROL_HOSTNAME" set-config developer_mode 0
 EOF
