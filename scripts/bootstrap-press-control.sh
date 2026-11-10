@@ -249,9 +249,9 @@ if ! bench --site "$PRESS_CONTROL_HOSTNAME" list-apps >"\$installed_apps_file" 2
 fi
 # Read the output separately so a Bench failure is never reported as an
 # absent app.  A previous run can have completed the web/systemd portion while
-# `install-app press` was interrupted.  Retrying that one idempotent Bench
+# the Press installation command was interrupted. Retrying that idempotent Bench
 # operation is safe; dropping the site/database is not.
-if ! grep -qxF press "\$installed_apps_file"; then
+if ! awk '\$1 == "press" { found = 1 } END { exit !found }' "\$installed_apps_file"; then
   echo 'Installed apps reported by Bench:' >&2
   cat "\$installed_apps_file" >&2
   if [[ -f "\$install_marker" ]]; then
@@ -263,7 +263,7 @@ if ! grep -qxF press "\$installed_apps_file"; then
     'Werkzeug==3.1.3' 'jsonschema>=4.24.0,<5' 'Click>=8.1.8,<9'
   uv pip install --python ./env/bin/python --no-deps 'frappe-mcp @ git+https://github.com/frappe/mcp'
   bench --site "$PRESS_CONTROL_HOSTNAME" install-app press
-  bench --site "$PRESS_CONTROL_HOSTNAME" list-apps | grep -qxF press || {
+  bench --site "$PRESS_CONTROL_HOSTNAME" list-apps | awk '\$1 == "press" { found = 1 } END { exit !found }' || {
     echo 'Press installation returned without registering the app.' >&2
     exit 1
   }
