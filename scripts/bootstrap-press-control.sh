@@ -266,12 +266,9 @@ uv pip install --python ./env/bin/python --no-deps 'frappe-mcp @ git+https://git
 if ! ./env/bin/python -c '
 from ansible import constants, context
 from ansible.executor.playbook_executor import PlaybookExecutor
-from ansible.plugins.loader import init_plugin_loader
 from pathlib import Path
 import ansible
 assert (Path(ansible.__file__).parent / "config/ansible_builtin_runtime.yml").is_file()
-init_plugin_loader()
-import ansible_collections.ansible.builtin
 import stripe
 from OpenSSL import SSL, crypto
 import frappe_mcp
