@@ -124,6 +124,11 @@ if grep -q 'playwright==1.49.1' apps/press/pyproject.toml; then
 fi
 # frappe-mcp pulls pydantic-core without a Python 3.14 wheel on aarch64.
 sed -i '/frappe-mcp @ git+https:\/\/github.com\/frappe\/mcp/d' apps/press/pyproject.toml
+# stripe 2.56 uses stripe.six, which breaks on Python 3.14.
+if grep -q 'stripe~=2.56.0' apps/press/pyproject.toml; then
+  sed -i 's/stripe~=2.56.0/stripe>=10.0.0,<13/' apps/press/pyproject.toml
+  sed -i '/types-stripe/d' apps/press/pyproject.toml
+fi
 export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
 bench setup requirements
 if [[ ! -f "sites/$PRESS_CONTROL_HOSTNAME/site_config.json" ]]; then
@@ -131,6 +136,8 @@ if [[ ! -f "sites/$PRESS_CONTROL_HOSTNAME/site_config.json" ]]; then
     --mariadb-root-username root \\
     --mariadb-root-password "$PRESS_DB_ROOT_PASSWORD" \\
     --admin-password "$PRESS_ADMIN_PASSWORD"
+fi
+if ! bench --site "$PRESS_CONTROL_HOSTNAME" list-apps 2>/dev/null | grep -qxF press; then
   bench --site "$PRESS_CONTROL_HOSTNAME" install-app press
 fi
 bench --site "$PRESS_CONTROL_HOSTNAME" set-config developer_mode 0
