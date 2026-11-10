@@ -194,8 +194,17 @@ if old not in text:
 p.write_text(text.replace(old, new, 1))
 PY
 }
+patch_press_hooks_for_asset_build() {
+  local f=apps/press/press/hooks.py
+  [[ -f "\$f" ]] || { echo "missing \$f" >&2; return 1; }
+  # Press imports the DB-backed Frappe Cloud login URL while bench build is
+  # running without a bound site. Self-hosted control planes use the local
+  # dashboard route, so keep this hook site-independent.
+  sed -i 's#get_frappe_io_auth_url() or "/"#"/"#' "\$f"
+}
 patch_press_for_python314
 patch_press_typeddict_for_python314
+patch_press_hooks_for_asset_build
 export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
 bench setup requirements
 uv pip install --python ./env/bin/python 'ansible>=10.0.0,<15' 'stripe>=10.0.0,<13' --upgrade
@@ -282,9 +291,10 @@ rm -f "\$installed_apps_file"
 rm -f "\$installed_apps_error_file"
 # Press declares press.bundle.js in hooks.py. Build it explicitly because
 # bench install-app installs Python code but does not guarantee that frontend
-# assets exist on a fresh control plane.
+# assets exist on a fresh control plane. Bench writes a hashed bundle name.
 bench build --app press
-[[ -s "sites/assets/press/js/press.bundle.js" ]] || {
+press_bundle="\$(find sites/assets/press -type f -name 'press.bundle*.js' -print -quit)"
+[[ -n "\$press_bundle" && -s "\$press_bundle" ]] || {
   echo 'Press frontend bundle was not generated.' >&2
   exit 1
 }
