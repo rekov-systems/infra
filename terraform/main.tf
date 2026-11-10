@@ -137,17 +137,10 @@ resource "contabo_instance" "erp" {
   }
 }
 
-# Contabo often returns the instance before the public IPv4 is populated.
-resource "time_sleep" "wait_for_contabo_ip" {
-  depends_on      = [contabo_instance.erp]
-  create_duration = "180s"
-}
-
 locals {
   contabo_ipv4 = try(contabo_instance.erp.ip_config[0].v4[0].ip, "")
   contabo_ready = (
     contains(["running", "installed"], contabo_instance.erp.status)
-    && !contains(["error", "uninstalled", "unknown"], contabo_instance.erp.status)
     && length(local.contabo_ipv4) > 0
     && can(regex("^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$", local.contabo_ipv4))
   )
@@ -163,18 +156,11 @@ resource "cloudflare_dns_record" "admin" {
 }
 
 resource "cloudflare_dns_record" "tenants" {
-  depends_on = [time_sleep.wait_for_contabo_ip]
-  zone_id    = var.cloudflare_zone_id
-  name       = "*"
-  type       = "A"
-  content    = local.contabo_ipv4
-  ttl        = 1
-  proxied    = true
-
-  lifecycle {
-    precondition {
-      condition     = local.contabo_ready
-      error_message = "Wildcard DNS needs Contabo running with IPv4 (status=${contabo_instance.erp.status}, ip=${local.contabo_ipv4})."
-    }
-  }
+  count   = local.contabo_ready ? 1 : 0
+  zone_id = var.cloudflare_zone_id
+  name    = "*"
+  type    = "A"
+  content = local.contabo_ipv4
+  ttl     = 1
+  proxied = true
 }

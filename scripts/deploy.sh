@@ -57,7 +57,7 @@ reconcile_contabo_state() {
   fi
   if grep -qiE 'not found|404|does not exist|no instance|instance not found' "$log"; then
     echo "Contabo instance ID in state is gone (deleted or unpaid). Dropping stale state; next apply creates a new VPS." >&2
-    terraform state rm contabo_instance.erp time_sleep.wait_for_contabo_ip 2>/dev/null || true
+    terraform state rm contabo_instance.erp 2>/dev/null || true
     rm -f "$log"
     return 0
   fi
@@ -78,33 +78,42 @@ contabo_usable_in_state() {
 }
 
 wait_contabo_ipv4_in_state() {
-  for _ in $(seq 1 36); do
+  local status
+  for _ in $(seq 1 90); do
     terraform apply -refresh-only -auto-approve -input=false >/dev/null
     if contabo_usable_in_state; then
       return 0
     fi
+    status="$(terraform output -raw erp_contabo_status 2>/dev/null || true)"
+    case "${status:-}" in
+      error | uninstalled)
+        echo "Contabo ERP status is ${status}; cannot continue." >&2
+        return 1
+        ;;
+      pending_payment | provisioning | installing)
+        echo "Contabo ERP still ${status}; waiting for running + IPv4..."
+        ;;
+    esac
     sleep 10
   done
   echo "Contabo ERP is not running with a public IPv4 in Terraform state yet." >&2
   return 1
 }
 
-finish_wildcard_dns() {
-  if wait_contabo_ipv4_in_state; then
-    terraform apply -auto-approve -input=false -target=cloudflare_dns_record.tenants
-    return
+terraform_apply_until_contabo_dns() {
+  terraform apply -auto-approve -input=false
+  if terraform state list 2>/dev/null | grep -q 'cloudflare_dns_record.tenants'; then
+    return 0
   fi
-  return 1
+  wait_contabo_ipv4_in_state || return 1
+  terraform apply -auto-approve -input=false
+  terraform state list 2>/dev/null | grep -q 'cloudflare_dns_record.tenants' || {
+    echo "Wildcard DNS record was not created after Contabo became ready." >&2
+    return 1
+  }
 }
 
-if ! terraform apply -auto-approve -input=false; then
-  echo "Terraform apply did not complete (partial create is possible; nothing is destroyed)." >&2
-  finish_wildcard_dns || exit 1
-  if ! terraform apply -auto-approve -input=false; then
-    echo "Terraform apply still incomplete after wildcard DNS retry." >&2
-    exit 1
-  fi
-fi
+terraform_apply_until_contabo_dns
 
 control_ip="$(terraform output -raw control_public_ip)"
 erp_ip="$(terraform output -raw erp_public_ip)"
