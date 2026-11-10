@@ -321,12 +321,26 @@ def bootstrap() -> dict:
     self_hosted_server = ensure_self_hosted_server(cluster, team, plan, proxy)
     server_doc = frappe.get_doc("Self Hosted Server", self_hosted_server)
     if not server_doc.server or not server_doc.database_server:
+        # A failed first bootstrap leaves the Self Hosted Server in
+        # ``Unreachable``/``Broken``.  Press's ping method intentionally
+        # swallows exceptions, so reset the transient status and inspect the
+        # Ansible Play it creates instead of trusting the stale server row.
+        server_doc.status = "Pending"
+        server_doc.save(ignore_permissions=True)
         server_doc.ping_ansible()
         server_doc.reload()
-        if server_doc.status not in ("Pending", "Active"):
+        ping_play = frappe.get_all(
+            "Ansible Play",
+            filters={"server": server_doc.name, "play": "Ping Server"},
+            fields=["name", "status"],
+            order_by="creation desc",
+            limit_page_length=1,
+        )
+        if not ping_play or ping_play[0].status != "Success":
+            play_status = ping_play[0].status if ping_play else "not created"
             frappe.throw(
-                "Press could not connect to the tenant node over SSH. "
-                "Check the SSH key, ubuntu access, and the Ansible Play log."
+                "Press could not complete the tenant node Ansible ping "
+                f"(Ansible Play: {play_status}). Check the Ansible Play log."
             )
         if not server_doc.database_server:
             server_doc.create_database_server()
