@@ -72,7 +72,7 @@ if [[ ! -d apps/press ]]; then
 fi
 press_remote="origin"
 git -C apps/press remote get-url origin >/dev/null 2>&1 || press_remote="upstream"
-git -C apps/press fetch --depth=1 "$press_remote" "$press_revision"
+git -C apps/press fetch --depth=1 "\$press_remote" "$press_revision"
 git -C apps/press checkout --detach "$press_revision"
 bench setup requirements
 if [[ ! -f "sites/$PRESS_CONTROL_HOSTNAME/site_config.json" ]]; then
