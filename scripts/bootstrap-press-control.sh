@@ -220,11 +220,10 @@ fi
 bench set-config -g redis_cache 'redis://127.0.0.1:6379'
 bench set-config -g redis_queue 'redis://127.0.0.1:6379'
 bench set-config -g redis_socketio 'redis://127.0.0.1:6379'
-# Use native systemd units for this host.  Together with the APT-provided
-# Ansible and fail2ban above, this keeps `bench setup production` from trying
-# to mutate Ubuntu's externally managed Python or install Supervisor.
-bench set-config -g restart_systemd_on_update 1
-bench set-config -g restart_supervisor_on_update 0
+# These are Bench's common-config commands (not Frappe's `set-config`
+# command).  Press must use native systemd units, never Supervisor.
+bench config restart_systemd_on_update on
+bench config restart_supervisor_on_update off
 install_marker=".rekov-press-control-complete"
 if [[ -f "sites/$PRESS_CONTROL_HOSTNAME/site_config.json" && ! -f "\$install_marker" ]]; then
   # An interrupted install leaves DocTypes and database rows which cannot be
@@ -256,14 +255,34 @@ fi
 bench --site "$PRESS_CONTROL_HOSTNAME" set-config developer_mode 0
 EOF
 
-# ``setup production`` writes systemd/nginx units and explicitly requires root.
-# The bench executable itself is owned by the frappe user, so invoke that exact
-# binary while retaining root privileges and its user-installed Python module.
-cd "$bench_root"
-bench_cli_site_packages="$(find /home/frappe/.local/lib -maxdepth 3 -type d -name site-packages -print -quit)"
-[[ -n "$bench_cli_site_packages" ]] || { echo 'frappe-bench Python module is missing.' >&2; exit 1; }
-HOME=/home/frappe PYTHONPATH="$bench_cli_site_packages${PYTHONPATH:+:$PYTHONPATH}" \
-  /home/frappe/.local/bin/bench setup production frappe
+# Bench's production wrapper has distro-specific provisioning side effects
+# (Supervisor and a global pip install). Generate its systemd/nginx artefacts
+# directly, then install only the generated units and nginx link ourselves.
+as_frappe env PATH="/home/frappe/.local/bin:$PATH" bash -c "
+  set -Eeuo pipefail
+  cd '$bench_root'
+  bench setup systemd --user frappe --yes
+  bench setup nginx --yes
+  bench config restart_systemd_on_update on
+  bench config restart_supervisor_on_update off
+"
+
+bench_name="$(basename "$bench_root")"
+shopt -s nullglob
+systemd_units=("$bench_root"/config/systemd/*)
+shopt -u nullglob
+(( ${#systemd_units[@]} > 0 )) || { echo 'Bench did not generate systemd units.' >&2; exit 1; }
+for unit in "${systemd_units[@]}"; do
+  ln -sfn "$unit" "/etc/systemd/system/$(basename "$unit")"
+done
+ln -sfn "$bench_root/config/nginx.conf" "/etc/nginx/conf.d/${bench_name}.conf"
+systemctl daemon-reload
+# The bench target also starts private Redis instances. This control plane uses
+# the already-running Ubuntu Redis at 127.0.0.1:6379, so enable only web and
+# worker units.
+systemctl enable --now "${bench_name}-web.target" "${bench_name}-workers.target"
+nginx -t
+systemctl reload nginx
 
 # bench setup production leaves a self-signed origin cert; Cloudflare Full (strict)
 # needs a publicly trusted certificate on the origin (same model as ERP bootstrap).
@@ -279,13 +298,13 @@ if [[ ! -f "${le_dir}/fullchain.pem" ]]; then
   fi
   systemctl start nginx
 fi
-as_frappe env PATH="/home/frappe/.local/bin:$PATH" bash -lc "
+as_frappe env PATH="/home/frappe/.local/bin:$PATH" bash -c "
   set -Eeuo pipefail
   cd '$bench_root'
   bench --site '${press_host}' set-config ssl_certificate '${le_dir}/fullchain.pem'
   bench --site '${press_host}' set-config ssl_certificate_key '${le_dir}/privkey.pem'
   bench --site '${press_host}' set-config force_ssl 1
-  bench setup nginx
+  bench setup nginx --yes
 "
 systemctl enable --now nginx
 systemctl reload nginx
