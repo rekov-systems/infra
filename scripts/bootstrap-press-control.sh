@@ -83,13 +83,18 @@ cd "$bench_root"
 git config --global --add safe.directory "$bench_root"
 git config --global --add safe.directory "$bench_root/apps/frappe"
 git config --global --add safe.directory "$bench_root/apps/press"
-if [[ ! -d apps/press ]]; then
-  bench get-app https://github.com/frappe/press.git
+if [[ ! -d apps/press/.git ]]; then
+  git clone https://github.com/frappe/press.git apps/press
 fi
 press_remote="origin"
 git -C apps/press remote get-url origin >/dev/null 2>&1 || press_remote="upstream"
 git -C apps/press fetch --depth=1 "\$press_remote" "$press_revision"
 git -C apps/press checkout --detach "$press_revision"
+grep -qxF press apps.txt 2>/dev/null || echo press >>apps.txt
+# playwright==1.49.1 pins greenlet==3.1.1, which does not build on Python 3.14/aarch64.
+if grep -q 'playwright==1.49.1' apps/press/pyproject.toml; then
+  sed -i 's/playwright==1.49.1/playwright>=1.50.0/' apps/press/pyproject.toml
+fi
 bench setup requirements
 if [[ ! -f "sites/$PRESS_CONTROL_HOSTNAME/site_config.json" ]]; then
   bench new-site "$PRESS_CONTROL_HOSTNAME" \\
