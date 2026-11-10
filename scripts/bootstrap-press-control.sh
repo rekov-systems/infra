@@ -13,9 +13,9 @@ bench_python="python3"
 
 as_frappe() {
   if command -v runuser >/dev/null 2>&1; then
-    runuser -u frappe -- "$@"
+    runuser -u frappe -w /home/frappe -- "$@"
   else
-    sudo -u frappe "$@"
+    sudo -u frappe -H -- "$@"
   fi
 }
 
@@ -29,7 +29,10 @@ apt-get install -y nodejs
 corepack enable || true
 
 id frappe >/dev/null 2>&1 || useradd --create-home --shell /bin/bash frappe
-if [[ -d "$bench_root" ]] && [[ ! -d "$bench_root/apps/frappe" ]]; then
+install -d -o frappe -g frappe /home/frappe
+if [[ -d "$bench_root/apps/frappe" ]]; then
+  chown -R frappe:frappe "$bench_root"
+else
   rm -rf "$bench_root"
 fi
 
@@ -50,6 +53,7 @@ fi
 
 as_frappe env PATH="$PATH" CI=1 BENCH_SUPPRESS_ROOT_WARNING=1 bash <<EOF
 set -Eeuo pipefail
+cd "\$HOME"
 python3 -m pip install --user --break-system-packages frappe-bench
 export PATH="\$HOME/.local/bin:\$PATH"
 export CI=1
