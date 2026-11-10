@@ -118,19 +118,30 @@ git -C apps/press remote get-url origin >/dev/null 2>&1 || press_remote="upstrea
 git -C apps/press fetch --depth=1 "\$press_remote" "$press_revision"
 git -C apps/press checkout --detach "$press_revision"
 grep -qxF press apps.txt 2>/dev/null || echo press >>apps.txt
-# playwright==1.49.1 pins greenlet==3.1.1, which does not build on Python 3.14/aarch64.
-if grep -q 'playwright==1.49.1' apps/press/pyproject.toml; then
-  sed -i 's/playwright==1.49.1/playwright>=1.50.0/' apps/press/pyproject.toml
-fi
-# frappe-mcp pulls pydantic-core without a Python 3.14 wheel on aarch64.
-sed -i '/frappe-mcp @ git+https:\/\/github.com\/frappe\/mcp/d' apps/press/pyproject.toml
-# stripe 2.56 uses stripe.six, which breaks on Python 3.14.
-if grep -q 'stripe~=2.56.0' apps/press/pyproject.toml; then
-  sed -i 's/stripe~=2.56.0/stripe>=10.0.0,<13/' apps/press/pyproject.toml
-  sed -i '/types-stripe/d' apps/press/pyproject.toml
-fi
+patch_press_for_python314() {
+  local f=apps/press/pyproject.toml
+  [[ -f "\$f" ]] || { echo "missing \$f" >&2; return 1; }
+  # Press pins pre-3.14 stacks; vendor six.* and old builds fail on CPython 3.14/aarch64.
+  sed -i \
+    -e 's/ansible==3.4.0/ansible>=10.0.0,<15/' \
+    -e 's/playwright==1.49.1/playwright>=1.50.0/' \
+    -e 's/stripe~=2.56.0/stripe>=10.0.0,<13/' \
+    -e '/frappe-mcp @ git+https:\/\/github.com\/frappe\/mcp/d' \
+    -e '/types-stripe/d' \
+    "\$f"
+}
+patch_press_for_python314
 export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
 bench setup requirements
+uv pip install --python ./env/bin/python 'ansible>=10.0.0,<15' 'stripe>=10.0.0,<13' --upgrade
+if ! ./env/bin/python -c '
+from ansible import constants, context
+from ansible.executor.playbook_executor import PlaybookExecutor
+import stripe
+'; then
+  echo "Press dependency preflight failed (ansible/stripe on Python 3.14)." >&2
+  exit 1
+fi
 if [[ ! -f "sites/$PRESS_CONTROL_HOSTNAME/site_config.json" ]]; then
   bench new-site "$PRESS_CONTROL_HOSTNAME" \\
     --mariadb-root-username root \\
