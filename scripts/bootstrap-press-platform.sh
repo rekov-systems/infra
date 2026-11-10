@@ -9,7 +9,7 @@ set -Eeuo pipefail
 
 bench_root=/home/frappe/press-bench
 source_file=/tmp/rekov/rekov_press_platform.py
-target_file="$bench_root/rekov_press_platform.py"
+target_file="$bench_root/apps/press/press/rekov_press_platform.py"
 
 [[ -f "$source_file" ]] || { echo "Missing $source_file" >&2; exit 1; }
 [[ -d "$bench_root" ]] || { echo "Missing Press bench: $bench_root" >&2; exit 1; }
@@ -20,5 +20,4 @@ runuser -u frappe -- env \
   PRESS_TENANT_NODE_PUBLIC_IP="$PRESS_TENANT_NODE_PUBLIC_IP" \
   PRESS_SSH_PUBLIC_KEY="$PRESS_SSH_PUBLIC_KEY" \
   PATH="/home/frappe/.local/bin:$PATH" \
-  PYTHONPATH="$bench_root" \
-  bash -lc "cd '$bench_root' && bench --site '$PRESS_CONTROL_HOSTNAME' execute rekov_press_platform.bootstrap"
+  bash -lc "cd '$bench_root' && bench --site '$PRESS_CONTROL_HOSTNAME' execute press.rekov_press_platform.bootstrap"

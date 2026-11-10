@@ -1,6 +1,6 @@
 """Idempotent foundation for a Rekov self-hosted Press control plane.
 
-Run with ``bench --site <control-site> execute rekov_press_platform.bootstrap``.
+Run with ``bench --site <control-site> execute press.rekov_press_platform.bootstrap``.
 Configuration is passed through environment variables by deploy.sh; tenant
 domains and public IPs are never hard-coded in this module.
 """
