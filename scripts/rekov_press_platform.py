@@ -243,13 +243,23 @@ def ensure_release_pipeline(team: str, version: str, server_name: str) -> str | 
             # Pending/Scheduled/Preparing/Running builds, and successful
             # builds whose Deploy/Bench jobs are still converging, must not be
             # duplicated by a later reconcile invocation.
-            if latest_build.status in {
-                "Scheduled",
-                "Pending",
-                "Preparing",
-                "Running",
-                "Success",
-            }:
+            if latest_build.status in {"Scheduled", "Pending", "Preparing", "Running"}:
+                return group.name
+            if latest_build.status == "Success":
+                # The normal Press callback creates Deploy after the build.
+                # Repair a lost callback without creating duplicate Deploys;
+                # Deploy.after_insert() is what creates the Bench queue.
+                if not frappe.db.exists(
+                    "Deploy",
+                    {
+                        "group": group.name,
+                        "candidate": candidate.name,
+                        "staging": 0,
+                    },
+                ):
+                    frappe.get_doc(
+                        "Deploy Candidate Build", latest_build.name
+                    ).create_deploy(check_image_exists=False)
                 return group.name
 
         # A failed candidate is immutable. Create a fresh snapshot and let
