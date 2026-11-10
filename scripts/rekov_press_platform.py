@@ -160,6 +160,8 @@ def bootstrap() -> dict:
     settings.hybrid_domain = root
     settings.hybrid_cluster = cluster
     settings.agent_repository_owner = "frappe"
+    settings.certbot_directory = "/etc/letsencrypt"
+    settings.eff_registration_email = f"admin@{root_domain}"
     settings.save(ignore_permissions=True)
     frappe.db.commit()
 
