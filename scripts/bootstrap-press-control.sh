@@ -134,12 +134,15 @@ patch_press_for_python314
 export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
 bench setup requirements
 uv pip install --python ./env/bin/python 'ansible>=10.0.0,<15' 'stripe>=10.0.0,<13' --upgrade
+# pyOpenSSL 25.x breaks when uv pulls cryptography 45+ (TLS DocTypes use OpenSSL.crypto).
+uv pip install --python ./env/bin/python 'cryptography>=44.0.1,<45' 'pyOpenSSL>=25.0.0,<26'
 if ! ./env/bin/python -c '
 from ansible import constants, context
 from ansible.executor.playbook_executor import PlaybookExecutor
 import stripe
+from OpenSSL import SSL, crypto
 '; then
-  echo "Press dependency preflight failed (ansible/stripe on Python 3.14)." >&2
+  echo "Press dependency preflight failed (ansible/stripe/pyOpenSSL on Python 3.14)." >&2
   exit 1
 fi
 if [[ ! -f "sites/$PRESS_CONTROL_HOSTNAME/site_config.json" ]]; then
@@ -149,6 +152,7 @@ if [[ ! -f "sites/$PRESS_CONTROL_HOSTNAME/site_config.json" ]]; then
     --admin-password "$PRESS_ADMIN_PASSWORD"
 fi
 if ! bench --site "$PRESS_CONTROL_HOSTNAME" list-apps 2>/dev/null | grep -qxF press; then
+  uv pip install --python ./env/bin/python 'cryptography>=44.0.1,<45' 'pyOpenSSL>=25.0.0,<26'
   # Resume after failed CI runs: Module Def rows can exist without a finished install.
   bench --site "$PRESS_CONTROL_HOSTNAME" install-app press --force
 fi
