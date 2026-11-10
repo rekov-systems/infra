@@ -8,6 +8,7 @@ domains and public IPs are never hard-coded in this module.
 from __future__ import annotations
 
 import os
+from datetime import timedelta
 
 import frappe
 from frappe.utils import now_datetime
@@ -305,10 +306,33 @@ def setup_server_if_stale(server, doctype: str, stale_minutes: int = 45) -> None
 
 
 def reconcile(server_name: str) -> str | None:
-    """Finish the native Press setup after queued server jobs become active."""
+    """Self-heal server setup and continue Press provisioning."""
     server = frappe.get_doc("Self Hosted Server", server_name)
-    if not server.server:
+    if not server.server or not server.database_server:
         return None
+
+    db_server = frappe.get_doc("Database Server", server.database_server)
+    app_server = frappe.get_doc("Server", server.server)
+    setup_server_if_stale(db_server, "Database Server")
+    db_server.reload()
+
+    if db_server.status == "Active":
+        setup_server_if_stale(app_server, "Server")
+        app_server.reload()
+
+    if db_server.status != "Active" or app_server.status != "Active":
+        # A Press worker or Ansible play can disappear without changing the
+        # parent Self Hosted Server. Keep reconciliation alive until both
+        # child resources converge instead of requiring another Git push.
+        frappe.enqueue_in(
+            timedelta(minutes=5),
+            "press.rekov_press_platform.reconcile",
+            server_name=server.name,
+            queue="long",
+            timeout=2400,
+        )
+        return None
+
     team = server.team
     version = ensure_frappe_version()
     return ensure_release_pipeline(team, version, server.name)
