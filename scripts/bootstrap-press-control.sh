@@ -27,7 +27,7 @@ as_frappe() {
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y build-essential ca-certificates cron curl git libffi-dev libcups2-dev \
+apt-get install -y build-essential ca-certificates cron curl git golang-go libffi-dev libcups2-dev \
   libmariadb-dev libssl-dev mariadb-server nginx pkg-config redis-server sudo \
   python3-dev python3-pip python3-venv software-properties-common xvfb
 curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
