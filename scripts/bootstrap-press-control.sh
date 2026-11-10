@@ -116,6 +116,11 @@ git config --global --add safe.directory "$bench_root/apps/frappe"
 git config --global --add safe.directory "$bench_root/apps/press"
 # ``version-16`` is a moving target.  Pin Frappe before installing Press so
 # every run uses the same API surface as the pinned Press revision.
+if git -C apps/frappe remote get-url origin >/dev/null 2>&1; then
+  git -C apps/frappe remote set-url origin https://github.com/frappe/frappe.git
+else
+  git -C apps/frappe remote add origin https://github.com/frappe/frappe.git
+fi
 git -C apps/frappe fetch --depth=1 origin "$frappe_revision"
 git -C apps/frappe checkout --detach "$frappe_revision"
 if ! ./env/bin/python -c 'from frappe.utils.telemetry import init_telemetry'; then
@@ -125,9 +130,12 @@ fi
 if [[ ! -d apps/press/.git ]]; then
   git clone https://github.com/frappe/press.git apps/press
 fi
-press_remote="origin"
-git -C apps/press remote get-url origin >/dev/null 2>&1 || press_remote="upstream"
-git -C apps/press fetch --depth=1 "\$press_remote" "$press_revision"
+if git -C apps/press remote get-url origin >/dev/null 2>&1; then
+  git -C apps/press remote set-url origin https://github.com/frappe/press.git
+else
+  git -C apps/press remote add origin https://github.com/frappe/press.git
+fi
+git -C apps/press fetch --depth=1 origin "$press_revision"
 git -C apps/press checkout --detach "$press_revision"
 grep -qxF press apps.txt 2>/dev/null || echo press >>apps.txt
 patch_press_for_python314() {
