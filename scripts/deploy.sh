@@ -41,7 +41,71 @@ terraform init -input=false -reconfigure \
   -backend-config="skip_region_validation=true" \
   -backend-config="skip_s3_checksum=true" \
   -backend-config="use_path_style=true"
-terraform apply -auto-approve -input=false
+
+# Terraform apply is not transactional: resources created before a failure stay up.
+# This script never runs destroy on failure. Bootstrap runs only after Terraform succeeds.
+
+reconcile_contabo_state() {
+  if ! terraform state list 2>/dev/null | grep -qx 'contabo_instance.erp'; then
+    return 0
+  fi
+  local log
+  log="$(mktemp)"
+  if terraform apply -refresh-only -auto-approve -input=false >"$log" 2>&1; then
+    rm -f "$log"
+    return 0
+  fi
+  if grep -qiE 'not found|404|does not exist|no instance|instance not found' "$log"; then
+    echo "Contabo instance ID in state is gone (deleted or unpaid). Dropping stale state; next apply creates a new VPS." >&2
+    terraform state rm contabo_instance.erp time_sleep.wait_for_contabo_ip 2>/dev/null || true
+    rm -f "$log"
+    return 0
+  fi
+  cat "$log" >&2
+  rm -f "$log"
+  return 1
+}
+
+reconcile_contabo_state
+
+contabo_usable_in_state() {
+  local ip status
+  ip="$(terraform output -raw erp_public_ip 2>/dev/null || true)"
+  status="$(terraform output -raw erp_contabo_status 2>/dev/null || true)"
+  [[ "${ip:-}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
+  [[ "$status" == "running" || "$status" == "installed" ]] || return 1
+  return 0
+}
+
+wait_contabo_ipv4_in_state() {
+  for _ in $(seq 1 36); do
+    terraform apply -refresh-only -auto-approve -input=false >/dev/null
+    if contabo_usable_in_state; then
+      return 0
+    fi
+    sleep 10
+  done
+  echo "Contabo ERP is not running with a public IPv4 in Terraform state yet." >&2
+  return 1
+}
+
+finish_wildcard_dns() {
+  if wait_contabo_ipv4_in_state; then
+    terraform apply -auto-approve -input=false -target=cloudflare_dns_record.tenants
+    return
+  fi
+  return 1
+}
+
+if ! terraform apply -auto-approve -input=false; then
+  echo "Terraform apply did not complete (partial create is possible; nothing is destroyed)." >&2
+  finish_wildcard_dns || exit 1
+  if ! terraform apply -auto-approve -input=false; then
+    echo "Terraform apply still incomplete after wildcard DNS retry." >&2
+    exit 1
+  fi
+fi
+
 control_ip="$(terraform output -raw control_public_ip)"
 erp_ip="$(terraform output -raw erp_public_ip)"
 erp_host="erp.${PRESS_ROOT_DOMAIN}"
@@ -73,6 +137,11 @@ wait_ssh() {
   return 1
 }
 
+if ! contabo_usable_in_state; then
+  echo "Refusing bootstrap: Contabo is not running with a usable IPv4." >&2
+  exit 1
+fi
+
 wait_ssh "$control_ip"
 wait_ssh "$erp_ip"
 
@@ -84,7 +153,7 @@ EOF
 chmod 600 "$tmp/press.env"
 ssh "${ssh_options[@]}" "ubuntu@${control_ip}" 'sudo rm -rf /tmp/rekov && sudo mkdir -p /tmp/rekov && sudo chown ubuntu:ubuntu /tmp/rekov'
 scp "${ssh_options[@]}" "$root/scripts/bootstrap-press-control.sh" "$tmp/press.env" "ubuntu@${control_ip}:/tmp/rekov/"
-ssh "${ssh_options[@]}" "ubuntu@${control_ip}" 'sudo bash -c "set -a; source /tmp/rekov/press.env; set +a; bash /tmp/rekov/bootstrap-press-control.sh" && sudo rm -rf /tmp/rekov'
+ssh "${ssh_options[@]}" "ubuntu@${control_ip}" 'sudo bash -c "set -a; source /tmp/rekov/press.env; set +a; bash /tmp/rekov/bootstrap-press-control.sh" && sudo rm -rf /tmp/rekov"
 
 mkdir -p "$tmp/erpnext"
 cp "$root/erpnext/docker-compose.yml" "$tmp/erpnext/"

@@ -5,5 +5,6 @@ terraform {
     oci        = { source = "oracle/oci", version = ">= 7.0.0" }
     cloudflare = { source = "cloudflare/cloudflare", version = ">= 5.0.0, < 6.0.0" }
     contabo    = { source = "contabo/contabo", version = ">= 0.1.32" }
+    time       = { source = "hashicorp/time", version = ">= 0.13.0" }
   }
 }
