@@ -151,9 +151,12 @@ PRESS_ADMIN_PASSWORD=$PRESS_ADMIN_PASSWORD
 PRESS_DB_ROOT_PASSWORD=$PRESS_DB_ROOT_PASSWORD
 EOF
 chmod 600 "$tmp/press.env"
-ssh "${ssh_options[@]}" "ubuntu@${control_ip}" 'sudo rm -rf /tmp/rekov && sudo mkdir -p /tmp/rekov && sudo chown ubuntu:ubuntu /tmp/rekov'
+ssh "${ssh_options[@]}" "ubuntu@${control_ip}" \
+  "sudo rm -rf /tmp/rekov && sudo mkdir -p /tmp/rekov && sudo chown ubuntu:ubuntu /tmp/rekov"
 scp "${ssh_options[@]}" "$root/scripts/bootstrap-press-control.sh" "$tmp/press.env" "ubuntu@${control_ip}:/tmp/rekov/"
-ssh "${ssh_options[@]}" "ubuntu@${control_ip}" 'sudo bash -c "set -a; source /tmp/rekov/press.env; set +a; bash /tmp/rekov/bootstrap-press-control.sh" && sudo rm -rf /tmp/rekov"
+ssh "${ssh_options[@]}" "ubuntu@${control_ip}" \
+  sudo bash -c 'set -a; source /tmp/rekov/press.env; set +a; exec bash /tmp/rekov/bootstrap-press-control.sh'
+ssh "${ssh_options[@]}" "ubuntu@${control_ip}" sudo rm -rf /tmp/rekov
 
 mkdir -p "$tmp/erpnext"
 cp "$root/erpnext/docker-compose.yml" "$tmp/erpnext/"
@@ -163,9 +166,12 @@ ADMIN_PASSWORD=$PRESS_ADMIN_PASSWORD
 MYSQL_ROOT_PASSWORD=$PRESS_DB_ROOT_PASSWORD
 ERPNEXT_IMAGE=frappe/erpnext:v16.54.0
 EOF
-ssh "${ssh_options[@]}" "ubuntu@${erp_ip}" 'sudo rm -rf /tmp/rekov && sudo mkdir -p /tmp/rekov && sudo chown ubuntu:ubuntu /tmp/rekov'
+ssh "${ssh_options[@]}" "ubuntu@${erp_ip}" \
+  "sudo rm -rf /tmp/rekov && sudo mkdir -p /tmp/rekov && sudo chown ubuntu:ubuntu /tmp/rekov"
 scp "${ssh_options[@]}" -r "$tmp/erpnext" "$root/scripts/bootstrap-erp.sh" "ubuntu@${erp_ip}:/tmp/rekov/"
-ssh "${ssh_options[@]}" "ubuntu@${erp_ip}" "sudo bash /tmp/rekov/bootstrap-erp.sh '$erp_host' && sudo rm -rf /tmp/rekov"
+quoted_erp_host="$(printf '%q' "$erp_host")"
+ssh "${ssh_options[@]}" "ubuntu@${erp_ip}" \
+  "sudo bash /tmp/rekov/bootstrap-erp.sh ${quoted_erp_host}; sudo rm -rf /tmp/rekov"
 
 echo "Press: https://${PRESS_CONTROL_HOSTNAME}"
 echo "ERP: https://${erp_host}"
