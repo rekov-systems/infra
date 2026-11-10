@@ -114,7 +114,7 @@ cd "$bench_root"
 git config --global --add safe.directory "$bench_root"
 git config --global --add safe.directory "$bench_root/apps/frappe"
 git config --global --add safe.directory "$bench_root/apps/press"
-# ``version-16`` is a moving target.  Pin Frappe before installing Press so
+# version-16 is a moving target. Pin Frappe before installing Press so
 # every run uses the same API surface as the pinned Press revision.
 if git -C apps/frappe remote get-url origin >/dev/null 2>&1; then
   git -C apps/frappe remote set-url origin https://github.com/frappe/frappe.git
@@ -220,8 +220,8 @@ fi
 bench set-config -g redis_cache 'redis://127.0.0.1:6379'
 bench set-config -g redis_queue 'redis://127.0.0.1:6379'
 bench set-config -g redis_socketio 'redis://127.0.0.1:6379'
-# These are Bench's common-config commands (not Frappe's `set-config`
-# command).  Press must use native systemd units, never Supervisor.
+# These are Bench common-config commands, not Frappe set-config commands.
+# Press must use native systemd units, never Supervisor.
 bench config restart_systemd_on_update on
 bench config restart_supervisor_on_update off
 install_marker=".rekov-press-control-complete"
@@ -262,7 +262,9 @@ as_frappe env PATH="/home/frappe/.local/bin:$PATH" bash -c "
   set -Eeuo pipefail
   cd '$bench_root'
   bench setup systemd --user frappe --yes
-  bench setup nginx --yes
+  # Ubuntu's nginx configuration does not define Bench's default main log
+  # format. Keep Ubuntu's normal global access/error logs instead.
+  bench setup nginx --yes --logging none
   bench config restart_systemd_on_update on
   bench config restart_supervisor_on_update off
 "
@@ -304,7 +306,7 @@ as_frappe env PATH="/home/frappe/.local/bin:$PATH" bash -c "
   bench --site '${press_host}' set-config ssl_certificate '${le_dir}/fullchain.pem'
   bench --site '${press_host}' set-config ssl_certificate_key '${le_dir}/privkey.pem'
   bench --site '${press_host}' set-config force_ssl 1
-  bench setup nginx --yes
+  bench setup nginx --yes --logging none
 "
 systemctl enable --now nginx
 systemctl reload nginx
