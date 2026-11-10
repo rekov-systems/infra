@@ -31,7 +31,7 @@ as_frappe() {
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y build-essential ca-certificates certbot cron curl git golang-go libffi-dev libcups2-dev \
+apt-get install -y ansible build-essential ca-certificates certbot cron curl fail2ban git golang-go libffi-dev libcups2-dev \
   libmariadb-dev libssl-dev mariadb-server nginx pkg-config redis-server sudo \
   python3-dev python3-pip python3-venv software-properties-common xvfb
 curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
@@ -220,6 +220,11 @@ fi
 bench set-config -g redis_cache 'redis://127.0.0.1:6379'
 bench set-config -g redis_queue 'redis://127.0.0.1:6379'
 bench set-config -g redis_socketio 'redis://127.0.0.1:6379'
+# Use native systemd units for this host.  Together with the APT-provided
+# Ansible and fail2ban above, this keeps `bench setup production` from trying
+# to mutate Ubuntu's externally managed Python or install Supervisor.
+bench set-config -g restart_systemd_on_update 1
+bench set-config -g restart_supervisor_on_update 0
 install_marker=".rekov-press-control-complete"
 if [[ -f "sites/$PRESS_CONTROL_HOSTNAME/site_config.json" && ! -f "\$install_marker" ]]; then
   # An interrupted install leaves DocTypes and database rows which cannot be
@@ -258,7 +263,6 @@ cd "$bench_root"
 bench_cli_site_packages="$(find /home/frappe/.local/lib -maxdepth 3 -type d -name site-packages -print -quit)"
 [[ -n "$bench_cli_site_packages" ]] || { echo 'frappe-bench Python module is missing.' >&2; exit 1; }
 HOME=/home/frappe PYTHONPATH="$bench_cli_site_packages${PYTHONPATH:+:$PYTHONPATH}" \
-  PIP_BREAK_SYSTEM_PACKAGES=1 \
   /home/frappe/.local/bin/bench setup production frappe
 
 # bench setup production leaves a self-signed origin cert; Cloudflare Full (strict)
