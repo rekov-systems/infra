@@ -162,7 +162,7 @@ patch_press_for_python314() {
   # keep Press on the same OpenSSL stack instead of creating an impossible
   # cryptography<45 + pyOpenSSL<26 dependency set.
   sed -i \
-    -e 's/ansible==3.4.0/ansible>=10.0.0,<15/' \
+    -e 's/ansible==3.4.0/ansible==10.7.0/' \
     -e 's/playwright==1.49.1/playwright>=1.50.0/' \
     -e 's/stripe~=2.56.0/stripe>=10.0.0,<13/' \
     -e 's/pyOpenSSL~=25.0.0/pyOpenSSL>=26.0.0,<27/' \
@@ -221,7 +221,11 @@ patch_press_typeddict_for_python314
 patch_press_hooks_for_asset_build
 export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
 bench setup requirements
-uv pip install --python ./env/bin/python 'ansible>=10.0.0,<15' 'stripe>=10.0.0,<13' --upgrade
+# Press's Ansible runner relies on the collection loader behavior shipped with
+# Ansible 10 (ansible-core 2.17).  Do not allow a newer major release here:
+# Ansible 14/Core 2.19 currently fails while loading ansible.builtin module
+# utilities from Press's embedded PlaybookExecutor.
+uv pip install --python ./env/bin/python 'ansible==10.7.0' 'stripe>=10.0.0,<13' --upgrade
 # Keep the OpenSSL bindings on the versions supported by the pinned Frappe
 # revision.  A loose pyOpenSSL constraint lets uv select cryptography 50,
 # which removes symbols still imported by pyOpenSSL's compatibility layer.
@@ -236,6 +240,9 @@ uv pip install --python ./env/bin/python --no-deps 'frappe-mcp @ git+https://git
 if ! ./env/bin/python -c '
 from ansible import constants, context
 from ansible.executor.playbook_executor import PlaybookExecutor
+from pathlib import Path
+import ansible
+assert (Path(ansible.__file__).parent / "config/ansible_builtin_runtime.yml").is_file()
 import stripe
 from OpenSSL import SSL, crypto
 import frappe_mcp
