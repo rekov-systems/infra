@@ -7,7 +7,11 @@ set -Eeuo pipefail
 : "${PRESS_ADMIN_PASSWORD:?Set PRESS_ADMIN_PASSWORD}"
 : "${PRESS_DB_ROOT_PASSWORD:?Set PRESS_DB_ROOT_PASSWORD}"
 
+# These two revisions are a compatibility unit.  Do not replace either with a
+# moving branch: Press still imports ``init_telemetry`` and Frappe removed that
+# compatibility export after this revision.
 press_revision="3890b928eecc2f0b08d084c40559ca5ebd7d1f64"
+frappe_revision="629c997393dd4e72f69bcb2dc0fde8907cddc6a4"
 bench_root="/home/frappe/press-bench"
 bench_python="/usr/bin/python3.14"
 
@@ -110,6 +114,14 @@ cd "$bench_root"
 git config --global --add safe.directory "$bench_root"
 git config --global --add safe.directory "$bench_root/apps/frappe"
 git config --global --add safe.directory "$bench_root/apps/press"
+# ``version-16`` is a moving target.  Pin Frappe before installing Press so
+# every run uses the same API surface as the pinned Press revision.
+git -C apps/frappe fetch --depth=1 origin "$frappe_revision"
+git -C apps/frappe checkout --detach "$frappe_revision"
+if ! ./env/bin/python -c 'from frappe.utils.telemetry import init_telemetry'; then
+  echo 'Pinned Frappe revision does not provide Press-required init_telemetry.' >&2
+  exit 1
+fi
 if [[ ! -d apps/press/.git ]]; then
   git clone https://github.com/frappe/press.git apps/press
 fi
