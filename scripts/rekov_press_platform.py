@@ -32,24 +32,22 @@ def ensure_doc(doctype: str, name: str, values: dict) -> str:
         return doc.name
 
     doc = frappe.get_doc({"doctype": doctype, "name": name, **values})
-    try:
-        doc.insert(ignore_permissions=True)
-    except frappe.DuplicateEntryError:
-        # A previous bootstrap may have committed this row while the
-        # surrounding operation was interrupted. Re-read it instead of
-        # failing the whole deployment on the second run.
-        frappe.db.rollback()
-        existing_name = frappe.db.get_value(doctype, {"name": name}, "name")
-        if not existing_name:
-            raise
-        doc = frappe.get_doc(doctype, existing_name)
-        changed = False
-        for field, value in values.items():
-            if value is not None and doc.get(field) != value:
-                doc.set(field, value)
-                changed = True
-        if changed:
-            doc.save(ignore_permissions=True)
+    # A previous bootstrap may have committed this row while the surrounding
+    # operation was interrupted. Frappe's native duplicate handling lets us
+    # continue without relying on an exception alias that varies by release.
+    doc.insert(ignore_permissions=True, ignore_if_duplicate=True)
+    existing_name = frappe.db.get_value(doctype, {"name": name}, "name")
+    if not existing_name:
+        return doc.name
+
+    doc = frappe.get_doc(doctype, existing_name)
+    changed = False
+    for field, value in values.items():
+        if value is not None and doc.get(field) != value:
+            doc.set(field, value)
+            changed = True
+    if changed:
+        doc.save(ignore_permissions=True)
     return doc.name
 
 
