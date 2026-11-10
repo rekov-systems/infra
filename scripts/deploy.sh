@@ -165,13 +165,17 @@ cat >"$tmp/press.env" <<EOF
 PRESS_CONTROL_HOSTNAME=${PRESS_CONTROL_HOSTNAME@Q}
 PRESS_ADMIN_PASSWORD=${PRESS_ADMIN_PASSWORD@Q}
 PRESS_DB_ROOT_PASSWORD=${PRESS_DB_ROOT_PASSWORD@Q}
+PRESS_ROOT_DOMAIN=${PRESS_ROOT_DOMAIN@Q}
+PRESS_TENANT_NODE_PUBLIC_IP=${erp_ip@Q}
+PRESS_SSH_PUBLIC_KEY=${TF_VAR_ssh_public_key@Q}
 EOF
 chmod 600 "$tmp/press.env"
 
 remote "$control_ip" "sudo rm -rf /tmp/rekov && sudo mkdir -p /tmp/rekov && sudo chown ubuntu:ubuntu /tmp/rekov"
-scp "${ssh_options[@]}" "$root/scripts/bootstrap-press-control.sh" "$tmp/press.env" "ubuntu@${control_ip}:/tmp/rekov/"
+scp "${ssh_options[@]}" "$root/scripts/bootstrap-press-control.sh" "$root/scripts/bootstrap-press-platform.sh" "$root/scripts/rekov_press_platform.py" "$tmp/press.env" "ubuntu@${control_ip}:/tmp/rekov/"
 remote "$control_ip" "sudo test -s /tmp/rekov/press.env && sudo test -s /tmp/rekov/bootstrap-press-control.sh"
 remote "$control_ip" "sudo bash -c 'set -a && source /tmp/rekov/press.env && set +a && exec bash /tmp/rekov/bootstrap-press-control.sh'"
+remote "$control_ip" "sudo bash -c 'set -a && source /tmp/rekov/press.env && set +a && exec bash /tmp/rekov/bootstrap-press-platform.sh'"
 remote "$control_ip" "sudo rm -rf /tmp/rekov"
 
 # Contabo is deliberately not an ERPNext deployment target anymore.  It is a
