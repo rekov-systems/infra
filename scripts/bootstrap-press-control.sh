@@ -253,9 +253,12 @@ EOF
 
 # ``setup production`` writes systemd/nginx units and explicitly requires root.
 # The bench executable itself is owned by the frappe user, so invoke that exact
-# binary while retaining root privileges.
+# binary while retaining root privileges and its user-installed Python module.
 cd "$bench_root"
-/home/frappe/.local/bin/bench setup production frappe
+bench_cli_site_packages="$(find /home/frappe/.local/lib -maxdepth 3 -type d -name site-packages -print -quit)"
+[[ -n "$bench_cli_site_packages" ]] || { echo 'frappe-bench Python module is missing.' >&2; exit 1; }
+HOME=/home/frappe PYTHONPATH="$bench_cli_site_packages${PYTHONPATH:+:$PYTHONPATH}" \
+  /home/frappe/.local/bin/bench setup production frappe
 
 # bench setup production leaves a self-signed origin cert; Cloudflare Full (strict)
 # needs a publicly trusted certificate on the origin (same model as ERP bootstrap).
