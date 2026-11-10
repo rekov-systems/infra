@@ -221,7 +221,7 @@ bench set-config -g redis_cache 'redis://127.0.0.1:6379'
 bench set-config -g redis_queue 'redis://127.0.0.1:6379'
 bench set-config -g redis_socketio 'redis://127.0.0.1:6379'
 install_marker=".rekov-press-control-complete"
-if [[ -f "sites/$PRESS_CONTROL_HOSTNAME/site_config.json" && ! -f "$install_marker" ]]; then
+if [[ -f "sites/$PRESS_CONTROL_HOSTNAME/site_config.json" && ! -f "\$install_marker" ]]; then
   # An interrupted install leaves DocTypes and database rows which cannot be
   # repaired safely with install-app --force. This path is only for the
   # initial, explicitly disposable control-plane bootstrap.
@@ -237,7 +237,7 @@ if [[ ! -f "sites/$PRESS_CONTROL_HOSTNAME/site_config.json" ]]; then
     --admin-password "$PRESS_ADMIN_PASSWORD"
 fi
 if ! bench --site "$PRESS_CONTROL_HOSTNAME" list-apps 2>/dev/null | grep -qxF press; then
-  if [[ -f "$install_marker" ]]; then
+  if [[ -f "\$install_marker" ]]; then
     echo 'Press is absent from an already initialized control plane; refusing destructive recovery.' >&2
     exit 1
   fi
