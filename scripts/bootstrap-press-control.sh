@@ -293,7 +293,13 @@ rm -f "\$installed_apps_error_file"
 # bench install-app installs Python code but does not guarantee that frontend
 # assets exist on a fresh control plane. Bench writes a hashed bundle name.
 bench build --app press
-press_bundle="\$(find sites/assets/press -type f -name 'press.bundle*.js' -print -quit)"
+[[ -L "sites/assets/press" || -d "sites/assets/press" ]] || {
+  echo 'Press assets link was not created.' >&2
+  exit 1
+}
+# sites/assets/press normally points to apps/press/press/public. Follow that
+# link; without -L find only sees the link itself and reports a false failure.
+press_bundle="\$(find -L sites/assets/press -type f -name 'press.bundle*.js' -print -quit)"
 [[ -n "\$press_bundle" && -s "\$press_bundle" ]] || {
   echo 'Press frontend bundle was not generated.' >&2
   exit 1
