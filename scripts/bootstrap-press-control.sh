@@ -136,13 +136,17 @@ bench setup requirements
 uv pip install --python ./env/bin/python 'ansible>=10.0.0,<15' 'stripe>=10.0.0,<13' --upgrade
 # pyOpenSSL 25.x breaks when uv pulls cryptography 45+ (TLS DocTypes use OpenSSL.crypto).
 uv pip install --python ./env/bin/python 'cryptography>=44.0.1,<45' 'pyOpenSSL>=25.0.0,<26'
+# Dropped from pyproject only to avoid uv building pydantic-core; Press still imports it at runtime.
+uv pip install --python ./env/bin/python 'pydantic-core>=2.50.4' 'pydantic>=2.11.7,<2.13'
+uv pip install --python ./env/bin/python 'frappe-mcp @ git+https://github.com/frappe/mcp'
 if ! ./env/bin/python -c '
 from ansible import constants, context
 from ansible.executor.playbook_executor import PlaybookExecutor
 import stripe
 from OpenSSL import SSL, crypto
+import frappe_mcp
 '; then
-  echo "Press dependency preflight failed (ansible/stripe/pyOpenSSL on Python 3.14)." >&2
+  echo "Press dependency preflight failed (ansible/stripe/pyOpenSSL/frappe_mcp on Python 3.14)." >&2
   exit 1
 fi
 if [[ ! -f "sites/$PRESS_CONTROL_HOSTNAME/site_config.json" ]]; then
@@ -153,6 +157,8 @@ if [[ ! -f "sites/$PRESS_CONTROL_HOSTNAME/site_config.json" ]]; then
 fi
 if ! bench --site "$PRESS_CONTROL_HOSTNAME" list-apps 2>/dev/null | grep -qxF press; then
   uv pip install --python ./env/bin/python 'cryptography>=44.0.1,<45' 'pyOpenSSL>=25.0.0,<26'
+  uv pip install --python ./env/bin/python 'pydantic-core>=2.50.4' 'pydantic>=2.11.7,<2.13'
+  uv pip install --python ./env/bin/python 'frappe-mcp @ git+https://github.com/frappe/mcp'
   # Resume after failed CI runs: Module Def rows can exist without a finished install.
   bench --site "$PRESS_CONTROL_HOSTNAME" install-app press --force
 fi
