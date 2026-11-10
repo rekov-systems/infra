@@ -251,8 +251,11 @@ fi
 bench --site "$PRESS_CONTROL_HOSTNAME" set-config developer_mode 0
 EOF
 
-as_frappe env PATH="/home/frappe/.local/bin:$PATH" \
-  bash -lc "cd '$bench_root' && bench setup production frappe"
+# ``setup production`` writes systemd/nginx units and explicitly requires root.
+# The bench executable itself is owned by the frappe user, so invoke that exact
+# binary while retaining root privileges.
+cd "$bench_root"
+/home/frappe/.local/bin/bench setup production frappe
 
 # bench setup production leaves a self-signed origin cert; Cloudflare Full (strict)
 # needs a publicly trusted certificate on the origin (same model as ERP bootstrap).
