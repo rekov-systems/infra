@@ -323,13 +323,17 @@ def bootstrap() -> dict:
     if not server_doc.server or not server_doc.database_server:
         server_doc.ping_ansible()
         server_doc.reload()
-        if server_doc.status in ("Pending", "Active"):
-            if not server_doc.database_server:
-                server_doc.create_database_server()
-            server_doc.reload()
-            if not server_doc.server:
-                server_doc.create_application_server()
-            server_doc.reload()
+        if server_doc.status not in ("Pending", "Active"):
+            frappe.throw(
+                "Press could not connect to the tenant node over SSH. "
+                "Check the SSH key, ubuntu access, and the Ansible Play log."
+            )
+        if not server_doc.database_server:
+            server_doc.create_database_server()
+        server_doc.reload()
+        if not server_doc.server:
+            server_doc.create_application_server()
+        server_doc.reload()
     if server_doc.server and server_doc.database_server:
         db_server = frappe.get_doc("Database Server", server_doc.database_server)
         app_server = frappe.get_doc("Server", server_doc.server)

@@ -10,6 +10,7 @@ trap 'status=$?; echo "Press bootstrap failed at line ${BASH_LINENO[0]}: ${BASH_
 : "${PRESS_ADMIN_PASSWORD:?Set PRESS_ADMIN_PASSWORD}"
 : "${PRESS_DB_ROOT_PASSWORD:?Set PRESS_DB_ROOT_PASSWORD}"
 : "${PRESS_SSH_PRIVATE_KEY:?Set PRESS_SSH_PRIVATE_KEY}"
+: "${PRESS_TENANT_NODE_PUBLIC_IP:?Set PRESS_TENANT_NODE_PUBLIC_IP}"
 
 # These two revisions are a compatibility unit.  Do not replace either with a
 # moving branch: Press still imports ``init_telemetry`` and Frappe removed that
@@ -52,6 +53,13 @@ install -d -o frappe -g frappe -m 0700 /home/frappe/.ssh
 printf '%s\n' "$PRESS_SSH_PRIVATE_KEY" > /home/frappe/.ssh/id_ed25519
 chown frappe:frappe /home/frappe/.ssh/id_ed25519
 chmod 0600 /home/frappe/.ssh/id_ed25519
+# Press runs Ansible as frappe. Seed the host key explicitly so the first
+# managed-server connection is non-interactive and does not fail on the
+# control plane's default StrictHostKeyChecking policy.
+ssh-keygen -R "$PRESS_TENANT_NODE_PUBLIC_IP" -f /home/frappe/.ssh/known_hosts >/dev/null 2>&1 || true
+ssh-keyscan -T 10 -H "$PRESS_TENANT_NODE_PUBLIC_IP" > /home/frappe/.ssh/known_hosts
+chown frappe:frappe /home/frappe/.ssh/known_hosts
+chmod 0600 /home/frappe/.ssh/known_hosts
 if [[ -d "$bench_root/apps/frappe" ]] && bench_env_python_ok; then
   chown -R frappe:frappe "$bench_root"
 else
