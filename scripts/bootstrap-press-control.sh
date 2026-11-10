@@ -216,9 +216,35 @@ patch_press_hooks_for_asset_build() {
   # dashboard route, so keep this hook site-independent.
   sed -i 's#get_frappe_io_auth_url() or "/"#"/"#' "\$f"
 }
+patch_press_for_ansible_collection_loader() {
+  local f=apps/press/press/runner.py
+  [[ -f "\$f" ]] || { echo "missing \$f" >&2; return 1; }
+  python3.14 - "\$f" <<'PY'
+import sys
+from pathlib import Path
+
+p = Path(sys.argv[1])
+text = p.read_text()
+old_import = 'from ansible.plugins.action.async_status import ActionModule\n'
+new_import = old_import + 'from ansible.plugins.loader import init_plugin_loader\n'
+if 'from ansible.plugins.loader import init_plugin_loader' not in text:
+    if old_import not in text:
+        raise SystemExit('unexpected Press runner imports')
+    text = text.replace(old_import, new_import, 1)
+
+old_load = '        playbook = Playbook.load(\n'
+new_load = '        init_plugin_loader()\n        playbook = Playbook.load(\n'
+if '        init_plugin_loader()\n        playbook = Playbook.load(' not in text:
+    if old_load not in text:
+        raise SystemExit('unexpected Press runner playbook loader')
+    text = text.replace(old_load, new_load, 1)
+p.write_text(text)
+PY
+}
 patch_press_for_python314
 patch_press_typeddict_for_python314
 patch_press_hooks_for_asset_build
+patch_press_for_ansible_collection_loader
 export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
 bench setup requirements
 # Press's Ansible runner relies on the collection loader behavior shipped with
@@ -240,9 +266,12 @@ uv pip install --python ./env/bin/python --no-deps 'frappe-mcp @ git+https://git
 if ! ./env/bin/python -c '
 from ansible import constants, context
 from ansible.executor.playbook_executor import PlaybookExecutor
+from ansible.plugins.loader import init_plugin_loader
 from pathlib import Path
 import ansible
 assert (Path(ansible.__file__).parent / "config/ansible_builtin_runtime.yml").is_file()
+init_plugin_loader()
+import ansible_collections.ansible.builtin
 import stripe
 from OpenSSL import SSL, crypto
 import frappe_mcp
