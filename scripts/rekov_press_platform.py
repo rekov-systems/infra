@@ -171,7 +171,14 @@ def ensure_app_source(app_name: str, title: str, repository: str, version: str, 
 
 
 def ensure_release_pipeline(team: str, version: str, server_name: str) -> str | None:
-    """Create the first ERPNext release group once the app server is ready."""
+    """Reconcile the native Press release/deploy/bench pipeline.
+
+    A Bench is not a standalone record in Press. It is created by a Deploy
+    after a Deploy Candidate Build succeeds. The old implementation treated
+    any existing Bench or Deploy Candidate as completion, which left the
+    self-hosted server visibly stuck in Pending after an interrupted or
+    failed first build.
+    """
     server = frappe.get_doc("Self Hosted Server", server_name)
     if not server.server:
         return None
@@ -208,10 +215,51 @@ def ensure_release_pipeline(team: str, version: str, server_name: str) -> str | 
         group.append("apps", {"app": "erpnext", "source": erpnext_source})
     group.save(ignore_permissions=True)
 
-    has_deployment = frappe.db.exists("Bench", {"group": group.name}) or frappe.db.exists(
-        "Deploy Candidate", {"group": group.name}
+    # A successful Bench is the only terminal success signal for this stage.
+    # Never manufacture a Bench directly: Press creates it from Deploy.
+    if frappe.db.exists("Bench", {"group": group.name, "status": "Active"}):
+        return group.name
+
+    candidates = frappe.get_all(
+        "Deploy Candidate",
+        filters={"group": group.name},
+        fields=["name", "creation"],
+        order_by="creation desc",
+        limit_page_length=1,
     )
-    if not has_deployment:
+    if candidates:
+        candidate = frappe.get_doc("Deploy Candidate", candidates[0].name)
+        builds = frappe.get_all(
+            "Deploy Candidate Build",
+            filters={"deploy_candidate": candidate.name},
+            fields=["name", "status", "deploy_after_build", "creation"],
+            order_by="creation desc",
+            limit_page_length=1,
+        )
+        if builds:
+            latest_build = builds[0]
+            # Pending/Scheduled/Preparing/Running builds, and successful
+            # builds whose Deploy/Bench jobs are still converging, must not be
+            # duplicated by a later reconcile invocation.
+            if latest_build.status in {
+                "Scheduled",
+                "Pending",
+                "Preparing",
+                "Running",
+                "Success",
+            }:
+                return group.name
+
+        # A failed candidate is immutable. Create a fresh snapshot and let
+        # Press's own build/deploy hooks create the next Bench.
+        if not builds or latest_build.status in {"Failure", "Cancelled"}:
+            candidate = None
+        else:
+            return group.name
+    else:
+        candidate = None
+
+    if candidate is None:
         group.initial_deploy()
     return group.name
 
