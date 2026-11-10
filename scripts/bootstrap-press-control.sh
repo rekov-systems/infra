@@ -289,10 +289,10 @@ if ! awk '\$1 == "press" { found = 1 } END { exit !found }' "\$installed_apps_fi
 fi
 rm -f "\$installed_apps_file"
 rm -f "\$installed_apps_error_file"
-# Press declares press.bundle.js in hooks.py. Build it explicitly because
-# bench install-app installs Python code but does not guarantee that frontend
-# assets exist on a fresh control plane. Bench writes a hashed bundle name.
-bench build --app press
+# Press declares press.bundle.js in hooks.py. Build the complete Bench asset
+# set: building only Press leaves Frappe's Desk bundle stale/incomplete (for
+# example, frappe.ui.create_menu can be absent from desk.bundle.js).
+bench build
 [[ -L "sites/assets/press" || -d "sites/assets/press" ]] || {
   echo 'Press assets link was not created.' >&2
   exit 1
@@ -371,6 +371,26 @@ systemctl reload nginx
 EOF
 chmod 0755 /etc/letsencrypt/renewal-hooks/deploy/reload-nginx
 systemctl enable --now certbot.timer
+# Do not report a successful deployment while the origin is unreachable.
+# Cloudflare returns 521 when Nginx is stopped or no longer owns HTTPS.
+systemctl enable --now nginx
+systemctl restart nginx
+systemctl is-active --quiet nginx || {
+  systemctl status nginx --no-pager >&2 || true
+  journalctl -u nginx -n 80 --no-pager >&2 || true
+  exit 1
+}
+ss -ltn '( sport = :80 or sport = :443 )' >&2 || {
+  echo 'Nginx is active but is not listening on ports 80/443.' >&2
+  exit 1
+}
+curl --fail --silent --show-error --insecure --max-time 15 \
+  --resolve "${press_host}:443:127.0.0.1" \
+  "https://${press_host}/login" -o /dev/null || {
+  echo "Local HTTPS health check failed for ${press_host}." >&2
+  nginx -T >&2 || true
+  exit 1
+}
 touch "$bench_root/.rekov-press-control-complete"
 chown frappe:frappe "$bench_root/.rekov-press-control-complete"
 echo "Press control plane installed for $PRESS_CONTROL_HOSTNAME."
