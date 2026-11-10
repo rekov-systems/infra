@@ -99,12 +99,15 @@ wait_contabo_ipv4_in_state() {
 
 terraform_apply_until_contabo_dns() {
   terraform apply -auto-approve -input=false
-  if terraform state list 2>/dev/null | grep -q 'cloudflare_dns_record.tenants'; then
+  # Do not pipe `terraform state list` into `grep -q` here.  With `pipefail`
+  # enabled, grep legitimately exits as soon as it finds a match and Terraform
+  # can then receive SIGPIPE, making a present record look absent.
+  if terraform state show 'cloudflare_dns_record.tenants[0]' >/dev/null 2>&1; then
     return 0
   fi
   wait_contabo_ipv4_in_state || return 1
   terraform apply -auto-approve -input=false
-  terraform state list 2>/dev/null | grep -q 'cloudflare_dns_record.tenants' || {
+  terraform state show 'cloudflare_dns_record.tenants[0]' >/dev/null 2>&1 || {
     echo "Wildcard DNS record was not created after Contabo became ready." >&2
     return 1
   }
