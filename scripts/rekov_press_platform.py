@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 
 import frappe
+from frappe.utils import now_datetime
 from press.runner import Ansible as PressAnsible
 
 
@@ -264,6 +265,45 @@ def ensure_release_pipeline(team: str, version: str, server_name: str) -> str | 
     return group.name
 
 
+def setup_server_if_stale(server, doctype: str, stale_minutes: int = 45) -> None:
+    """Retry a Press server setup whose Ansible job stopped converging.
+
+    Press leaves the resource in ``Installing`` while the async Ansible play
+    runs. A dead worker or lost callback can leave that state forever, so the
+    bootstrap must inspect the latest play instead of treating Installing as
+    permanently in progress.
+    """
+    if server.status == "Active":
+        return
+
+    latest_play = frappe.get_all(
+        "Ansible Play",
+        filters={"server_type": doctype, "server": server.name},
+        fields=["name", "status", "start", "end", "creation"],
+        order_by="creation desc",
+        limit_page_length=1,
+    )
+    play = latest_play[0] if latest_play else None
+    if server.status == "Installing" and play:
+        if play.status == "Running" and play.start:
+            age_minutes = (now_datetime() - play.start).total_seconds() / 60
+            if age_minutes < stale_minutes:
+                return
+        elif play.status == "Pending":
+            reference_time = play.start or play.creation
+            if reference_time:
+                age_minutes = (now_datetime() - reference_time).total_seconds() / 60
+                if age_minutes < stale_minutes:
+                    return
+
+    # Pending/Broken, missing plays, failed plays, and stale Installing plays
+    # are safe to retry through Press's normal async setup method.
+    if server.status != "Pending":
+        server.status = "Pending"
+        server.save(ignore_permissions=True)
+    server.setup_server()
+
+
 def reconcile(server_name: str) -> str | None:
     """Finish the native Press setup after queued server jobs become active."""
     server = frappe.get_doc("Self Hosted Server", server_name)
@@ -411,10 +451,12 @@ def bootstrap() -> dict:
     if server_doc.server and server_doc.database_server:
         db_server = frappe.get_doc("Database Server", server_doc.database_server)
         app_server = frappe.get_doc("Server", server_doc.server)
-        if db_server.status not in ("Active", "Installing"):
-            db_server.setup_server()
-        if server_doc.different_database_server and app_server.status not in ("Active", "Installing"):
-            app_server.setup_server()
+        setup_server_if_stale(db_server, "Database Server")
+        # On a hybrid server Press normally invokes this from the database
+        # setup callback. Reconcile it explicitly as well, so a lost callback
+        # cannot leave the application server Pending forever.
+        if db_server.status == "Active":
+            setup_server_if_stale(app_server, "Server")
         ensure_frappe_version()
         ensure_release_pipeline(team, "Version 16", self_hosted_server)
         frappe.enqueue(
