@@ -199,6 +199,11 @@ patch_press_typeddict_for_python314
 export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
 bench setup requirements
 uv pip install --python ./env/bin/python 'ansible>=10.0.0,<15' 'stripe>=10.0.0,<13' --upgrade
+# Keep the OpenSSL bindings on the versions supported by the pinned Frappe
+# revision.  A loose pyOpenSSL constraint lets uv select cryptography 50,
+# which removes symbols still imported by pyOpenSSL's compatibility layer.
+uv pip install --python ./env/bin/python \
+  'cryptography==46.0.7' 'pyOpenSSL==26.0.0'
 # Dropped from pyproject only to avoid uv building pydantic-core; Press still imports it at runtime.
 # frappe-mcp pins pydantic~=2.11.7 (core 2.33.2 has no cp314 wheels); use a matched pair with wheels.
 uv pip install --python ./env/bin/python 'pydantic==2.12.5' 'pydantic-core==2.41.5'
@@ -261,6 +266,8 @@ if ! awk '\$1 == "press" { found = 1 } END { exit !found }' "\$installed_apps_fi
   if [[ -f "\$install_marker" ]]; then
     echo 'Press is missing from an initialized control plane; retrying only install-app (no site or database deletion).' >&2
   fi
+  uv pip install --python ./env/bin/python \
+    'cryptography==46.0.7' 'pyOpenSSL==26.0.0'
   uv pip install --python ./env/bin/python 'pydantic==2.12.5' 'pydantic-core==2.41.5'
   uv pip install --python ./env/bin/python \
     'Werkzeug==3.1.3' 'jsonschema>=4.24.0,<5' 'Click>=8.1.8,<9'
