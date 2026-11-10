@@ -240,10 +240,22 @@ if [[ ! -f "sites/$PRESS_CONTROL_HOSTNAME/site_config.json" ]]; then
     --mariadb-root-password "$PRESS_DB_ROOT_PASSWORD" \\
     --admin-password "$PRESS_ADMIN_PASSWORD"
 fi
-if ! bench --site "$PRESS_CONTROL_HOSTNAME" list-apps 2>/dev/null | grep -qxF press; then
+installed_apps_file=".rekov-installed-apps"
+installed_apps_error_file=".rekov-installed-apps.err"
+if ! bench --site "$PRESS_CONTROL_HOSTNAME" list-apps >"\$installed_apps_file" 2>"\$installed_apps_error_file"; then
+  echo 'Could not read the installed Press applications.' >&2
+  cat "\$installed_apps_error_file" >&2 || true
+  exit 1
+fi
+# Read the output separately so a Bench failure is never reported as an
+# absent app.  A previous run can have completed the web/systemd portion while
+# `install-app press` was interrupted.  Retrying that one idempotent Bench
+# operation is safe; dropping the site/database is not.
+if ! grep -qxF press "\$installed_apps_file"; then
+  echo 'Installed apps reported by Bench:' >&2
+  cat "\$installed_apps_file" >&2
   if [[ -f "\$install_marker" ]]; then
-    echo 'Press is absent from an already initialized control plane; refusing destructive recovery.' >&2
-    exit 1
+    echo 'Press is missing from an initialized control plane; retrying only install-app (no site or database deletion).' >&2
   fi
   uv pip install --python ./env/bin/python 'cryptography>=44.0.1,<45' 'pyOpenSSL>=25.0.0,<26'
   uv pip install --python ./env/bin/python 'pydantic==2.12.5' 'pydantic-core==2.41.5'
@@ -251,7 +263,13 @@ if ! bench --site "$PRESS_CONTROL_HOSTNAME" list-apps 2>/dev/null | grep -qxF pr
     'Werkzeug==3.1.3' 'jsonschema>=4.24.0,<5' 'Click>=8.1.8,<9'
   uv pip install --python ./env/bin/python --no-deps 'frappe-mcp @ git+https://github.com/frappe/mcp'
   bench --site "$PRESS_CONTROL_HOSTNAME" install-app press
+  bench --site "$PRESS_CONTROL_HOSTNAME" list-apps | grep -qxF press || {
+    echo 'Press installation returned without registering the app.' >&2
+    exit 1
+  }
 fi
+rm -f "\$installed_apps_file"
+rm -f "\$installed_apps_error_file"
 bench --site "$PRESS_CONTROL_HOSTNAME" set-config developer_mode 0
 EOF
 

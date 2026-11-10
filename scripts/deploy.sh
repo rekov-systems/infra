@@ -117,7 +117,6 @@ terraform_apply_until_contabo_dns
 
 control_ip="$(terraform output -raw control_public_ip)"
 erp_ip="$(terraform output -raw erp_public_ip)"
-erp_host="erp.${PRESS_ROOT_DOMAIN}"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -175,20 +174,13 @@ remote "$control_ip" "sudo test -s /tmp/rekov/press.env && sudo test -s /tmp/rek
 remote "$control_ip" "sudo bash -c 'set -a && source /tmp/rekov/press.env && set +a && exec bash /tmp/rekov/bootstrap-press-control.sh'"
 remote "$control_ip" "sudo rm -rf /tmp/rekov"
 
-mkdir -p "$tmp/erpnext"
-cp "$root/erpnext/docker-compose.yml" "$tmp/erpnext/"
-cat >"$tmp/erpnext/.env" <<EOF
-FRAPPE_SITE_NAME=${erp_host@Q}
-ADMIN_PASSWORD=${PRESS_ADMIN_PASSWORD@Q}
-MYSQL_ROOT_PASSWORD=${PRESS_DB_ROOT_PASSWORD@Q}
-ERPNEXT_IMAGE=frappe/erpnext:v16.54.0
-EOF
-
-remote "$erp_ip" "sudo rm -rf /tmp/rekov && sudo mkdir -p /tmp/rekov && sudo chown ubuntu:ubuntu /tmp/rekov"
-scp "${ssh_options[@]}" -r "$tmp/erpnext" "$root/scripts/bootstrap-erp.sh" "ubuntu@${erp_ip}:/tmp/rekov/"
-quoted_erp_host="$(printf '%q' "$erp_host")"
-remote "$erp_ip" "sudo test -s /tmp/rekov/bootstrap-erp.sh"
-remote "$erp_ip" "sudo bash /tmp/rekov/bootstrap-erp.sh ${quoted_erp_host} && sudo rm -rf /tmp/rekov"
+# Contabo is deliberately not an ERPNext deployment target anymore.  It is a
+# clean, SSH-reachable candidate for Press's "Self Hosted Server" workflow.
+# Press verifies it, installs/configures its Agent, and subsequently creates
+# every bench, database and tenant through Press jobs.  Keeping a Docker
+# Compose bootstrap here would create a second, unmanaged control plane.
+remote "$erp_ip" "sudo test -n \"\$(id -un ubuntu)\" && sudo -u ubuntu sudo -n true"
 
 echo "Press: https://${PRESS_CONTROL_HOSTNAME}"
-echo "ERP: https://${erp_host}"
+echo "Tenant node candidate: ${erp_ip}"
+echo "Tenant DNS zone: *.${PRESS_ROOT_DOMAIN}"
