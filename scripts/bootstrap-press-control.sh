@@ -374,7 +374,7 @@ as_frappe env PATH="/home/frappe/.local/bin:$PATH" bash -c "
 # conf.d, so disable every plain-HTTP listener before restarting Nginx.
 while IFS= read -r nginx_config; do
   sed -i -E \
-    -e 's/^[[:space:]]*listen[[:space:]]+80([[:space:]]+[^;]+)?;/    # HTTP disabled; HTTPS is served on 443;/' \
+    -e 's/^[[:space:]]*listen[[:space:]]+80([[:space:]]+[^;]+)?;/    listen 127.0.0.1:8080; # HTTP is local-only; HTTPS is served on 443;/' \
     -e 's/^[[:space:]]*listen[[:space:]]+\[::\]:80([[:space:]]+[^;]+)?;/    # IPv6 HTTP disabled; HTTPS is served on 443;/' \
     "${nginx_config}"
 done < <(find -L "${bench_root}/config" /etc/nginx/conf.d /etc/nginx/sites-enabled \
