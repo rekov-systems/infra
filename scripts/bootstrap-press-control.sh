@@ -280,6 +280,15 @@ if ! awk '\$1 == "press" { found = 1 } END { exit !found }' "\$installed_apps_fi
 fi
 rm -f "\$installed_apps_file"
 rm -f "\$installed_apps_error_file"
+# Press declares press.bundle.js in hooks.py. Build it explicitly because
+# bench install-app installs Python code but does not guarantee that frontend
+# assets exist on a fresh control plane.
+bench build --app press
+[[ -s "sites/assets/press/js/press.bundle.js" ]] || {
+  echo 'Press frontend bundle was not generated.' >&2
+  exit 1
+}
+bench --site "$PRESS_CONTROL_HOSTNAME" clear-cache
 bench --site "$PRESS_CONTROL_HOSTNAME" set-config developer_mode 0
 EOF
 
