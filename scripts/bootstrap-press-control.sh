@@ -337,7 +337,8 @@ systemctl daemon-reload
 # worker units.
 systemctl enable --now "${bench_name}-web.target" "${bench_name}-workers.target"
 nginx -t
-systemctl reload nginx
+systemctl enable --now nginx
+systemctl reload-or-restart nginx
 
 # bench setup production leaves a self-signed origin cert; Cloudflare Full (strict)
 # needs a publicly trusted certificate on the origin (same model as ERP bootstrap).
@@ -362,7 +363,7 @@ as_frappe env PATH="/home/frappe/.local/bin:$PATH" bash -c "
   bench setup nginx --yes --logging none
 "
 systemctl enable --now nginx
-systemctl reload nginx
+systemctl reload-or-restart nginx
 install -d -m 0755 /etc/letsencrypt/renewal-hooks/deploy
 cat >/etc/letsencrypt/renewal-hooks/deploy/reload-nginx <<'EOF'
 #!/usr/bin/env bash
