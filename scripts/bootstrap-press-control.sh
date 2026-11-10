@@ -130,7 +130,46 @@ patch_press_for_python314() {
     -e '/types-stripe/d' \
     "\$f"
 }
+patch_press_typeddict_for_python314() {
+  local f=apps/press/press/press/doctype/deploy_candidate/cache_utils.py
+  [[ -f "\$f" ]] || return 0
+  grep -q 'cwd=str,' "\$f" || return 0
+  python3.14 - "\$f" <<'PY'
+import sys
+from pathlib import Path
+
+p = Path(sys.argv[1])
+text = p.read_text()
+old = (
+    'CommandOutput = TypedDict(\n'
+    '\t"CommandOutput",\n'
+    '\tcwd=str,\n'
+    '\timage_tag=str,\n'
+    '\treturncode=int,\n'
+    '\toutput=str,\n'
+    ')'
+)
+new = (
+    'CommandOutput = TypedDict(\n'
+    '\t"CommandOutput",\n'
+    '\t{\n'
+    '\t\t"cwd": str,\n'
+    '\t\t"image_tag": str,\n'
+    '\t\t"returncode": int,\n'
+    '\t\t"output": str,\n'
+    '\t},\n'
+    ')'
+)
+if old not in text:
+    if '"cwd": str' in text:
+        sys.exit(0)
+    print('unexpected TypedDict in deploy_candidate/cache_utils.py', file=sys.stderr)
+    sys.exit(1)
+p.write_text(text.replace(old, new, 1))
+PY
+}
 patch_press_for_python314
+patch_press_typeddict_for_python314
 export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
 bench setup requirements
 uv pip install --python ./env/bin/python 'ansible>=10.0.0,<15' 'stripe>=10.0.0,<13' --upgrade
