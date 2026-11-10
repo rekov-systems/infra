@@ -3,6 +3,8 @@
 # Required: PRESS_CONTROL_HOSTNAME, PRESS_ADMIN_PASSWORD, PRESS_DB_ROOT_PASSWORD.
 set -Eeuo pipefail
 
+trap 'status=$?; echo "Press bootstrap failed at line ${BASH_LINENO[0]}: ${BASH_COMMAND} (exit ${status})" >&2; exit "$status"' ERR
+
 : "${PRESS_CONTROL_HOSTNAME:?Set PRESS_CONTROL_HOSTNAME}"
 : "${PRESS_ADMIN_PASSWORD:?Set PRESS_ADMIN_PASSWORD}"
 : "${PRESS_DB_ROOT_PASSWORD:?Set PRESS_DB_ROOT_PASSWORD}"
@@ -142,10 +144,14 @@ patch_press_for_python314() {
   local f=apps/press/pyproject.toml
   [[ -f "\$f" ]] || { echo "missing \$f" >&2; return 1; }
   # Press pins pre-3.14 stacks; vendor six.* and old builds fail on CPython 3.14/aarch64.
+  # The pinned Frappe revision requires cryptography 46 / pyOpenSSL 26, so
+  # keep Press on the same OpenSSL stack instead of creating an impossible
+  # cryptography<45 + pyOpenSSL<26 dependency set.
   sed -i \
     -e 's/ansible==3.4.0/ansible>=10.0.0,<15/' \
     -e 's/playwright==1.49.1/playwright>=1.50.0/' \
     -e 's/stripe~=2.56.0/stripe>=10.0.0,<13/' \
+    -e 's/pyOpenSSL~=25.0.0/pyOpenSSL>=26.0.0,<27/' \
     -e '/frappe-mcp @ git+https:\/\/github.com\/frappe\/mcp/d' \
     -e '/types-stripe/d' \
     "\$f"
@@ -193,8 +199,6 @@ patch_press_typeddict_for_python314
 export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
 bench setup requirements
 uv pip install --python ./env/bin/python 'ansible>=10.0.0,<15' 'stripe>=10.0.0,<13' --upgrade
-# pyOpenSSL 25.x breaks when uv pulls cryptography 45+ (TLS DocTypes use OpenSSL.crypto).
-uv pip install --python ./env/bin/python 'cryptography>=44.0.1,<45' 'pyOpenSSL>=25.0.0,<26'
 # Dropped from pyproject only to avoid uv building pydantic-core; Press still imports it at runtime.
 # frappe-mcp pins pydantic~=2.11.7 (core 2.33.2 has no cp314 wheels); use a matched pair with wheels.
 uv pip install --python ./env/bin/python 'pydantic==2.12.5' 'pydantic-core==2.41.5'
@@ -257,7 +261,6 @@ if ! awk '\$1 == "press" { found = 1 } END { exit !found }' "\$installed_apps_fi
   if [[ -f "\$install_marker" ]]; then
     echo 'Press is missing from an initialized control plane; retrying only install-app (no site or database deletion).' >&2
   fi
-  uv pip install --python ./env/bin/python 'cryptography>=44.0.1,<45' 'pyOpenSSL>=25.0.0,<26'
   uv pip install --python ./env/bin/python 'pydantic==2.12.5' 'pydantic-core==2.41.5'
   uv pip install --python ./env/bin/python \
     'Werkzeug==3.1.3' 'jsonschema>=4.24.0,<5' 'Click>=8.1.8,<9'
