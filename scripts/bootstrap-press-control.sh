@@ -9,7 +9,13 @@ set -Eeuo pipefail
 
 press_revision="3890b928eecc2f0b08d084c40559ca5ebd7d1f64"
 bench_root="/home/frappe/press-bench"
-bench_python="python3"
+bench_python="/usr/bin/python3.14"
+
+bench_env_python_ok() {
+  local venv_py="$bench_root/env/bin/python"
+  [[ -x "$venv_py" ]] || return 1
+  "$venv_py" -c 'import sys; sys.exit(0 if sys.version_info[:2] == (3, 14) else 1)' 2>/dev/null
+}
 
 as_frappe() {
   if command -v runuser >/dev/null 2>&1; then
@@ -27,10 +33,14 @@ apt-get install -y build-essential ca-certificates cron curl git libffi-dev libc
 curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
 apt-get install -y nodejs
 corepack enable || true
+add-apt-repository -y ppa:deadsnakes/ppa
+apt-get update
+apt-get install -y python3.14 python3.14-dev python3.14-venv
+bench_python="$(command -v python3.14)"
 
 id frappe >/dev/null 2>&1 || useradd --create-home --shell /bin/bash frappe
 install -d -o frappe -g frappe /home/frappe
-if [[ -d "$bench_root/apps/frappe" ]]; then
+if [[ -d "$bench_root/apps/frappe" ]] && bench_env_python_ok; then
   chown -R frappe:frappe "$bench_root"
 else
   rm -rf "$bench_root"
@@ -57,7 +67,9 @@ cd "\$HOME"
 python3 -m pip install --user --break-system-packages frappe-bench
 export PATH="\$HOME/.local/bin:\$PATH"
 export CI=1
-if [[ -d "$bench_root" ]] && [[ ! -d "$bench_root/apps/frappe" ]]; then
+if [[ ! -d "$bench_root/apps/frappe" ]]; then
+  rm -rf "$bench_root"
+elif [[ -x "$bench_root/env/bin/python" ]] && ! "$bench_root/env/bin/python" -c 'import sys; sys.exit(0 if sys.version_info[:2] == (3, 14) else 1)' 2>/dev/null; then
   rm -rf "$bench_root"
 fi
 if [[ ! -d "$bench_root/apps/frappe" ]]; then
