@@ -1,0 +1,112 @@
+services:
+  configurator:
+    image: ${ERPNEXT_IMAGE}
+    entrypoint: ["bash", "-c"]
+    command: >
+      ls -1 apps > sites/apps.txt;
+      bench set-config -g db_host $$DB_HOST;
+      bench set-config -gp db_port $$DB_PORT;
+      bench set-config -g redis_cache "redis://$$REDIS_CACHE";
+      bench set-config -g redis_queue "redis://$$REDIS_QUEUE";
+      bench set-config -g redis_socketio "redis://$$REDIS_QUEUE";
+      bench set-config -gp socketio_port $$SOCKETIO_PORT;
+    environment:
+      DB_HOST: db
+      DB_PORT: "3306"
+      REDIS_CACHE: redis-cache:6379
+      REDIS_QUEUE: redis-queue:6379
+      SOCKETIO_PORT: "9000"
+    volumes: ["sites:/home/frappe/frappe-bench/sites"]
+    networks: [frappe]
+
+  create-site:
+    image: ${ERPNEXT_IMAGE}
+    entrypoint: ["bash", "-c"]
+    command:
+      - >-
+        until (echo > /dev/tcp/db/3306) >/dev/null 2>&1; do sleep 2; done;
+        until (echo > /dev/tcp/redis-cache/6379) >/dev/null 2>&1; do sleep 2; done;
+        if [ ! -d "/home/frappe/frappe-bench/sites/$${FRAPPE_SITE_NAME}" ]; then
+          bench new-site "$${FRAPPE_SITE_NAME}" --no-mariadb-socket --mariadb-user-host-login-scope='%' --admin-password="$${ADMIN_PASSWORD}" --db-root-username=root --db-root-password="$${MYSQL_ROOT_PASSWORD}" --install-app erpnext --set-default;
+        fi
+    environment:
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      FRAPPE_SITE_NAME: ${FRAPPE_SITE_NAME}
+    volumes: ["sites:/home/frappe/frappe-bench/sites"]
+    networks: [frappe]
+    depends_on:
+      configurator: {condition: service_completed_successfully}
+      db: {condition: service_started}
+      redis-cache: {condition: service_started}
+      redis-queue: {condition: service_started}
+
+  backend:
+    image: ${ERPNEXT_IMAGE}
+    environment:
+      DB_HOST: db
+      DB_PORT: "3306"
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes: ["sites:/home/frappe/frappe-bench/sites", "logs:/home/frappe/frappe-bench/logs"]
+    networks: [frappe]
+    depends_on:
+      create-site: {condition: service_completed_successfully}
+
+  frontend:
+    image: ${ERPNEXT_IMAGE}
+    command: ["nginx-entrypoint.sh"]
+    environment:
+      BACKEND: backend:8000
+      SOCKETIO: websocket:9000
+      # Do not pin every request to the bootstrap site. Frappe resolves the
+      # tenant/site from the original Host header.
+      FRAPPE_SITE_NAME_HEADER: $$host
+    ports: ["127.0.0.1:8080:8080"]
+    volumes: ["sites:/home/frappe/frappe-bench/sites", "logs:/home/frappe/frappe-bench/logs"]
+    networks: [frappe]
+    depends_on:
+      backend: {condition: service_started}
+      websocket: {condition: service_started}
+
+  websocket:
+    image: ${ERPNEXT_IMAGE}
+    command: ["node", "/home/frappe/frappe-bench/apps/frappe/socketio.js"]
+    volumes: ["sites:/home/frappe/frappe-bench/sites"]
+    networks: [frappe]
+    depends_on:
+      create-site: {condition: service_completed_successfully}
+
+  worker:
+    image: ${ERPNEXT_IMAGE}
+    command: ["bench", "worker", "--queue", "default,short,long"]
+    volumes: ["sites:/home/frappe/frappe-bench/sites", "logs:/home/frappe/frappe-bench/logs"]
+    networks: [frappe]
+    depends_on:
+      create-site: {condition: service_completed_successfully}
+
+  scheduler:
+    image: ${ERPNEXT_IMAGE}
+    command: ["bench", "schedule"]
+    volumes: ["sites:/home/frappe/frappe-bench/sites", "logs:/home/frappe/frappe-bench/logs"]
+    networks: [frappe]
+    depends_on:
+      create-site: {condition: service_completed_successfully}
+
+  db:
+    image: mariadb:11.4
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci", "--skip-character-set-client-handshake"]
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes: ["db:/var/lib/mysql"]
+    networks: [frappe]
+
+  redis-cache:
+    image: redis:7-alpine
+    networks: [frappe]
+  redis-queue:
+    image: redis:7-alpine
+    networks: [frappe]
+
+volumes: {db: {}, sites: {}, logs: {}}
+networks: {frappe: {}}
