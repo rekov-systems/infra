@@ -42,9 +42,6 @@ terraform init -input=false -reconfigure \
   -backend-config="skip_s3_checksum=true" \
   -backend-config="use_path_style=true"
 
-# Terraform apply is not transactional: resources created before a failure stay up.
-# This script never runs destroy on failure. Bootstrap runs only after Terraform succeeds.
-
 reconcile_contabo_state() {
   if ! terraform state list 2>/dev/null | grep -qx 'contabo_instance.erp'; then
     return 0
@@ -133,11 +130,19 @@ ssh_options=(
   -o LogLevel=ERROR
 )
 
+# OpenSSH runs the remote command through a shell when it contains shell tokens.
+# Always pass exactly one remote command string (never unquoted "ssh host cmd1 cmd2").
+remote() {
+  local ip="$1"
+  local cmd="$2"
+  ssh "${ssh_options[@]}" "ubuntu@${ip}" "$cmd"
+}
+
 wait_ssh() {
   local ip="$1"
   local i
   for i in $(seq 1 60); do
-    if ssh "${ssh_options[@]}" "ubuntu@${ip}" true 2>/dev/null; then
+    if remote "$ip" "true" 2>/dev/null; then
       return 0
     fi
     sleep 10
@@ -155,32 +160,32 @@ wait_ssh "$control_ip"
 wait_ssh "$erp_ip"
 
 cat >"$tmp/press.env" <<EOF
-PRESS_CONTROL_HOSTNAME=$PRESS_CONTROL_HOSTNAME
-PRESS_ADMIN_PASSWORD=$PRESS_ADMIN_PASSWORD
-PRESS_DB_ROOT_PASSWORD=$PRESS_DB_ROOT_PASSWORD
+PRESS_CONTROL_HOSTNAME=${PRESS_CONTROL_HOSTNAME@Q}
+PRESS_ADMIN_PASSWORD=${PRESS_ADMIN_PASSWORD@Q}
+PRESS_DB_ROOT_PASSWORD=${PRESS_DB_ROOT_PASSWORD@Q}
 EOF
 chmod 600 "$tmp/press.env"
-ssh "${ssh_options[@]}" "ubuntu@${control_ip}" \
-  "sudo rm -rf /tmp/rekov && sudo mkdir -p /tmp/rekov && sudo chown ubuntu:ubuntu /tmp/rekov"
+
+remote "$control_ip" "sudo rm -rf /tmp/rekov && sudo mkdir -p /tmp/rekov && sudo chown ubuntu:ubuntu /tmp/rekov"
 scp "${ssh_options[@]}" "$root/scripts/bootstrap-press-control.sh" "$tmp/press.env" "ubuntu@${control_ip}:/tmp/rekov/"
-ssh "${ssh_options[@]}" "ubuntu@${control_ip}" \
-  sudo bash -c 'set -a; source /tmp/rekov/press.env; set +a; exec bash /tmp/rekov/bootstrap-press-control.sh'
-ssh "${ssh_options[@]}" "ubuntu@${control_ip}" sudo rm -rf /tmp/rekov
+remote "$control_ip" "sudo test -s /tmp/rekov/press.env && sudo test -s /tmp/rekov/bootstrap-press-control.sh"
+remote "$control_ip" "sudo bash -c 'set -a && source /tmp/rekov/press.env && set +a && exec bash /tmp/rekov/bootstrap-press-control.sh'"
+remote "$control_ip" "sudo rm -rf /tmp/rekov"
 
 mkdir -p "$tmp/erpnext"
 cp "$root/erpnext/docker-compose.yml" "$tmp/erpnext/"
 cat >"$tmp/erpnext/.env" <<EOF
-FRAPPE_SITE_NAME=$erp_host
-ADMIN_PASSWORD=$PRESS_ADMIN_PASSWORD
-MYSQL_ROOT_PASSWORD=$PRESS_DB_ROOT_PASSWORD
+FRAPPE_SITE_NAME=${erp_host@Q}
+ADMIN_PASSWORD=${PRESS_ADMIN_PASSWORD@Q}
+MYSQL_ROOT_PASSWORD=${PRESS_DB_ROOT_PASSWORD@Q}
 ERPNEXT_IMAGE=frappe/erpnext:v16.54.0
 EOF
-ssh "${ssh_options[@]}" "ubuntu@${erp_ip}" \
-  "sudo rm -rf /tmp/rekov && sudo mkdir -p /tmp/rekov && sudo chown ubuntu:ubuntu /tmp/rekov"
+
+remote "$erp_ip" "sudo rm -rf /tmp/rekov && sudo mkdir -p /tmp/rekov && sudo chown ubuntu:ubuntu /tmp/rekov"
 scp "${ssh_options[@]}" -r "$tmp/erpnext" "$root/scripts/bootstrap-erp.sh" "ubuntu@${erp_ip}:/tmp/rekov/"
 quoted_erp_host="$(printf '%q' "$erp_host")"
-ssh "${ssh_options[@]}" "ubuntu@${erp_ip}" \
-  "sudo bash /tmp/rekov/bootstrap-erp.sh ${quoted_erp_host}; sudo rm -rf /tmp/rekov"
+remote "$erp_ip" "sudo test -s /tmp/rekov/bootstrap-erp.sh"
+remote "$erp_ip" "sudo bash /tmp/rekov/bootstrap-erp.sh ${quoted_erp_host} && sudo rm -rf /tmp/rekov"
 
 echo "Press: https://${PRESS_CONTROL_HOSTNAME}"
 echo "ERP: https://${erp_host}"
