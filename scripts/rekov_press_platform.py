@@ -396,9 +396,19 @@ def setup_server_if_stale(server, doctype: str, stale_minutes: int = 45) -> None
             limit_page_length=1,
         )
         play_status = latest_play[0] if latest_play else {"status": "not created"}
+        failed_tasks = []
+        if latest_play:
+            failed_tasks = frappe.get_all(
+                "Ansible Task",
+                filters={"play": latest_play[0].name, "status": ["in", ["Failure", "Failed"]]},
+                fields=["task", "role", "status", "error", "exception"],
+                order_by="creation asc",
+                limit_page_length=5,
+            )
         raise RuntimeError(
             f"Press could not activate {doctype} {server.name}: "
-            f"status={server.status}, ansible_play={play_status}"
+            f"status={server.status}, ansible_play={play_status}, "
+            f"failed_tasks={failed_tasks}"
         )
 
 
