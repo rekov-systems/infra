@@ -24,6 +24,12 @@ def required(name: str) -> str:
     return value
 
 
+def progress(message: str) -> None:
+    """Emit a bootstrap heartbeat to both Bench stdout and the site log."""
+    print(f"REKOV_PROGRESS: {message}", flush=True)
+    frappe.logger().info(f"Rekov bootstrap: {message}")
+
+
 def ensure_doc(doctype: str, name: str, values: dict) -> str:
     if frappe.db.exists(doctype, name):
         doc = frappe.get_doc(doctype, name)
@@ -598,7 +604,7 @@ def bootstrap() -> dict:
     ensure_tls_certificate(root_domain, team)
     self_hosted_server = ensure_self_hosted_server(cluster, team, plan, proxy)
     server_doc = frappe.get_doc("Self Hosted Server", self_hosted_server)
-    frappe.logger().info("Rekov bootstrap: reconciling tenant server")
+    progress("reconciling tenant server")
     if not server_doc.server or not server_doc.database_server:
         # A failed first bootstrap leaves the Self Hosted Server in
         # ``Unreachable``/``Broken``.  Press's ping method intentionally
@@ -652,16 +658,16 @@ def bootstrap() -> dict:
     if server_doc.server and server_doc.database_server:
         db_server = frappe.get_doc("Database Server", server_doc.database_server)
         app_server = frappe.get_doc("Server", server_doc.server)
-        frappe.logger().info("Rekov bootstrap: setting up database server")
+        progress("setting up database server")
         setup_server_if_stale(db_server, "Database Server")
         # On a hybrid server Press normally invokes this from the database
         # setup callback. Reconcile it explicitly as well, so a lost callback
         # cannot leave the application server Pending forever.
         if db_server.status == "Active":
-            frappe.logger().info("Rekov bootstrap: setting up application server")
+            progress("setting up application server")
             setup_server_if_stale(app_server, "Server")
         ensure_frappe_version()
-        frappe.logger().info("Rekov bootstrap: ensuring release pipeline")
+        progress("ensuring release pipeline")
         ensure_release_pipeline(team, "Version 16", self_hosted_server)
         frappe.enqueue(
             "press.rekov_press_platform.reconcile",
