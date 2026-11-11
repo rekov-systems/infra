@@ -180,15 +180,15 @@ wait_ssh "$erp_ip"
 if [[ "$(remote "$erp_ip" "id -u ubuntu")" == "1000" ]]; then
   # The current SSH shell belongs to ubuntu, so run the migration in an
   # independent root unit that can terminate the SSH session first.
-  remote_timeout "$erp_ip" "sudo systemctl disable rekov-free-frappe-uid-onboot.service >/dev/null 2>&1 || true; sudo rm -f /etc/systemd/system/rekov-free-frappe-uid-onboot.service; sudo systemd-run --quiet --collect --no-block --on-active=2s --unit=rekov-free-frappe-uid-migrate-\$(date +%s) /bin/bash -c 'if [[ \"\$(id -u ubuntu)\" == \"1000\" ]]; then getent passwd 1001 >/dev/null && exit 1; getent group 1001 >/dev/null && exit 1; pkill -u ubuntu || true; groupmod --gid 1001 ubuntu; usermod --uid 1001 --gid 1001 ubuntu; chown -R ubuntu:ubuntu /home/ubuntu; fi'" || true
+  remote_timeout "$erp_ip" "sudo systemctl disable rekov-free-frappe-uid-onboot.service >/dev/null 2>&1 || true; sudo rm -f /etc/systemd/system/rekov-free-frappe-uid-onboot.service; sudo systemd-run --collect --no-block --on-active=2s --unit=rekov-free-frappe-uid-migrate-\$(date +%s) /bin/bash -c 'if [[ \"\$(id -u ubuntu)\" == \"1000\" ]]; then new_id=1001; while getent passwd \"\$new_id\" >/dev/null || getent group \"\$new_id\" >/dev/null; do new_id=\$((new_id + 1)); done; pkill -u ubuntu || true; groupmod --gid \"\$new_id\" ubuntu; usermod --uid \"\$new_id\" --gid \"\$new_id\" ubuntu; chown -R ubuntu:ubuntu /home/ubuntu; fi'" || true
   for _ in $(seq 1 30); do
-    if remote_quick "$erp_ip" "test \"\$(id -u ubuntu)\" = 1001" 2>/dev/null; then
+    if remote_quick "$erp_ip" "test \"\$(id -u ubuntu)\" != 1000" 2>/dev/null; then
       break
     fi
     sleep 1
   done
 fi
-remote "$erp_ip" "test \"\$(id -u ubuntu)\" = 1001"
+remote "$erp_ip" "test \"\$(id -u ubuntu)\" != 1000"
 remote "$erp_ip" "sudo systemctl disable --now rekov-free-frappe-uid-onboot.service >/dev/null 2>&1 || true; sudo rm -f /etc/systemd/system/rekov-free-frappe-uid-onboot.service"
 
 cat >"$tmp/press.env" <<EOF
