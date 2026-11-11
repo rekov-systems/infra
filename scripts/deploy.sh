@@ -236,7 +236,7 @@ remote "$control_ip" "if ! sudo grep -Eq '^[[:space:]]*${erp_ip}[[:space:]]+regi
 
 # The tenant's SSH connection is managed by the Press control plane. Keep the
 # control-plane origin out of Fail2Ban before any Press Ansible play runs.
-remote "$erp_ip" "printf '%s\\n' '[sshd]' 'ignoreip = 127.0.0.1/8 ::1 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 ${erp_ip} ${control_ip}' | sudo tee /etc/fail2ban/jail.d/zz-rekov-control-plane.conf >/dev/null; sudo systemctl enable --now fail2ban; sudo systemctl restart fail2ban; sudo fail2ban-client status sshd"
+remote "$erp_ip" "sudo systemctl enable ssh >/dev/null; sudo systemctl restart ssh; printf '%s\\n' '[sshd]' 'ignoreip = 127.0.0.1/8 ::1 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 ${erp_ip} ${control_ip}' | sudo tee /etc/fail2ban/jail.d/zz-rekov-control-plane.conf >/dev/null; if ! sudo systemctl enable --now fail2ban; then sudo systemctl status fail2ban --no-pager -l || true; sudo journalctl -u fail2ban -n 80 --no-pager || true; exit 1; fi; if ! sudo systemctl restart fail2ban; then sudo systemctl status fail2ban --no-pager -l || true; sudo journalctl -u fail2ban -n 80 --no-pager || true; exit 1; fi; sudo fail2ban-client status sshd"
 
 remote "$control_ip" "sudo bash -c 'set -a && source /tmp/rekov/press.env && set +a && exec bash /tmp/rekov/bootstrap-press-control.sh'"
 remote "$control_ip" "sudo bash -c 'set -a && source /tmp/rekov/press.env && set +a && exec bash /tmp/rekov/bootstrap-press-platform.sh'"
