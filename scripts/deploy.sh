@@ -226,6 +226,13 @@ chmod 600 "$tmp/press.env"
 remote "$control_ip" "sudo rm -rf /tmp/rekov && sudo mkdir -p /tmp/rekov && sudo chown ubuntu:ubuntu /tmp/rekov"
 scp "${ssh_options[@]}" "$root/scripts/bootstrap-press-control.sh" "$root/scripts/bootstrap-press-platform.sh" "$root/scripts/rekov_press_platform.py" "$tmp/press.env" "ubuntu@${control_ip}:/tmp/rekov/"
 remote "$control_ip" "sudo test -s /tmp/rekov/press.env && sudo test -s /tmp/rekov/bootstrap-press-control.sh"
+
+# Resolve the control and registry origins before Press can enqueue a build.
+# This prevents the first callback/repository access from taking the public
+# Cloudflare route and avoids restarting the agent twice during reconciliation.
+remote "$erp_ip" "if ! sudo grep -Eq '^[[:space:]]*${control_ip}[[:space:]]+${PRESS_CONTROL_HOSTNAME}([[:space:]]|\$)' /etc/hosts; then echo '${control_ip} ${PRESS_CONTROL_HOSTNAME}' | sudo tee -a /etc/hosts >/dev/null; fi; if ! sudo grep -Eq '^[[:space:]]*${erp_ip}[[:space:]]+registry.${PRESS_ROOT_DOMAIN}([[:space:]]|\$)' /etc/hosts; then echo '${erp_ip} registry.${PRESS_ROOT_DOMAIN}' | sudo tee -a /etc/hosts >/dev/null; fi; getent hosts '${PRESS_CONTROL_HOSTNAME}' registry.${PRESS_ROOT_DOMAIN}"
+remote "$control_ip" "if ! sudo grep -Eq '^[[:space:]]*${erp_ip}[[:space:]]+registry.${PRESS_ROOT_DOMAIN}([[:space:]]|\$)' /etc/hosts; then echo '${erp_ip} registry.${PRESS_ROOT_DOMAIN}' | sudo tee -a /etc/hosts >/dev/null; fi; getent hosts registry.${PRESS_ROOT_DOMAIN}"
+
 remote "$control_ip" "sudo bash -c 'set -a && source /tmp/rekov/press.env && set +a && exec bash /tmp/rekov/bootstrap-press-control.sh'"
 remote "$control_ip" "sudo bash -c 'set -a && source /tmp/rekov/press.env && set +a && exec bash /tmp/rekov/bootstrap-press-platform.sh'"
 remote "$control_ip" "sudo rm -rf /tmp/rekov"
@@ -254,13 +261,6 @@ if path.exists():
 PY
 if sudo grep -q '"press_url": "https://${PRESS_CONTROL_HOSTNAME}"' /home/frappe/agent/config.json; then :; else exit 1; fi
 if [ \"\$changed\" = changed ]; then sudo supervisorctl restart agent:* >/dev/null; fi"
-
-# Keep agent callbacks on the control-plane origin while preserving the Press
-# hostname for TLS. The public hostname is proxied by Cloudflare; callbacks
-# from the tenant must reach Press directly so the server IP authorization is
-# preserved and a transient proxy/Redis restart cannot strand Agent Jobs.
-remote "$erp_ip" "hosts_changed=0; if ! sudo grep -Eq '^[[:space:]]*${control_ip}[[:space:]]+${PRESS_CONTROL_HOSTNAME}([[:space:]]|\$)' /etc/hosts; then echo '${control_ip} ${PRESS_CONTROL_HOSTNAME}' | sudo tee -a /etc/hosts >/dev/null; hosts_changed=1; fi; if ! sudo grep -Eq '^[[:space:]]*${erp_ip}[[:space:]]+registry.${PRESS_ROOT_DOMAIN}([[:space:]]|\$)' /etc/hosts; then echo '${erp_ip} registry.${PRESS_ROOT_DOMAIN}' | sudo tee -a /etc/hosts >/dev/null; hosts_changed=1; fi; getent hosts '${PRESS_CONTROL_HOSTNAME}' registry.${PRESS_ROOT_DOMAIN}; if [ \"\$hosts_changed\" = 1 ]; then sudo supervisorctl restart agent:* >/dev/null; fi"
-remote "$control_ip" "if ! sudo grep -Eq '^[[:space:]]*${erp_ip}[[:space:]]+registry.${PRESS_ROOT_DOMAIN}([[:space:]]|\$)' /etc/hosts; then echo '${erp_ip} registry.${PRESS_ROOT_DOMAIN}' | sudo tee -a /etc/hosts >/dev/null; fi; getent hosts registry.${PRESS_ROOT_DOMAIN}"
 
 # The bootstrap submits the first remote build asynchronously. Keep this
 # diagnostic read-only so a stuck Pending job exposes both sides of the
