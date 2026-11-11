@@ -191,6 +191,12 @@ fi
 remote "$erp_ip" "test \"\$(id -u ubuntu)\" != 1000"
 remote "$erp_ip" "sudo systemctl disable --now rekov-free-frappe-uid-onboot.service >/dev/null 2>&1 || true; sudo rm -f /etc/systemd/system/rekov-free-frappe-uid-onboot.service"
 
+# Press's server setup runs apt update on the tenant node. A previous retry
+# may have left the unreachable Deadsnakes PPA behind even though the required
+# Python version is already installed. Remove only that stale source before
+# Press starts another Ansible play.
+remote "$erp_ip" "sudo sed -i '/ppa\\.launchpadcontent\\.net\\/deadsnakes\\/ppa/d' /etc/apt/sources.list; sudo find /etc/apt/sources.list.d -maxdepth 1 -type f -print0 | xargs -0 -r grep -Il 'ppa.launchpadcontent.net/deadsnakes/ppa' | xargs -r sudo rm -f"
+
 cat >"$tmp/press.env" <<EOF
 PRESS_CONTROL_HOSTNAME=${PRESS_CONTROL_HOSTNAME@Q}
 PRESS_ADMIN_PASSWORD=${PRESS_ADMIN_PASSWORD@Q}
