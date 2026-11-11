@@ -53,7 +53,17 @@ def retry_undelivered_build_job(build_name: str) -> None:
     if not jobs:
         return
     job = frappe.get_doc("Agent Job", jobs[0].name)
-    job.retry_in_place()
+    # retry_in_place() only enqueues create_http_request() after the current
+    # transaction commits. The bootstrap can finish before the short worker
+    # delivers it, leaving CI green while the build remains Undelivered.
+    # Deliver the existing request synchronously so the build can transition
+    # to Pending without creating a duplicate Agent Job.
+    job.create_http_request()
+    job.reload()
+    if job.status == "Undelivered":
+        raise RuntimeError(
+            f"Remote builder Agent Job {job.name} is still Undelivered"
+        )
 
 
 def ensure_doc(doctype: str, name: str, values: dict) -> str:
