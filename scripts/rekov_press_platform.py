@@ -14,8 +14,9 @@ import tempfile
 from datetime import timedelta
 
 import frappe
+import requests
 from frappe.utils import now_datetime
-from press.agent import Agent
+from press.agent import Agent, get_decrypted_password
 from press.runner import Ansible as PressAnsible
 
 
@@ -70,12 +71,27 @@ def retry_undelivered_build_job(build_name: str) -> None:
         # Agent.request() intentionally swallows transport and HTTP errors and
         # returns None. During bootstrap that hides the reason a build cannot
         # be delivered, so use the same low-level request with diagnostics.
-        response = agent._make_req(
+        # The self-hosted wildcard certificate is intentionally private and
+        # self-signed. The public wildcard DNS record is proxied by Cloudflare,
+        # whose strict TLS validation returns 526 before the request reaches
+        # the agent. Connect directly to the managed server IP while retaining
+        # the agent hostname in Host so the origin Nginx virtual host matches.
+        server_ip = frappe.db.get_value(job.server_type, job.server, "ip")
+        if not server_ip:
+            raise RuntimeError(f"Agent server {job.server} has no public IP")
+        url = f"https://{server_ip}:{agent.port}/agent/{job.request_path}"
+        headers = {
+            "Authorization": f"bearer {get_decrypted_password(job.server_type, job.server, 'agent_password')}",
+            "X-Agent-Job-Id": job.name,
+            "Host": job.server,
+        }
+        response = requests.request(
             job.request_method,
-            job.request_path,
-            json.loads(job.request_data or "{}"),
-            json.loads(job.request_files or "{}"),
-            job.name,
+            url,
+            headers=headers,
+            json=json.loads(job.request_data or "{}"),
+            verify=False,
+            timeout=(10, 30),
         )
         response.raise_for_status()
         payload = response.json()
