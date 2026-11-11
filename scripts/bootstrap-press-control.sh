@@ -558,12 +558,17 @@ curl --fail --silent --show-error --insecure --max-time 15 \
 # Docker registry. It must be publicly trusted because these hostnames are
 # reached through Cloudflare in Full (strict) mode.
 cf_credentials=/root/.config/letsencrypt/cloudflare.ini
-origin_le_dir="/etc/letsencrypt/live/${PRESS_ROOT_DOMAIN}"
+# Press validates this certificate as an RSA certificate and expects a 2048-bit
+# private key. Keep the old certificate name untouched while migrating from the
+# default Certbot ECDSA key to an explicitly requested RSA key.
+origin_cert_name="${PRESS_ROOT_DOMAIN}-rsa"
+origin_le_dir="/etc/letsencrypt/live/${origin_cert_name}"
 install -d -m 0700 "$(dirname "$cf_credentials")"
 printf 'dns_cloudflare_api_token = %s\n' "$PRESS_CLOUDFLARE_API_TOKEN" >"$cf_credentials"
 chmod 0600 "$cf_credentials"
 certbot certonly --dns-cloudflare --dns-cloudflare-credentials "$cf_credentials" \
-  --cert-name "$PRESS_ROOT_DOMAIN" --non-interactive --agree-tos \
+  --cert-name "$origin_cert_name" --key-type rsa --rsa-key-size 2048 \
+  --non-interactive --agree-tos \
   --register-unsafely-without-email --keep-until-expiring \
   -d "$PRESS_ROOT_DOMAIN" -d "*.${PRESS_ROOT_DOMAIN}"
 [[ -s "$origin_le_dir/fullchain.pem" && -s "$origin_le_dir/privkey.pem" ]] || {
