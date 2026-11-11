@@ -219,6 +219,12 @@ remote "$control_ip" "sudo bash -c 'set -a && source /tmp/rekov/press.env && set
 remote "$control_ip" "sudo bash -c 'set -a && source /tmp/rekov/press.env && set +a && exec bash /tmp/rekov/bootstrap-press-platform.sh'"
 remote "$control_ip" "sudo rm -rf /tmp/rekov"
 
+# The bootstrap submits the first remote build asynchronously. Keep this
+# diagnostic read-only so a stuck Pending job exposes both sides of the
+# handoff in the same CI run: Press's records and the builder host processes.
+remote "$control_ip" "sudo -u frappe bash -lc 'cd /home/frappe/press-bench && bench --site \"${PRESS_CONTROL_HOSTNAME}\" execute \"frappe.get_all(\\\"Agent Job\\\", filters={\\\"reference_doctype\\\": \\\"Deploy Candidate Build\\\", \\\"job_type\\\": \\\"Run Remote Builder\\\"}, fields=[\\\"name\\\", \\\"status\\\", \\\"job_id\\\", \\\"error\\\", \\\"modified\\\"], order_by=\\\"creation desc\\\", limit_page_length=3)\"'"
+remote "$erp_ip" "sudo docker ps --format 'table {{.Names}}\\t{{.Status}}\\t{{.Image}}' 2>/dev/null || true; sudo systemctl --no-pager --type=service --all | grep -Ei 'agent|builder|supervisor|docker' || true"
+
 # Contabo is deliberately not an ERPNext deployment target anymore.  It is a
 # clean, SSH-reachable candidate for Press's "Self Hosted Server" workflow.
 # Press verifies it, installs/configures its Agent, and subsequently creates
