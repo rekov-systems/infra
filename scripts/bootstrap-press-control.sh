@@ -35,6 +35,13 @@ as_frappe() {
 }
 
 export DEBIAN_FRONTEND=noninteractive
+# The control VM may retain a stale source from an earlier retry. Also avoid
+# IPv6 repository timeouts on the OCI network.
+printf '%s\n' 'Acquire::ForceIPv4 "true";' >/etc/apt/apt.conf.d/99-rekov-force-ipv4
+if command -v python3.14 >/dev/null 2>&1; then
+  sed -i '/ppa\.launchpadcontent\.net\/deadsnakes\/ppa/d' /etc/apt/sources.list
+  find /etc/apt/sources.list.d -maxdepth 1 -type f -print0 | xargs -0 -r grep -Il 'ppa.launchpadcontent.net/deadsnakes/ppa' | xargs -r rm -f
+fi
 apt-get update
 apt-get install -y ansible build-essential ca-certificates certbot cron curl fail2ban git golang-go libffi-dev libcups2-dev \
   libmariadb-dev libssl-dev mariadb-server nginx pkg-config redis-server sudo \
@@ -162,6 +169,19 @@ else
 fi
 git -C apps/press fetch --depth=1 origin "$press_revision"
 git -C apps/press checkout --detach "$press_revision"
+# Press's stock essentials role uses a bare apt update. Give transient
+# network/lock conditions the same retry behavior supported by Ansible's apt
+# module instead of immediately marking the application server Broken.
+python3 - <<'PY'
+from pathlib import Path
+
+path = Path("apps/press/press/playbooks/roles/essentials/tasks/main.yml")
+text = path.read_text()
+old = "- name: Update APT Cache\n  apt:\n    update_cache: yes\n"
+new = "- name: Update APT Cache\n  apt:\n    update_cache: yes\n    update_cache_retries: 5\n    update_cache_retry_max_delay: 12\n    lock_timeout: 120\n"
+if old in text:
+    path.write_text(text.replace(old, new, 1))
+PY
 grep -qxF press apps.txt 2>/dev/null || echo press >>apps.txt
 patch_press_for_python314() {
   local f=apps/press/pyproject.toml
