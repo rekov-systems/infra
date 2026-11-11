@@ -41,7 +41,10 @@ def retry_undelivered_build_job(build_name: str) -> None:
     fail after accepting it. Retry stale requests in place so the existing
     build/job is preserved and no duplicate build is created.
     """
-    stale_before = now_datetime() - timedelta(minutes=5)
+    # A Version 16 build can spend several minutes compiling the full ERPNext
+    # tree before the agent updates the job. Do not duplicate an active build
+    # merely because it has been pending for five minutes.
+    stale_before = now_datetime() - timedelta(minutes=30)
     jobs = frappe.get_all(
         "Agent Job",
         filters={
