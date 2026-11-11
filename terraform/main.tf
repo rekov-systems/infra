@@ -164,3 +164,15 @@ resource "cloudflare_dns_record" "tenants" {
   ttl     = 1
   proxied = true
 }
+
+# The registry is an origin service, not a browser endpoint.  Keep it
+# unproxied so Docker clients can speak the registry protocol directly.
+resource "cloudflare_dns_record" "registry" {
+  count   = local.contabo_ready ? 1 : 0
+  zone_id = var.cloudflare_zone_id
+  name    = "registry"
+  type    = "A"
+  content = local.contabo_ipv4
+  ttl     = 1
+  proxied = false
+}

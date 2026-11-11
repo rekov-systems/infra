@@ -318,6 +318,68 @@ def ensure_tls_certificate(root_domain: str, team: str) -> str:
     return certificate.name
 
 
+def ensure_registry_server(root_domain: str, team: str, cluster: str) -> str:
+	"""Provision one reusable Docker registry for all release groups.
+
+	The registry is deliberately a Press-managed resource.  Looking it up by
+	IP/hostname makes a rerun reuse the existing node instead of creating a
+	second registry or changing the image namespace underneath existing builds.
+	"""
+	ip = required("PRESS_TENANT_NODE_PUBLIC_IP")
+	registry_name = f"registry.{root_domain}"
+	existing = frappe.db.get_value(
+		"Registry Server",
+		{"name": registry_name},
+		"name",
+	) or frappe.db.get_value(
+		"Registry Server",
+		{"ip": ip},
+		"name",
+		order_by="creation asc",
+	)
+	values = {
+		"hostname": "registry",
+		"domain": root_domain,
+		"provider": "Generic",
+		"ip": ip,
+		"private_ip": ip,
+		"ssh_user": "ubuntu",
+		"ssh_port": 22,
+		"registry_username": "frappe",
+		"region_endpoint": required("R2_STORAGE_ENDPOINT"),
+		"region": required("R2_STORAGE_REGION"),
+		"bucket_name": required("R2_STORAGE_BUCKET"),
+		"docker_data_mountpoint": "/home/frappe/registry/data",
+		"container_registry_config_path": "/etc/docker/registry/config.yml",
+		"status": "Pending",
+	}
+	if existing:
+		registry = frappe.get_doc("Registry Server", existing)
+		# Keep the established name and credentials; only reconcile safe,
+		# non-secret connectivity fields.
+		for field, value in values.items():
+			if field != "status" and value is not None and registry.get(field) != value:
+				registry.set(field, value)
+		registry.save(ignore_permissions=True)
+	else:
+		registry = frappe.get_doc({"doctype": "Registry Server", "name": registry_name, **values})
+		registry.insert(ignore_permissions=True)
+
+	if registry.status != "Active":
+		if registry.status != "Pending":
+			registry.status = "Pending"
+			registry.save(ignore_permissions=True)
+		registry._setup_server()
+		registry.reload()
+		if registry.status != "Active":
+			raise RuntimeError(
+				f"Registry Server {registry.name} did not become Active "
+				f"(status={registry.status})"
+			)
+
+	return registry.name
+
+
 def ensure_app_source(app_name: str, title: str, repository: str, version: str, team: str) -> str:
     app = ensure_doc(
         "App",
@@ -325,7 +387,15 @@ def ensure_app_source(app_name: str, title: str, repository: str, version: str, 
         {"title": title, "team": team, "public": 1, "enabled": 1, "skip_review": 1},
     )
     app_doc = frappe.get_doc("App", app)
-    source = app_doc.add_source(repository, "version-16", version, team=team, public=True)
+    source_name = frappe.db.get_value(
+        "App Source",
+        {"app": app, "repository": repository, "branch": "version-16"},
+        "name",
+        order_by="creation asc",
+    )
+    source = frappe.get_doc("App Source", source_name) if source_name else app_doc.add_source(
+        repository, "version-16", version, team=team, public=True
+    )
     release_name = frappe.db.get_value(
         "App Release", {"source": source.name}, "name", order_by="creation desc"
     )
@@ -370,7 +440,25 @@ def ensure_release_pipeline(team: str, version: str, server_name: str) -> str | 
     settings = frappe.get_single("Press Settings")
     if settings.build_server != app_server.name:
         settings.build_server = app_server.name
-        settings.save(ignore_permissions=True)
+    if not settings.use_agent_job_callbacks:
+        settings.use_agent_job_callbacks = 1
+    settings.docker_s3_access_key = required("R2_STORAGE_ACCESS_KEY_ID")
+    settings.docker_s3_secret_key = required("R2_STORAGE_SECRET_ACCESS_KEY")
+    settings.save(ignore_permissions=True)
+    registry_name = ensure_registry_server(
+        required("PRESS_ROOT_DOMAIN"), team, server.cluster
+    )
+    if settings.docker_registry_url != registry_name:
+        settings.docker_registry_url = registry_name
+    registry = frappe.get_doc("Registry Server", registry_name)
+    if settings.docker_registry_username != registry.registry_username:
+        settings.docker_registry_username = registry.registry_username
+    if settings.docker_registry_password != registry.get_password("registry_password"):
+        settings.docker_registry_password = registry.get_password("registry_password")
+    settings.save(ignore_permissions=True)
+    if not app_server.use_agent_job_callbacks:
+        app_server.use_agent_job_callbacks = 1
+        app_server.save(ignore_permissions=True)
 
     frappe_source = ensure_app_source(
         "frappe", "Frappe", "https://github.com/frappe/frappe", version, team
@@ -427,6 +515,20 @@ def ensure_release_pipeline(team: str, version: str, server_name: str) -> str | 
         )
         if builds:
             latest_build = builds[0]
+            # A callback can be lost after the agent has finished. Poll the
+            # existing Agent Job once so Press records the real terminal state
+            # before deciding whether a new candidate is needed.
+            from press.press.doctype.agent_job.agent_job import poll_pending_jobs_server
+
+            poll_pending_jobs_server(
+                frappe._dict({"server": app_server.name, "server_type": "Server"})
+            )
+            latest_build = frappe.get_value(
+                "Deploy Candidate Build",
+                latest_build.name,
+                ["name", "status", "deploy_after_build", "creation"],
+                as_dict=True,
+            )
             retry_undelivered_build_job(latest_build.name)
             # Pending/Scheduled/Preparing/Running builds, and successful
             # builds whose Deploy/Bench jobs are still converging, must not be
@@ -711,6 +813,9 @@ def bootstrap() -> dict:
     settings.hybrid_domain = root
     settings.hybrid_cluster = cluster
     settings.agent_repository_owner = "frappe"
+    settings.use_agent_job_callbacks = 1
+    settings.docker_s3_access_key = required("R2_STORAGE_ACCESS_KEY_ID")
+    settings.docker_s3_secret_key = required("R2_STORAGE_SECRET_ACCESS_KEY")
     settings.certbot_directory = "/etc/letsencrypt"
     settings.eff_registration_email = f"admin@{root_domain}"
     settings.save(ignore_permissions=True)

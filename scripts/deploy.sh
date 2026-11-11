@@ -215,6 +215,11 @@ PRESS_ROOT_DOMAIN=${PRESS_ROOT_DOMAIN@Q}
 PRESS_TENANT_NODE_PUBLIC_IP=${erp_ip@Q}
 PRESS_SSH_PUBLIC_KEY=${TF_VAR_ssh_public_key@Q}
 PRESS_SSH_PRIVATE_KEY=${SSH_PRIVATE_KEY@Q}
+R2_STORAGE_ACCESS_KEY_ID=${R2_STORAGE_ACCESS_KEY_ID@Q}
+R2_STORAGE_SECRET_ACCESS_KEY=${R2_STORAGE_SECRET_ACCESS_KEY@Q}
+R2_STORAGE_BUCKET=${R2_STORAGE_BUCKET@Q}
+R2_STORAGE_ENDPOINT=${R2_STORAGE_ENDPOINT@Q}
+R2_STORAGE_REGION=${R2_STORAGE_REGION@Q}
 EOF
 chmod 600 "$tmp/press.env"
 
@@ -225,11 +230,37 @@ remote "$control_ip" "sudo bash -c 'set -a && source /tmp/rekov/press.env && set
 remote "$control_ip" "sudo bash -c 'set -a && source /tmp/rekov/press.env && set +a && exec bash /tmp/rekov/bootstrap-press-platform.sh'"
 remote "$control_ip" "sudo rm -rf /tmp/rekov"
 
+# Reconcile the agent callback destination through the deployment path.  The
+# upstream agent defaults to frappecloud.com when Press is self-hosted; that
+# silently strands completed jobs.  Preserve the access token and restart
+# workers only when the managed value actually changes.
+remote "$erp_ip" "changed=\$(sudo -u frappe PRESS_URL='https://${PRESS_CONTROL_HOSTNAME}' python3 - <<'PY'
+import json, os, pathlib, tempfile
+path = pathlib.Path('/home/frappe/agent/config.json')
+if path.exists():
+    data = json.loads(path.read_text())
+    desired = os.environ['PRESS_URL']
+    if data.get('press_url') != desired:
+        data['press_url'] = desired
+        fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix='.config.', text=True)
+        with os.fdopen(fd, 'w') as handle:
+            json.dump(data, handle, indent=2)
+            handle.write('\n')
+        os.chmod(tmp, path.stat().st_mode & 0o777)
+        os.replace(tmp, path)
+        print('changed')
+    else:
+        print('unchanged')
+PY
+if sudo grep -q '"press_url": "https://${PRESS_CONTROL_HOSTNAME}"' /home/frappe/agent/config.json; then :; else exit 1; fi
+if [ \"\$changed\" = changed ]; then sudo supervisorctl restart agent:* >/dev/null; fi"
+
 # Keep agent callbacks on the control-plane origin while preserving the Press
 # hostname for TLS. The public hostname is proxied by Cloudflare; callbacks
 # from the tenant must reach Press directly so the server IP authorization is
 # preserved and a transient proxy/Redis restart cannot strand Agent Jobs.
-remote "$erp_ip" "hosts_changed=0; if ! sudo grep -Eq '^[[:space:]]*${control_ip}[[:space:]]+${PRESS_CONTROL_HOSTNAME}([[:space:]]|\$)' /etc/hosts; then echo '${control_ip} ${PRESS_CONTROL_HOSTNAME}' | sudo tee -a /etc/hosts >/dev/null; hosts_changed=1; fi; getent hosts '${PRESS_CONTROL_HOSTNAME}'; if [ \"\$hosts_changed\" = 1 ]; then sudo supervisorctl restart agent:* >/dev/null; fi"
+remote "$erp_ip" "hosts_changed=0; if ! sudo grep -Eq '^[[:space:]]*${control_ip}[[:space:]]+${PRESS_CONTROL_HOSTNAME}([[:space:]]|\$)' /etc/hosts; then echo '${control_ip} ${PRESS_CONTROL_HOSTNAME}' | sudo tee -a /etc/hosts >/dev/null; hosts_changed=1; fi; if ! sudo grep -Eq '^[[:space:]]*${erp_ip}[[:space:]]+registry.${PRESS_ROOT_DOMAIN}([[:space:]]|\$)' /etc/hosts; then echo '${erp_ip} registry.${PRESS_ROOT_DOMAIN}' | sudo tee -a /etc/hosts >/dev/null; hosts_changed=1; fi; getent hosts '${PRESS_CONTROL_HOSTNAME}' registry.${PRESS_ROOT_DOMAIN}; if [ \"\$hosts_changed\" = 1 ]; then sudo supervisorctl restart agent:* >/dev/null; fi"
+remote "$control_ip" "if ! sudo grep -Eq '^[[:space:]]*${erp_ip}[[:space:]]+registry.${PRESS_ROOT_DOMAIN}([[:space:]]|\$)' /etc/hosts; then echo '${erp_ip} registry.${PRESS_ROOT_DOMAIN}' | sudo tee -a /etc/hosts >/dev/null; fi; getent hosts registry.${PRESS_ROOT_DOMAIN}"
 
 # The bootstrap submits the first remote build asynchronously. Keep this
 # diagnostic read-only so a stuck Pending job exposes both sides of the
