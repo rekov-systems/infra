@@ -201,6 +201,12 @@ remote "$erp_ip" "printf '%s\\n' 'Acquire::ForceIPv4 \"true\";' | sudo tee /etc/
 # Press's lossy "unknown reason" task message.
 remote "$erp_ip" "sudo apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=5 update"
 
+# Version 16's first release candidate asks the remote builder to create its
+# bench with the exact host interpreter /usr/bin/python3.14. The Ubuntu Noble
+# image only ships Python 3.12, so without this package the agent accepts the
+# request and its worker leaves the Agent Job Pending with FileNotFoundError.
+remote "$erp_ip" "if [ ! -x /usr/bin/python3.14 ]; then sudo DEBIAN_FRONTEND=noninteractive add-apt-repository -y ppa:deadsnakes/ppa; sudo apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=5 update; sudo DEBIAN_FRONTEND=noninteractive apt-get install -y python3.14 python3.14-dev python3.14-venv; fi; test -x /usr/bin/python3.14"
+
 cat >"$tmp/press.env" <<EOF
 PRESS_CONTROL_HOSTNAME=${PRESS_CONTROL_HOSTNAME@Q}
 PRESS_ADMIN_PASSWORD=${PRESS_ADMIN_PASSWORD@Q}
