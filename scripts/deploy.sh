@@ -167,8 +167,9 @@ wait_ssh "$erp_ip"
 # Keep the SSH user name and sudo policy unchanged.
 if [[ "$(remote "$erp_ip" "id -u ubuntu")" == "1000" ]]; then
   # The current SSH shell belongs to ubuntu, so usermod cannot run in that
-  # process. Schedule the root-owned migration after this SSH session closes.
-  remote "$erp_ip" "sudo systemd-run --quiet --no-block --unit=rekov-free-frappe-uid --on-active=2s /bin/bash -c 'if [[ \"\$(id -u ubuntu)\" == \"1000\" ]]; then getent passwd 1001 >/dev/null && exit 1; getent group 1001 >/dev/null && exit 1; groupmod --gid 1001 ubuntu; usermod --uid 1001 --gid 1001 ubuntu; chown -R ubuntu:ubuntu /home/ubuntu; fi'"
+  # process. Start an independent root process that waits for this SSH
+  # command to close, then terminates any remaining ubuntu sessions.
+  remote "$erp_ip" "sudo nohup /bin/bash -c 'sleep 2; if [[ \"\$(id -u ubuntu)\" == \"1000\" ]]; then getent passwd 1001 >/dev/null && exit 1; getent group 1001 >/dev/null && exit 1; pkill -u ubuntu || true; groupmod --gid 1001 ubuntu; usermod --uid 1001 --gid 1001 ubuntu; chown -R ubuntu:ubuntu /home/ubuntu; fi' >/dev/null 2>&1 </dev/null &"
   for _ in $(seq 1 30); do
     if remote "$erp_ip" "test \"\$(id -u ubuntu)\" = 1001" 2>/dev/null; then
       break
