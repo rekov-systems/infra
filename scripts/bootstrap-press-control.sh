@@ -40,7 +40,7 @@ export DEBIAN_FRONTEND=noninteractive
 printf '%s\n' 'Acquire::ForceIPv4 "true";' >/etc/apt/apt.conf.d/99-rekov-force-ipv4
 if command -v python3.14 >/dev/null 2>&1; then
   sed -i '/ppa\.launchpadcontent\.net\/deadsnakes\/ppa/d' /etc/apt/sources.list
-  find /etc/apt/sources.list.d -maxdepth 1 -type f -print0 | xargs -0 -r grep -Il 'ppa.launchpadcontent.net/deadsnakes/ppa' | xargs -r rm -f
+  find /etc/apt/sources.list.d -maxdepth 1 -type f -print0 | xargs -0 -r grep -Il 'ppa.launchpadcontent.net/deadsnakes/ppa' | xargs -r rm -f || true
 fi
 apt-get update
 apt-get install -y ansible build-essential ca-certificates certbot cron curl fail2ban git golang-go libffi-dev libcups2-dev \
