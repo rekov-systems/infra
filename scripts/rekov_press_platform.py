@@ -518,11 +518,19 @@ def ensure_release_pipeline(team: str, version: str, server_name: str) -> str | 
             # A callback can be lost after the agent has finished. Poll the
             # existing Agent Job once so Press records the real terminal state
             # before deciding whether a new candidate is needed.
-            from press.press.doctype.agent_job.agent_job import poll_pending_jobs_server
+            try:
+                from press.press.doctype.agent_job.agent_job import (
+                    poll_pending_jobs_server,
+                )
 
-            poll_pending_jobs_server(
-                frappe._dict({"server": app_server.name, "server_type": "Server"})
-            )
+                poll_pending_jobs_server(
+                    frappe._dict({"server": app_server.name, "server_type": "Server"})
+                )
+            except Exception as exc:
+                # Polling is recovery/observability only. A transient agent
+                # response (including an empty or non-JSON response) must not
+                # abort an otherwise idempotent reconciliation run.
+                print(f"REKOV_WARNING: unable to poll existing agent jobs: {exc}", flush=True)
             latest_build = frappe.get_value(
                 "Deploy Candidate Build",
                 latest_build.name,
