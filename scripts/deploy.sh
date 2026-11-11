@@ -166,10 +166,15 @@ wait_ssh "$erp_ip"
 # move only that account out of the way before Press runs its Ansible play.
 # Keep the SSH user name and sudo policy unchanged.
 if [[ "$(remote "$erp_ip" "id -u ubuntu")" == "1000" ]]; then
-  # The current SSH shell belongs to ubuntu. Run the migration during a
-  # controlled reboot, before sshd creates any ubuntu session.
-  remote "$erp_ip" "sudo bash -c 'systemctl stop rekov-free-frappe-uid.service >/dev/null 2>&1 || true; printf \"%s\\n\" \"[Unit]\" \"Description=Free UID 1000 for Press frappe\" \"After=local-fs.target\" \"Before=ssh.service\" \"[Service]\" \"Type=oneshot\" \"ExecStart=-/usr/bin/pkill -u ubuntu\" \"ExecStart=/usr/bin/groupmod --gid 1001 ubuntu\" \"ExecStart=/usr/sbin/usermod --uid 1001 --gid 1001 ubuntu\" \"ExecStart=/usr/bin/chown -R ubuntu:ubuntu /home/ubuntu\" \"RemainAfterExit=yes\" \"[Install]\" \"WantedBy=multi-user.target\" > /etc/systemd/system/rekov-free-frappe-uid-onboot.service; systemctl daemon-reload; systemctl enable rekov-free-frappe-uid-onboot.service; systemd-run --unit=rekov-free-frappe-reboot-\$(date +%s) --collect --no-block /usr/bin/systemctl reboot --force'" || true
-  wait_ssh "$erp_ip"
+  # The current SSH shell belongs to ubuntu, so run the migration in an
+  # independent root unit that can terminate the SSH session first.
+  remote "$erp_ip" "sudo systemctl disable --now rekov-free-frappe-uid-onboot.service >/dev/null 2>&1 || true; sudo rm -f /etc/systemd/system/rekov-free-frappe-uid-onboot.service; sudo systemd-run --quiet --collect --no-block --unit=rekov-free-frappe-uid-migrate-\$(date +%s) /bin/bash -c 'if [[ \"\$(id -u ubuntu)\" == \"1000\" ]]; then getent passwd 1001 >/dev/null && exit 1; getent group 1001 >/dev/null && exit 1; pkill -u ubuntu || true; groupmod --gid 1001 ubuntu; usermod --uid 1001 --gid 1001 ubuntu; chown -R ubuntu:ubuntu /home/ubuntu; fi'" || true
+  for _ in $(seq 1 30); do
+    if remote "$erp_ip" "test \"\$(id -u ubuntu)\" = 1001" 2>/dev/null; then
+      break
+    fi
+    sleep 1
+  done
 fi
 remote "$erp_ip" "test \"\$(id -u ubuntu)\" = 1001"
 remote "$erp_ip" "sudo systemctl disable --now rekov-free-frappe-uid-onboot.service >/dev/null 2>&1 || true; sudo rm -f /etc/systemd/system/rekov-free-frappe-uid-onboot.service"
