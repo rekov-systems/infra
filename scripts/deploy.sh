@@ -223,7 +223,7 @@ remote "$control_ip" "sudo rm -rf /tmp/rekov"
 # diagnostic read-only so a stuck Pending job exposes both sides of the
 # handoff in the same CI run: Press's records and the builder host processes.
 remote "$control_ip" "sudo -u frappe bash -lc 'cd /home/frappe/press-bench && bench --site \"${PRESS_CONTROL_HOSTNAME}\" execute \"frappe.get_all(\\\"Agent Job\\\", filters={\\\"reference_doctype\\\": \\\"Deploy Candidate Build\\\", \\\"job_type\\\": \\\"Run Remote Builder\\\"}, fields=[\\\"name\\\", \\\"status\\\", \\\"job_id\\\", \\\"server\\\", \\\"request_path\\\", \\\"modified\\\"], order_by=\\\"creation desc\\\", limit_page_length=3)\"' || true"
-remote "$erp_ip" "sudo docker ps --format 'table {{.Names}}\\t{{.Status}}\\t{{.Image}}' 2>/dev/null || true; sudo systemctl --no-pager --type=service --all | grep -Ei 'agent|builder|supervisor|docker' || true"
+remote "$erp_ip" "sudo docker ps --format 'table {{.Names}}\\t{{.Status}}\\t{{.Image}}' 2>/dev/null || true; sudo systemctl --no-pager --type=service --all | grep -Ei 'agent|builder|supervisor|docker' || true; sudo supervisorctl status 2>&1 || true; sudo ps auxww | grep -Ei '[f]rappe|[a]gent|[b]uilder|[s]upervisor' || true; sudo find /etc/supervisor /etc/supervisord.conf -maxdepth 3 -type f -print 2>/dev/null | sort || true"
 
 # Contabo is deliberately not an ERPNext deployment target anymore.  It is a
 # clean, SSH-reachable candidate for Press's "Self Hosted Server" workflow.
