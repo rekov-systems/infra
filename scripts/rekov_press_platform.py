@@ -8,12 +8,14 @@ domains and public IPs are never hard-coded in this module.
 from __future__ import annotations
 
 import os
+import json
 import subprocess
 import tempfile
 from datetime import timedelta
 
 import frappe
 from frappe.utils import now_datetime
+from press.agent import Agent
 from press.runner import Ansible as PressAnsible
 
 
@@ -60,12 +62,20 @@ def retry_undelivered_build_job(build_name: str) -> None:
     frappe.db.delete("Agent Request Failure", {"server": job.server})
     if job.server_type in {"Server", "Database Server", "Proxy Server"}:
         frappe.db.set_value(job.server_type, job.server, "halt_agent_jobs", 0)
-    # retry_in_place() only enqueues create_http_request() after the current
-    # transaction commits. The bootstrap can finish before the short worker
-    # delivers it, leaving CI green while the build remains Undelivered.
-    # Deliver the existing request synchronously so the build can transition
-    # to Pending without creating a duplicate Agent Job.
-    job.create_http_request()
+    # create_http_request() checks the circuit breaker before calling Agent.
+    # Send this existing request directly after clearing the stale breaker so
+    # the build can transition to Pending without creating a duplicate job.
+    response = Agent(job.server, server_type=job.server_type).request(
+        job.request_method,
+        job.request_path,
+        json.loads(job.request_data or "{}"),
+        json.loads(job.request_files or "{}"),
+        agent_job=job,
+    )
+    job.job_id = response["job"]
+    job.status = "Pending"
+    job.save(ignore_permissions=True)
+    frappe.db.commit()
     job.reload()
     if job.status == "Undelivered":
         raise RuntimeError(
