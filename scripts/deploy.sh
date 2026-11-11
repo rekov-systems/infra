@@ -165,16 +165,18 @@ wait_ssh "$erp_ip"
 # images already reserve that identity for the default `ubuntu` account, so
 # move only that account out of the way before Press runs its Ansible play.
 # Keep the SSH user name and sudo policy unchanged.
-remote "$erp_ip" "sudo bash -c '
-  if [[ \"\$(id -u ubuntu)\" == \"1000\" ]]; then
-    getent passwd 1001 >/dev/null && { echo \"UID 1001 is already in use; refusing to move ubuntu.\" >&2; exit 1; }
-    getent group 1001 >/dev/null && { echo \"GID 1001 is already in use; refusing to move ubuntu.\" >&2; exit 1; }
-    groupmod --gid 1001 ubuntu
-    usermod --uid 1001 --gid 1001 ubuntu
-    chown -R ubuntu:ubuntu /home/ubuntu
-  fi
-  [[ \"\$(id -u ubuntu)\" == \"1001\" ]]
-'"
+if [[ "$(remote "$erp_ip" "id -u ubuntu")" == "1000" ]]; then
+  # The current SSH shell belongs to ubuntu, so usermod cannot run in that
+  # process. Schedule the root-owned migration after this SSH session closes.
+  remote "$erp_ip" "sudo systemd-run --quiet --no-block --unit=rekov-free-frappe-uid --on-active=2s /bin/bash -c 'if [[ \"\$(id -u ubuntu)\" == \"1000\" ]]; then getent passwd 1001 >/dev/null && exit 1; getent group 1001 >/dev/null && exit 1; groupmod --gid 1001 ubuntu; usermod --uid 1001 --gid 1001 ubuntu; chown -R ubuntu:ubuntu /home/ubuntu; fi'"
+  for _ in $(seq 1 30); do
+    if remote "$erp_ip" "test \"\$(id -u ubuntu)\" = 1001" 2>/dev/null; then
+      break
+    fi
+    sleep 1
+  done
+fi
+remote "$erp_ip" "test \"\$(id -u ubuntu)\" = 1001"
 
 cat >"$tmp/press.env" <<EOF
 PRESS_CONTROL_HOSTNAME=${PRESS_CONTROL_HOSTNAME@Q}
