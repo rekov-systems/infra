@@ -615,14 +615,25 @@ def bootstrap() -> dict:
                 f"{type(exc).__name__}: {exc}"
             ) from exc
         server_doc.reload()
-        ping_play = frappe.get_all(
+        successful_ping = frappe.get_all(
             "Ansible Play",
-            filters={"server": server_doc.name, "play": "Ping Server"},
+            filters={
+                "server": server_doc.name,
+                "play": "Ping Server",
+                "status": "Success",
+            },
             fields=["name", "status"],
             order_by="creation desc",
             limit_page_length=1,
         )
-        if not ping_play or ping_play[0].status != "Success":
+        if not successful_ping:
+            ping_play = frappe.get_all(
+                "Ansible Play",
+                filters={"server": server_doc.name, "play": "Ping Server"},
+                fields=["name", "status"],
+                order_by="creation desc",
+                limit_page_length=1,
+            )
             play_status = ping_play[0].status if ping_play else "not created"
             raise RuntimeError(
                 "Press could not complete the tenant node Ansible ping "
