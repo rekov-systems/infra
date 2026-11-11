@@ -336,6 +336,11 @@ if ! awk '\$1 == "press" { found = 1 } END { exit !found }' "\$installed_apps_fi
 fi
 rm -f "\$installed_apps_file"
 rm -f "\$installed_apps_error_file"
+# The control site is intentionally preserved across retries.  Keep its
+# schema synchronized with the pinned Press source before the platform
+# bootstrap touches fields added by newer Press revisions (for example
+# App Release.deployable).
+bench --site "$PRESS_CONTROL_HOSTNAME" migrate
 # Press declares press.bundle.js in hooks.py. Build the complete Bench asset
 # set: building only Press leaves Frappe's Desk bundle stale/incomplete (for
 # example, frappe.ui.create_menu can be absent from desk.bundle.js).
