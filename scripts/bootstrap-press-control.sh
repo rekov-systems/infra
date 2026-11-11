@@ -75,7 +75,20 @@ chmod 0600 /home/frappe/.ssh/id_ed25519
 # managed-server connection is non-interactive and does not fail on the
 # control plane's default StrictHostKeyChecking policy.
 ssh-keygen -R "$PRESS_TENANT_NODE_PUBLIC_IP" -f /home/frappe/.ssh/known_hosts >/dev/null 2>&1 || true
-ssh-keyscan -T 10 -H "$PRESS_TENANT_NODE_PUBLIC_IP" > /home/frappe/.ssh/known_hosts
+known_hosts_tmp=$(mktemp)
+trap 'rm -f "$known_hosts_tmp"' EXIT
+for attempt in $(seq 1 12); do
+  if ssh-keyscan -T 10 -H "$PRESS_TENANT_NODE_PUBLIC_IP" >"$known_hosts_tmp" 2>/dev/null \
+    && grep -q 'ssh-' "$known_hosts_tmp"; then
+    install -o frappe -g frappe -m 0600 "$known_hosts_tmp" /home/frappe/.ssh/known_hosts
+    break
+  fi
+  sleep 2
+done
+[[ -s /home/frappe/.ssh/known_hosts ]] || {
+  echo "Could not obtain the SSH host key for ${PRESS_TENANT_NODE_PUBLIC_IP}." >&2
+  exit 1
+}
 chown frappe:frappe /home/frappe/.ssh/known_hosts
 chmod 0600 /home/frappe/.ssh/known_hosts
 if [[ -d "$bench_root/apps/frappe" ]] && bench_env_python_ok; then
