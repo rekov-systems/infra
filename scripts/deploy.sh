@@ -205,7 +205,7 @@ remote "$erp_ip" "sudo apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=5 
 # bench with the exact host interpreter /usr/bin/python3.14. The Ubuntu Noble
 # image only ships Python 3.12, so without this package the agent accepts the
 # request and its worker leaves the Agent Job Pending with FileNotFoundError.
-remote "$erp_ip" "if [ ! -x /usr/bin/python3.14 ]; then sudo DEBIAN_FRONTEND=noninteractive add-apt-repository -y ppa:deadsnakes/ppa; sudo apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=5 update; sudo DEBIAN_FRONTEND=noninteractive apt-get install -y python3.14 python3.14-dev python3.14-venv; fi; test -x /usr/bin/python3.14"
+remote "$erp_ip" "if [ ! -x /usr/bin/python3.14 ]; then sudo DEBIAN_FRONTEND=noninteractive add-apt-repository -y ppa:deadsnakes/ppa; sudo apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=5 update; sudo DEBIAN_FRONTEND=noninteractive apt-get install -y python3.14 python3.14-dev python3.14-venv; fi; test -x /usr/bin/python3.14; sudo -u frappe /usr/bin/python3.14 --version; sudo supervisorctl restart agent:* >/dev/null"
 
 cat >"$tmp/press.env" <<EOF
 PRESS_CONTROL_HOSTNAME=${PRESS_CONTROL_HOSTNAME@Q}
