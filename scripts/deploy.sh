@@ -234,14 +234,13 @@ remote "$control_ip" "sudo test -s /tmp/rekov/press.env && sudo test -s /tmp/rek
 remote "$erp_ip" "if ! sudo grep -Eq '^[[:space:]]*${control_ip}[[:space:]]+${PRESS_CONTROL_HOSTNAME}([[:space:]]|\$)' /etc/hosts; then echo '${control_ip} ${PRESS_CONTROL_HOSTNAME}' | sudo tee -a /etc/hosts >/dev/null; fi; if ! sudo grep -Eq '^[[:space:]]*${erp_ip}[[:space:]]+registry.${PRESS_ROOT_DOMAIN}([[:space:]]|\$)' /etc/hosts; then echo '${erp_ip} registry.${PRESS_ROOT_DOMAIN}' | sudo tee -a /etc/hosts >/dev/null; fi; getent hosts '${PRESS_CONTROL_HOSTNAME}' registry.${PRESS_ROOT_DOMAIN}"
 remote "$control_ip" "if ! sudo grep -Eq '^[[:space:]]*${erp_ip}[[:space:]]+registry.${PRESS_ROOT_DOMAIN}([[:space:]]|\$)' /etc/hosts; then echo '${erp_ip} registry.${PRESS_ROOT_DOMAIN}' | sudo tee -a /etc/hosts >/dev/null; fi; getent hosts registry.${PRESS_ROOT_DOMAIN}"
 
+# The tenant's SSH connection is managed by the Press control plane. Keep the
+# control-plane origin out of Fail2Ban before any Press Ansible play runs.
+remote "$erp_ip" "printf '%s\\n' '[sshd]' 'ignoreip = 127.0.0.1/8 ::1 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 ${erp_ip} ${control_ip}' | sudo tee /etc/fail2ban/jail.d/zz-rekov-control-plane.conf >/dev/null; sudo systemctl enable --now fail2ban; sudo systemctl restart fail2ban; sudo fail2ban-client status sshd"
+
 remote "$control_ip" "sudo bash -c 'set -a && source /tmp/rekov/press.env && set +a && exec bash /tmp/rekov/bootstrap-press-control.sh'"
 remote "$control_ip" "sudo bash -c 'set -a && source /tmp/rekov/press.env && set +a && exec bash /tmp/rekov/bootstrap-press-platform.sh'"
 remote "$control_ip" "sudo rm -rf /tmp/rekov"
-
-# The tenant's SSH connection is managed by the Press control plane. Keep the
-# control-plane origin out of Fail2Ban so Ansible retries cannot lock the
-# operator out while reconciling the server.
-remote "$erp_ip" "printf '%s\\n' '[sshd]' 'ignoreip = 127.0.0.1/8 ::1 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 ${erp_ip} ${control_ip}' | sudo tee /etc/fail2ban/jail.d/zz-rekov-control-plane.conf >/dev/null; sudo systemctl enable --now fail2ban; sudo systemctl restart fail2ban; sudo fail2ban-client status sshd"
 
 # Reconcile the agent callback destination through the deployment path.  The
 # upstream agent defaults to frappecloud.com when Press is self-hosted; that
