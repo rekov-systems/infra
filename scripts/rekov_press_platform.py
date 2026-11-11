@@ -8,6 +8,8 @@ domains and public IPs are never hard-coded in this module.
 from __future__ import annotations
 
 import os
+import subprocess
+import tempfile
 from datetime import timedelta
 
 import frappe
@@ -147,6 +149,74 @@ def ensure_frappe_version() -> str:
         "Version 16",
         {"number": 16, "status": "Stable", "public": 1, "default": 1},
     )
+
+
+def ensure_tls_certificate(root_domain: str, team: str) -> str:
+    """Ensure Press has an active wildcard certificate for self-hosted servers.
+
+    Press's Database Server setup looks up a wildcard TLS Certificate before it
+    creates the Ansible Play. The normal Press flow obtains this asynchronously,
+    but the control-plane bootstrap must have an active certificate first.
+    This certificate is used for the internal server setup; public HTTPS is
+    still terminated by the separately managed control-plane/proxy certificate.
+    """
+    name = f"*.{root_domain}"
+    if frappe.db.exists("TLS Certificate", name):
+        certificate = frappe.get_doc("TLS Certificate", name)
+        if certificate.status == "Active" and certificate.get_private_key():
+            return certificate.name
+
+    with tempfile.TemporaryDirectory() as directory:
+        key_path = os.path.join(directory, "key.pem")
+        certificate_path = os.path.join(directory, "certificate.pem")
+        subprocess.run(
+            [
+                "openssl",
+                "req",
+                "-x509",
+                "-nodes",
+                "-newkey",
+                "rsa:2048",
+                "-keyout",
+                key_path,
+                "-out",
+                certificate_path,
+                "-days",
+                "3650",
+                "-subj",
+                f"/CN=*.{root_domain}",
+                "-addext",
+                f"subjectAltName=DNS:*.{root_domain},DNS:{root_domain}",
+            ],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        private_key = open(key_path).read()
+        certificate_pem = open(certificate_path).read()
+
+    values = {
+        "domain": root_domain,
+        "wildcard": 1,
+        "provider": "Other",
+        "team": team,
+        "rsa_key_size": "2048",
+        "certificate": certificate_pem,
+        "full_chain": certificate_pem,
+        "intermediate_chain": certificate_pem,
+        "private_key": private_key,
+        "status": "Active",
+    }
+    if frappe.db.exists("TLS Certificate", name):
+        certificate = frappe.get_doc("TLS Certificate", name)
+        for field, value in values.items():
+            certificate.set(field, value)
+        certificate.save(ignore_permissions=True)
+    else:
+        certificate = frappe.get_doc({"doctype": "TLS Certificate", **values})
+        certificate.insert(ignore_permissions=True)
+    return certificate.name
 
 
 def ensure_app_source(app_name: str, title: str, repository: str, version: str, team: str) -> str:
@@ -512,6 +582,7 @@ def bootstrap() -> dict:
     settings.certbot_directory = "/etc/letsencrypt"
     settings.eff_registration_email = f"admin@{root_domain}"
     settings.save(ignore_permissions=True)
+    ensure_tls_certificate(root_domain, team)
     self_hosted_server = ensure_self_hosted_server(cluster, team, plan, proxy)
     server_doc = frappe.get_doc("Self Hosted Server", self_hosted_server)
     if not server_doc.server or not server_doc.database_server:
