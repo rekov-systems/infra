@@ -42,10 +42,19 @@ apt-get install -y ansible build-essential ca-certificates certbot cron curl fai
 curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
 apt-get install -y nodejs
 corepack enable || true
-add-apt-repository -y ppa:deadsnakes/ppa
-apt-get update
-apt-get install -y python3.14 python3.14-dev python3.14-venv
-bench_python="$(command -v python3.14)"
+if command -v python3.14 >/dev/null 2>&1; then
+  # The control VM is reused across deploy retries. Do not contact Launchpad
+  # again when the required interpreter is already installed; transient
+  # Launchpad/IPv6 failures must not block an otherwise repeatable bootstrap.
+  bench_python="$(command -v python3.14)"
+else
+  if ! grep -Rqs 'ppa.launchpadcontent.net/deadsnakes/ppa' /etc/apt/sources.list.d 2>/dev/null; then
+    add-apt-repository -y ppa:deadsnakes/ppa
+  fi
+  apt-get update
+  apt-get install -y python3.14 python3.14-dev python3.14-venv
+  bench_python="$(command -v python3.14)"
+fi
 
 id frappe >/dev/null 2>&1 || useradd --create-home --shell /bin/bash frappe
 install -d -o frappe -g frappe /home/frappe
