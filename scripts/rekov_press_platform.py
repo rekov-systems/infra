@@ -9,9 +9,8 @@ from __future__ import annotations
 
 import os
 import json
-import subprocess
-import tempfile
 from datetime import timedelta
+from pathlib import Path
 
 import frappe
 import requests
@@ -260,40 +259,23 @@ def ensure_tls_certificate(root_domain: str, team: str) -> str:
     still terminated by the separately managed control-plane/proxy certificate.
     """
     name = f"*.{root_domain}"
+    certificate_path = Path("/home/frappe/.config/rekov/root-fullchain.pem")
+    private_key_path = Path("/home/frappe/.config/rekov/root-privkey.pem")
     if frappe.db.exists("TLS Certificate", name):
         certificate = frappe.get_doc("TLS Certificate", name)
-        if certificate.status == "Active" and certificate.get_private_key():
+        if (
+            certificate.status == "Active"
+            and certificate.get_private_key()
+            and not certificate_path.is_file()
+        ):
             return certificate.name
 
-    with tempfile.TemporaryDirectory() as directory:
-        key_path = os.path.join(directory, "key.pem")
-        certificate_path = os.path.join(directory, "certificate.pem")
-        subprocess.run(
-            [
-                "openssl",
-                "req",
-                "-x509",
-                "-nodes",
-                "-newkey",
-                "rsa:2048",
-                "-keyout",
-                key_path,
-                "-out",
-                certificate_path,
-                "-days",
-                "3650",
-                "-subj",
-                f"/CN=*.{root_domain}",
-                "-addext",
-                f"subjectAltName=DNS:*.{root_domain},DNS:{root_domain}",
-            ],
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            text=True,
+    if not certificate_path.is_file() or not private_key_path.is_file():
+        raise RuntimeError(
+            f"Missing publicly trusted wildcard certificate for {root_domain}"
         )
-        private_key = open(key_path).read()
-        certificate_pem = open(certificate_path).read()
+    certificate_pem = certificate_path.read_text()
+    private_key = private_key_path.read_text()
 
     values = {
         "domain": root_domain,

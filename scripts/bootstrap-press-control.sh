@@ -11,6 +11,8 @@ trap 'status=$?; echo "Press bootstrap failed at line ${BASH_LINENO[0]}: ${BASH_
 : "${PRESS_DB_ROOT_PASSWORD:?Set PRESS_DB_ROOT_PASSWORD}"
 : "${PRESS_SSH_PRIVATE_KEY:?Set PRESS_SSH_PRIVATE_KEY}"
 : "${PRESS_TENANT_NODE_PUBLIC_IP:?Set PRESS_TENANT_NODE_PUBLIC_IP}"
+: "${PRESS_ROOT_DOMAIN:?Set PRESS_ROOT_DOMAIN}"
+: "${PRESS_CLOUDFLARE_API_TOKEN:?Set PRESS_CLOUDFLARE_API_TOKEN}"
 
 # These two revisions are a compatibility unit.  Do not replace either with a
 # moving branch: Press still imports ``init_telemetry`` and Frappe removed that
@@ -43,7 +45,7 @@ if command -v python3.14 >/dev/null 2>&1; then
   find /etc/apt/sources.list.d -maxdepth 1 -type f -print0 | xargs -0 -r grep -Il 'ppa.launchpadcontent.net/deadsnakes/ppa' | xargs -r rm -f || true
 fi
 apt-get update
-apt-get install -y ansible build-essential ca-certificates certbot cron curl fail2ban git golang-go libffi-dev libcups2-dev \
+apt-get install -y ansible build-essential ca-certificates certbot python3-certbot-dns-cloudflare cron curl fail2ban git golang-go libffi-dev libcups2-dev \
   libmariadb-dev libssl-dev mariadb-server nginx pkg-config redis-server sudo \
   python3-dev python3-pip python3-venv software-properties-common xvfb
 curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
@@ -538,6 +540,27 @@ curl --fail --silent --show-error --insecure --max-time 15 \
   nginx -T >&2 || true
   exit 1
 }
+
+# Press's tenant-facing wildcard certificate is used by the hybrid builder and
+# Docker registry. It must be publicly trusted because these hostnames are
+# reached through Cloudflare in Full (strict) mode.
+cf_credentials=/root/.config/letsencrypt/cloudflare.ini
+origin_le_dir="/etc/letsencrypt/live/${PRESS_ROOT_DOMAIN}"
+install -d -m 0700 "$(dirname "$cf_credentials")"
+printf 'dns_cloudflare_api_token = %s\n' "$PRESS_CLOUDFLARE_API_TOKEN" >"$cf_credentials"
+chmod 0600 "$cf_credentials"
+certbot certonly --dns-cloudflare --dns-cloudflare-credentials "$cf_credentials" \
+  --cert-name "$PRESS_ROOT_DOMAIN" --non-interactive --agree-tos \
+  --register-unsafely-without-email --keep-until-expiring \
+  -d "$PRESS_ROOT_DOMAIN" -d "*.${PRESS_ROOT_DOMAIN}"
+[[ -s "$origin_le_dir/fullchain.pem" && -s "$origin_le_dir/privkey.pem" ]] || {
+  echo "Wildcard certificate was not created for ${PRESS_ROOT_DOMAIN}." >&2
+  exit 1
+}
+install -d -o frappe -g frappe -m 0750 /home/frappe/.config/rekov
+install -o frappe -g frappe -m 0644 "$origin_le_dir/fullchain.pem" /home/frappe/.config/rekov/root-fullchain.pem
+install -o frappe -g frappe -m 0600 "$origin_le_dir/privkey.pem" /home/frappe/.config/rekov/root-privkey.pem
+
 touch "$bench_root/.rekov-press-control-complete"
 chown frappe:frappe "$bench_root/.rekov-press-control-complete"
 echo "Press control plane installed for $PRESS_CONTROL_HOSTNAME."
