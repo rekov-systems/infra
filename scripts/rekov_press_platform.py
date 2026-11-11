@@ -267,6 +267,18 @@ def ensure_release_pipeline(team: str, version: str, server_name: str) -> str | 
     if app_server.status != "Active":
         return None
 
+    # A self-hosted hybrid node is also our Docker builder. Press requires
+    # both the server capability and the explicit Press Settings fallback.
+    # Without these fields Release Group.initial_deploy() fails before it can
+    # create the first Deploy Candidate Build.
+    if not app_server.use_for_build:
+        app_server.use_for_build = 1
+        app_server.save(ignore_permissions=True)
+    settings = frappe.get_single("Press Settings")
+    if settings.build_server != app_server.name:
+        settings.build_server = app_server.name
+        settings.save(ignore_permissions=True)
+
     frappe_source = ensure_app_source(
         "frappe", "Frappe", "https://github.com/frappe/frappe", version, team
     )
@@ -281,6 +293,7 @@ def ensure_release_pipeline(team: str, version: str, server_name: str) -> str | 
         group.title = "Rekov ERPNext"
         group.version = version
         group.team = team
+        group.build_server = app_server.name
         group.enabled = 1
         group.default = 1
         group.public = 0
@@ -290,6 +303,8 @@ def ensure_release_pipeline(team: str, version: str, server_name: str) -> str | 
         group.insert(ignore_permissions=True)
     if not frappe.db.exists("Release Group Server", {"parent": group.name, "server": app_server.name}):
         group.append("servers", {"server": app_server.name})
+    if group.build_server != app_server.name:
+        group.build_server = app_server.name
     if not frappe.db.exists("Release Group App", {"parent": group.name, "app": "frappe"}):
         group.append("apps", {"app": "frappe", "source": frappe_source})
     if not frappe.db.exists("Release Group App", {"parent": group.name, "app": "erpnext"}):
@@ -375,16 +390,20 @@ def setup_server_if_stale(server, doctype: str, stale_minutes: int = 45) -> None
     )
     play = latest_play[0] if latest_play else None
     if server.status == "Installing" and play:
-        if play.status == "Running" and play.start:
-            age_minutes = (now_datetime() - play.start).total_seconds() / 60
+        if play.status in {"Running", "Pending"}:
+            reference_time = play.start or play.creation
+            age_minutes = (
+                (now_datetime() - reference_time).total_seconds() / 60
+                if reference_time
+                else stale_minutes
+            )
             if age_minutes < stale_minutes:
                 return
-        elif play.status == "Pending":
-            reference_time = play.start or play.creation
-            if reference_time:
-                age_minutes = (now_datetime() - reference_time).total_seconds() / 60
-                if age_minutes < stale_minutes:
-                    return
+            raise RuntimeError(
+                f"{doctype} {server.name} is still Installing with Ansible Play "
+                f"{play.name} ({play.status}, {age_minutes:.0f} minutes old); "
+                "refusing to create a duplicate setup play"
+            )
 
     # Pending/Broken, missing plays, failed plays, and stale Installing plays
     # are safe to retry. The first bootstrap must run this synchronously:
@@ -660,12 +679,24 @@ def bootstrap() -> dict:
         app_server = frappe.get_doc("Server", server_doc.server)
         progress("setting up database server")
         setup_server_if_stale(db_server, "Database Server")
+        db_server.reload()
+        if db_server.status != "Active":
+            raise RuntimeError(
+                f"Database Server {db_server.name} is {db_server.status}; "
+                "its Ansible setup has not completed"
+            )
         # On a hybrid server Press normally invokes this from the database
         # setup callback. Reconcile it explicitly as well, so a lost callback
         # cannot leave the application server Pending forever.
         if db_server.status == "Active":
             progress("setting up application server")
             setup_server_if_stale(app_server, "Server")
+            app_server.reload()
+            if app_server.status != "Active":
+                raise RuntimeError(
+                    f"Application Server {app_server.name} is {app_server.status}; "
+                    "its Ansible setup has not completed"
+                )
         ensure_frappe_version()
         progress("ensuring release pipeline")
         ensure_release_pipeline(team, "Version 16", self_hosted_server)
