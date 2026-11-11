@@ -65,14 +65,33 @@ def retry_undelivered_build_job(build_name: str) -> None:
     # create_http_request() checks the circuit breaker before calling Agent.
     # Send this existing request directly after clearing the stale breaker so
     # the build can transition to Pending without creating a duplicate job.
-    response = Agent(job.server, server_type=job.server_type).request(
-        job.request_method,
-        job.request_path,
-        json.loads(job.request_data or "{}"),
-        json.loads(job.request_files or "{}"),
-        agent_job=job,
-    )
-    job.job_id = response["job"]
+    agent = Agent(job.server, server_type=job.server_type)
+    try:
+        # Agent.request() intentionally swallows transport and HTTP errors and
+        # returns None. During bootstrap that hides the reason a build cannot
+        # be delivered, so use the same low-level request with diagnostics.
+        response = agent._make_req(
+            job.request_method,
+            job.request_path,
+            json.loads(job.request_data or "{}"),
+            json.loads(job.request_files or "{}"),
+            job.name,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except Exception as exc:
+        status = getattr(response, "status_code", "unknown") if "response" in locals() else "unknown"
+        body = getattr(response, "text", "") if "response" in locals() else ""
+        raise RuntimeError(
+            f"Remote builder delivery failed for Agent Job {job.name}: "
+            f"HTTP {status}; {body[:1000] or repr(exc)}"
+        ) from exc
+    if not isinstance(payload, dict) or not payload.get("job"):
+        raise RuntimeError(
+            f"Remote builder response for Agent Job {job.name} "
+            f"did not contain a job id: {payload!r}"
+        )
+    job.job_id = payload["job"]
     job.status = "Pending"
     job.save(ignore_permissions=True)
     frappe.db.commit()
