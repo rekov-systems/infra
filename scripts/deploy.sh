@@ -238,6 +238,11 @@ remote "$control_ip" "sudo bash -c 'set -a && source /tmp/rekov/press.env && set
 remote "$control_ip" "sudo bash -c 'set -a && source /tmp/rekov/press.env && set +a && exec bash /tmp/rekov/bootstrap-press-platform.sh'"
 remote "$control_ip" "sudo rm -rf /tmp/rekov"
 
+# The tenant's SSH connection is managed by the Press control plane. Keep the
+# control-plane origin out of Fail2Ban so Ansible retries cannot lock the
+# operator out while reconciling the server.
+remote "$erp_ip" "printf '%s\\n' '[sshd]' 'ignoreip = 127.0.0.1/8 ::1 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 ${erp_ip} ${control_ip}' | sudo tee /etc/fail2ban/jail.d/zz-rekov-control-plane.conf >/dev/null; sudo systemctl enable --now fail2ban; sudo systemctl restart fail2ban; sudo fail2ban-client status sshd"
+
 # Reconcile the agent callback destination through the deployment path.  The
 # upstream agent defaults to frappecloud.com when Press is self-hosted; that
 # silently strands completed jobs.  Preserve the access token and restart
