@@ -44,10 +44,7 @@ def retry_undelivered_build_job(build_name: str) -> None:
     # A Version 16 build can spend several minutes compiling the full ERPNext
     # tree before the agent updates the job. Do not duplicate an active build
     # merely because it has been pending for five minutes.
-    # Recovery pass: the previous diagnostic run interrupted job 7. This low
-    # threshold lets the next reconciliation requeue that already-dead job;
-    # restore the normal 30-minute guard after recovery.
-    stale_before = now_datetime() - timedelta(minutes=5)
+    stale_before = now_datetime() - timedelta(minutes=30)
     jobs = frappe.get_all(
         "Agent Job",
         filters={
