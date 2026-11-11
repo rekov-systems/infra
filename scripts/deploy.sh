@@ -205,7 +205,7 @@ remote "$erp_ip" "sudo apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=5 
 # bench with the exact host interpreter /usr/bin/python3.14. The Ubuntu Noble
 # image only ships Python 3.12, so without this package the agent accepts the
 # request and its worker leaves the Agent Job Pending with FileNotFoundError.
-remote "$erp_ip" "if [ ! -x /usr/bin/python3.14 ]; then sudo DEBIAN_FRONTEND=noninteractive add-apt-repository -y ppa:deadsnakes/ppa; sudo apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=5 update; sudo DEBIAN_FRONTEND=noninteractive apt-get install -y python3.14 python3.14-dev python3.14-venv; fi; test -x /usr/bin/python3.14; sudo -u frappe /usr/bin/python3.14 --version; sudo supervisorctl restart agent:* >/dev/null"
+remote "$erp_ip" "agent_restart=0; if [ ! -x /usr/bin/python3.14 ]; then sudo DEBIAN_FRONTEND=noninteractive add-apt-repository -y ppa:deadsnakes/ppa; sudo apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=5 update; sudo DEBIAN_FRONTEND=noninteractive apt-get install -y python3.14 python3.14-dev python3.14-venv; agent_restart=1; fi; test -x /usr/bin/python3.14; sudo -u frappe /usr/bin/python3.14 --version; if [ \"\$agent_restart\" = 1 ]; then sudo supervisorctl restart agent:* >/dev/null; fi"
 
 cat >"$tmp/press.env" <<EOF
 PRESS_CONTROL_HOSTNAME=${PRESS_CONTROL_HOSTNAME@Q}
@@ -229,7 +229,7 @@ remote "$control_ip" "sudo rm -rf /tmp/rekov"
 # hostname for TLS. The public hostname is proxied by Cloudflare; callbacks
 # from the tenant must reach Press directly so the server IP authorization is
 # preserved and a transient proxy/Redis restart cannot strand Agent Jobs.
-remote "$erp_ip" "if ! sudo grep -Eq '^[[:space:]]*${control_ip}[[:space:]]+${PRESS_CONTROL_HOSTNAME}([[:space:]]|$)' /etc/hosts; then echo '${control_ip} ${PRESS_CONTROL_HOSTNAME}' | sudo tee -a /etc/hosts >/dev/null; fi; getent hosts '${PRESS_CONTROL_HOSTNAME}'; sudo supervisorctl restart agent:* >/dev/null"
+remote "$erp_ip" "hosts_changed=0; if ! sudo grep -Eq '^[[:space:]]*${control_ip}[[:space:]]+${PRESS_CONTROL_HOSTNAME}([[:space:]]|\$)' /etc/hosts; then echo '${control_ip} ${PRESS_CONTROL_HOSTNAME}' | sudo tee -a /etc/hosts >/dev/null; hosts_changed=1; fi; getent hosts '${PRESS_CONTROL_HOSTNAME}'; if [ \"\$hosts_changed\" = 1 ]; then sudo supervisorctl restart agent:* >/dev/null; fi"
 
 # The bootstrap submits the first remote build asynchronously. Keep this
 # diagnostic read-only so a stuck Pending job exposes both sides of the
