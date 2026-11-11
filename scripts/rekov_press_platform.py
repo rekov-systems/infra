@@ -315,6 +315,60 @@ def setup_server_if_stale(server, doctype: str, stale_minutes: int = 45) -> None
     server.setup_server()
 
 
+def press_status_snapshot(server_name: str) -> dict:
+    """Return the complete provisioning chain for CI diagnostics."""
+    hybrid = frappe.get_doc("Self Hosted Server", server_name)
+    snapshot = {
+        "self_hosted_server": {
+            "name": hybrid.name,
+            "status": hybrid.status,
+            "server": hybrid.server,
+            "database_server": hybrid.database_server,
+        },
+        "application_server": None,
+        "database_server": None,
+        "ansible_plays": [],
+        "release_groups": [],
+        "deploy_candidates": [],
+        "deploys": [],
+        "benches": [],
+    }
+    for doctype, name in (
+        ("Database Server", hybrid.database_server),
+        ("Server", hybrid.server),
+    ):
+        if not name:
+            continue
+        doc = frappe.get_doc(doctype, name)
+        key = "database_server" if doctype == "Database Server" else "application_server"
+        snapshot[key] = {"name": doc.name, "status": doc.status, "ip": doc.ip}
+        snapshot["ansible_plays"].extend(
+            frappe.get_all(
+                "Ansible Play",
+                filters={"server_type": doctype, "server": name},
+                fields=["name", "play", "playbook", "status", "start", "end"],
+                order_by="creation desc",
+                limit_page_length=3,
+            )
+        )
+    snapshot["release_groups"] = frappe.get_all(
+        "Release Group", fields=["name", "title", "version", "team", "enabled"]
+    )
+    snapshot["deploy_candidates"] = frappe.get_all(
+        "Deploy Candidate",
+        fields=["name", "group", "build_token", "creation"],
+        order_by="creation desc",
+        limit_page_length=10,
+    )
+    snapshot["deploys"] = frappe.get_all(
+        "Deploy", fields=["name", "group", "candidate", "creation"], order_by="creation desc", limit_page_length=10
+    )
+    snapshot["benches"] = frappe.get_all(
+        "Bench", fields=["name", "status", "group", "candidate", "server"], order_by="creation desc", limit_page_length=10
+    )
+    return snapshot
+
+
 def reconcile(server_name: str) -> str | None:
     """Self-heal server setup and continue Press provisioning."""
     server = frappe.get_doc("Self Hosted Server", server_name)
@@ -502,7 +556,7 @@ def bootstrap() -> dict:
         )
     frappe.db.commit()
 
-    return {
+    result = {
         "root_domain": root,
         "cluster": cluster,
         "team": team,
@@ -512,3 +566,5 @@ def bootstrap() -> dict:
         "tenant_node_ip": contabo_ip,
         "self_hosted_server": self_hosted_server,
     }
+    result["press_status"] = press_status_snapshot(self_hosted_server)
+    return result
