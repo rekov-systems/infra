@@ -225,6 +225,12 @@ remote "$control_ip" "sudo bash -c 'set -a && source /tmp/rekov/press.env && set
 remote "$control_ip" "sudo bash -c 'set -a && source /tmp/rekov/press.env && set +a && exec bash /tmp/rekov/bootstrap-press-platform.sh'"
 remote "$control_ip" "sudo rm -rf /tmp/rekov"
 
+# Keep agent callbacks on the control-plane origin while preserving the Press
+# hostname for TLS. The public hostname is proxied by Cloudflare; callbacks
+# from the tenant must reach Press directly so the server IP authorization is
+# preserved and a transient proxy/Redis restart cannot strand Agent Jobs.
+remote "$erp_ip" "if ! sudo grep -Eq '^[[:space:]]*${control_ip}[[:space:]]+${PRESS_CONTROL_HOSTNAME}([[:space:]]|$)' /etc/hosts; then echo '${control_ip} ${PRESS_CONTROL_HOSTNAME}' | sudo tee -a /etc/hosts >/dev/null; fi; getent hosts '${PRESS_CONTROL_HOSTNAME}'; sudo supervisorctl restart agent:* >/dev/null"
+
 # The bootstrap submits the first remote build asynchronously. Keep this
 # diagnostic read-only so a stuck Pending job exposes both sides of the
 # handoff in the same CI run: Press's records and the builder host processes.
