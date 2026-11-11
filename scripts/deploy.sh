@@ -161,6 +161,21 @@ fi
 wait_ssh "$control_ip"
 wait_ssh "$erp_ip"
 
+# Press creates its managed `frappe` account with UID/GID 1000. Ubuntu cloud
+# images already reserve that identity for the default `ubuntu` account, so
+# move only that account out of the way before Press runs its Ansible play.
+# Keep the SSH user name and sudo policy unchanged.
+remote "$erp_ip" "sudo bash -c '
+  if [[ \"\$(id -u ubuntu)\" == \"1000\" ]]; then
+    getent passwd 1001 >/dev/null && { echo \"UID 1001 is already in use; refusing to move ubuntu.\" >&2; exit 1; }
+    getent group 1001 >/dev/null && { echo \"GID 1001 is already in use; refusing to move ubuntu.\" >&2; exit 1; }
+    groupmod --gid 1001 ubuntu
+    usermod --uid 1001 --gid 1001 ubuntu
+    chown -R ubuntu:ubuntu /home/ubuntu
+  fi
+  [[ \"\$(id -u ubuntu)\" == \"1001\" ]]
+'"
+
 cat >"$tmp/press.env" <<EOF
 PRESS_CONTROL_HOSTNAME=${PRESS_CONTROL_HOSTNAME@Q}
 PRESS_ADMIN_PASSWORD=${PRESS_ADMIN_PASSWORD@Q}
