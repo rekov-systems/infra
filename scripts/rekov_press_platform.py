@@ -34,20 +34,22 @@ def progress(message: str) -> None:
 
 
 def retry_undelivered_build_job(build_name: str) -> None:
-    """Kick a stuck remote-builder request once during CI reconciliation.
+    """Kick a stale remote-builder request once during CI reconciliation.
 
     Press normally retries these jobs asynchronously, but a self-hosted
-    bootstrap can finish before the short-queue request is delivered. Retry
-    in place so the existing build/job is preserved and no duplicate build is
-    created.
+    bootstrap can finish before the request is delivered or its worker can
+    fail after accepting it. Retry stale requests in place so the existing
+    build/job is preserved and no duplicate build is created.
     """
+    stale_before = now_datetime() - timedelta(minutes=5)
     jobs = frappe.get_all(
         "Agent Job",
         filters={
             "reference_doctype": "Deploy Candidate Build",
             "reference_name": build_name,
             "job_type": "Run Remote Builder",
-            "status": "Undelivered",
+            "status": ("in", ["Undelivered", "Pending"]),
+            "modified": ("<", stale_before),
         },
         fields=["name", "creation"],
         order_by="creation desc",
