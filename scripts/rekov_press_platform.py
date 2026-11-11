@@ -308,11 +308,28 @@ def setup_server_if_stale(server, doctype: str, stale_minutes: int = 45) -> None
                     return
 
     # Pending/Broken, missing plays, failed plays, and stale Installing plays
-    # are safe to retry through Press's normal async setup method.
+    # are safe to retry. The first bootstrap must run this synchronously:
+    # enqueueing only changes the status to Installing when the Press long
+    # worker is unavailable, which used to produce a false-successful CI run
+    # with no Ansible Play at all.
     if server.status != "Pending":
         server.status = "Pending"
         server.save(ignore_permissions=True)
-    server.setup_server()
+    server._setup_server()
+    server.reload()
+    if server.status != "Active":
+        latest_play = frappe.get_all(
+            "Ansible Play",
+            filters={"server_type": doctype, "server": server.name},
+            fields=["name", "play", "status"],
+            order_by="creation desc",
+            limit_page_length=1,
+        )
+        play_status = latest_play[0] if latest_play else {"status": "not created"}
+        raise RuntimeError(
+            f"Press could not activate {doctype} {server.name}: "
+            f"status={server.status}, ansible_play={play_status}"
+        )
 
 
 def press_status_snapshot(server_name: str) -> dict:
