@@ -30,6 +30,32 @@ def progress(message: str) -> None:
     frappe.logger().info(f"Rekov bootstrap: {message}")
 
 
+def retry_undelivered_build_job(build_name: str) -> None:
+    """Kick a stuck remote-builder request once during CI reconciliation.
+
+    Press normally retries these jobs asynchronously, but a self-hosted
+    bootstrap can finish before the short-queue request is delivered. Retry
+    in place so the existing build/job is preserved and no duplicate build is
+    created.
+    """
+    jobs = frappe.get_all(
+        "Agent Job",
+        filters={
+            "reference_doctype": "Deploy Candidate Build",
+            "reference_name": build_name,
+            "job_type": "Run Remote Builder",
+            "status": "Undelivered",
+        },
+        fields=["name", "creation"],
+        order_by="creation desc",
+        limit_page_length=1,
+    )
+    if not jobs:
+        return
+    job = frappe.get_doc("Agent Job", jobs[0].name)
+    job.retry_in_place()
+
+
 def ensure_doc(doctype: str, name: str, values: dict) -> str:
     if frappe.db.exists(doctype, name):
         doc = frappe.get_doc(doctype, name)
@@ -334,6 +360,7 @@ def ensure_release_pipeline(team: str, version: str, server_name: str) -> str | 
         )
         if builds:
             latest_build = builds[0]
+            retry_undelivered_build_job(latest_build.name)
             # Pending/Scheduled/Preparing/Running builds, and successful
             # builds whose Deploy/Bench jobs are still converging, must not be
             # duplicated by a later reconcile invocation.

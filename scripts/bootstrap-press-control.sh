@@ -179,7 +179,7 @@ path = Path("apps/press/press/playbooks/roles/essentials/tasks/main.yml")
 text = path.read_text()
 old = "- name: Update APT Cache\n  apt:\n    update_cache: yes\n"
 new = "- name: Update APT Cache\n  apt:\n    update_cache: yes\n    update_cache_retries: 5\n    update_cache_retry_max_delay: 12\n    lock_timeout: 120\n"
-if old in text:
+if "update_cache_retries:" not in text and old in text:
     path.write_text(text.replace(old, new, 1))
 PY
 grep -qxF press apps.txt 2>/dev/null || echo press >>apps.txt
