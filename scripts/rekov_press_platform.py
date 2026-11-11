@@ -53,6 +53,13 @@ def retry_undelivered_build_job(build_name: str) -> None:
     if not jobs:
         return
     job = frappe.get_doc("Agent Job", jobs[0].name)
+    # Press deliberately stops sending requests after a transport failure or
+    # when halt_agent_jobs is set. The server has already been reprovisioned
+    # and is Active, so clear only this server-scoped stale circuit breaker
+    # before retrying the existing build request.
+    frappe.db.delete("Agent Request Failure", {"server": job.server})
+    if job.server_type in {"Server", "Database Server", "Proxy Server"}:
+        frappe.db.set_value(job.server_type, job.server, "halt_agent_jobs", 0)
     # retry_in_place() only enqueues create_http_request() after the current
     # transaction commits. The bootstrap can finish before the short worker
     # delivers it, leaving CI green while the build remains Undelivered.
