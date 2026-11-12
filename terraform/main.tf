@@ -118,8 +118,7 @@ resource "oci_core_instance" "control" {
     }
   }
   lifecycle {
-    ignore_changes  = [metadata, source_details]
-    prevent_destroy = true
+    ignore_changes = [metadata, source_details]
   }
 }
 
@@ -148,8 +147,7 @@ resource "oci_core_instance" "proxy" {
     is_management_disabled   = false
   }
   lifecycle {
-    ignore_changes  = [metadata, source_details]
-    prevent_destroy = true
+    ignore_changes = [metadata, source_details]
   }
 }
 
@@ -162,8 +160,7 @@ resource "contabo_instance" "erp" {
     ssh_public_key = var.ssh_public_key
   })
   lifecycle {
-    ignore_changes  = [user_data]
-    prevent_destroy = true
+    ignore_changes = [user_data]
   }
 }
 
