@@ -124,3 +124,15 @@ jobs:
              echo '--- localhost http ---'; curl -sS -I --max-time 5 http://127.0.0.1/ || true; \
              echo '--- localhost https ---'; curl -k -sS -I --max-time 5 https://127.0.0.1/ || true; \
              echo '--- ufw ---'; sudo ufw status verbose || true"
+
+      - name: Verify public Pilot origin reachability
+        env:
+          CONTROL_IP: ${{ steps.infra.outputs.control_ip }}
+          PILOT_ADMIN_DOMAIN: ${{ env.PRESS_CONTROL_HOSTNAME }}
+        run: |
+          echo '--- direct origin HTTP ---'
+          curl -sS -I --max-time 15 --resolve "$PILOT_ADMIN_DOMAIN:80:$CONTROL_IP" "http://$PILOT_ADMIN_DOMAIN/" || true
+          echo '--- direct origin HTTPS ---'
+          curl -k -sS -I --max-time 15 --resolve "$PILOT_ADMIN_DOMAIN:443:$CONTROL_IP" "https://$PILOT_ADMIN_DOMAIN/" || true
+          echo '--- public DNS HTTP ---'
+          curl -sS -I --max-time 15 "http://$PILOT_ADMIN_DOMAIN/" || true
