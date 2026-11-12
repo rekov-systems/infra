@@ -35,6 +35,38 @@ to both VMs. Set `RECOVERY_PASSPHRASE` in the environment; the script never
 writes it to the repository or CI log. Upload the resulting encrypted
 artifacts to the encrypted R2 recovery bucket and retain the manifest.
 
+GitHub only registers a workflow after its file exists on the repository's
+default branch. Therefore the recovery workflows on this experimental branch
+cannot be dispatched from the GitHub UI while `main` remains untouched. Until
+this branch is intentionally promoted, use the same scripts from a trusted
+operator machine with the production secrets loaded from Infisical, or review
+and merge the workflow files before attempting a GitHub-hosted run. Do not
+assume that a green branch CI run created a provider snapshot.
+
+For a trusted-machine run, initialize Terraform with the same R2 backend
+settings used by the workflows, export the required Infisical values, and use
+one fixed local run ID for both the recovery directory and upload key:
+
+```bash
+run_id="$(date -u +%s)"
+snapshot_env="$(mktemp)"
+GITHUB_ENV="$snapshot_env" ./scripts/create-provider-recovery-snapshots.sh
+source "$snapshot_env"
+export RECOVERY_POINT="$PWD/recovery/$run_id"
+./scripts/collect-recovery-manifest.sh
+./scripts/verify-recovery-point.sh
+aws s3 sync "$RECOVERY_POINT" \
+  "s3://$R2_STORAGE_BUCKET/recovery/$run_id/" \
+  --endpoint-url "$R2_STORAGE_ENDPOINT" --only-show-errors
+rm -f "$snapshot_env"
+```
+
+The `CONTROL_IP`, `TENANT_IP`, `OCI_INSTANCE_ID`, and `CONTABO_INSTANCE_ID`
+values must come from the current Terraform state, not from memory or an old
+run. The commands assume the R2, provider, SSH, and
+`RECOVERY_PASSPHRASE` secrets are already exported; never paste those values
+into the repository or command history.
+
 Before an experimental deployment, run
 `scripts/verify-recovery-point.sh` with `RECOVERY_POINT`,
 `OCI_BOOT_VOLUME_BACKUP_ID`, and `CONTABO_SNAPSHOT_ID`. It refuses to pass if
