@@ -68,6 +68,7 @@ current_contabo_instance_id="$(terraform output -raw erp_contabo_id)"
 
 terraform apply -auto-approve -input=false
 control_ip="$(terraform output -raw control_public_ip)"
+proxy_ip="$(terraform output -raw proxy_public_ip)"
 erp_ip="$(terraform output -raw erp_public_ip)"
 printf '%s\n' "$SSH_PRIVATE_KEY" >"$tmp/id_ed25519"
 chmod 600 "$tmp/id_ed25519"
@@ -82,6 +83,7 @@ wait_ssh() {
   return 1
 }
 wait_ssh "$control_ip"
+wait_ssh "$proxy_ip"
 wait_ssh "$erp_ip"
 
 cat >"$tmp/press.env" <<EOF
@@ -91,6 +93,7 @@ PRESS_DB_ROOT_PASSWORD=${PRESS_DB_ROOT_PASSWORD@Q}
 PRESS_ROOT_DOMAIN=${PRESS_ROOT_DOMAIN@Q}
 PRESS_CLOUDFLARE_API_TOKEN=${TF_VAR_cloudflare_api_token@Q}
 PRESS_TENANT_NODE_PUBLIC_IP=${erp_ip@Q}
+PRESS_PROXY_NODE_PUBLIC_IP=${proxy_ip@Q}
 PRESS_SSH_PUBLIC_KEY=${TF_VAR_ssh_public_key@Q}
 PRESS_SSH_PRIVATE_KEY=${SSH_PRIVATE_KEY@Q}
 EOF

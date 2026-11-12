@@ -11,6 +11,15 @@ data "oci_core_images" "ubuntu" {
   sort_order               = "DESC"
 }
 
+data "oci_core_images" "proxy_ubuntu" {
+  compartment_id           = var.compartment_ocid
+  operating_system         = var.os_name
+  operating_system_version = var.os_version
+  shape                    = "VM.Standard.E2.1.Micro"
+  sort_by                  = "TIMECREATED"
+  sort_order               = "DESC"
+}
+
 data "cloudflare_zone" "this" {
   zone_id = var.cloudflare_zone_id
 }
@@ -123,6 +132,33 @@ resource "oci_core_instance" "control" {
   }
 }
 
+# Always Free AMD Micro reserved for Press's native Proxy Server role. Keep
+# this separate from the tenant application/database node: Press's native
+# server playbooks install nginx on both roles and they must not share it.
+resource "oci_core_instance" "proxy" {
+  availability_domain = data.oci_identity_availability_domains.this.availability_domains[var.availability_domain_index].name
+  compartment_id      = var.compartment_ocid
+  display_name        = "${local.name}-proxy"
+  shape               = "VM.Standard.E2.1.Micro"
+  source_details {
+    source_id   = data.oci_core_images.proxy_ubuntu.images[0].id
+    source_type = "image"
+  }
+  create_vnic_details {
+    subnet_id        = oci_core_subnet.this.id
+    assign_public_ip = true
+  }
+  metadata = { ssh_authorized_keys = var.ssh_public_key }
+  agent_config {
+    are_all_plugins_disabled = false
+    is_management_disabled   = false
+  }
+  lifecycle {
+    ignore_changes  = [metadata, source_details]
+    prevent_destroy = true
+  }
+}
+
 resource "contabo_instance" "erp" {
   display_name = "${local.name}-erp"
   product_id   = var.contabo_product_id
@@ -153,6 +189,15 @@ resource "cloudflare_dns_record" "admin" {
   content = oci_core_instance.control.public_ip
   ttl     = 1
   proxied = true
+}
+
+resource "cloudflare_dns_record" "proxy" {
+  zone_id = var.cloudflare_zone_id
+  name    = "proxy"
+  type    = "A"
+  content = oci_core_instance.proxy.public_ip
+  ttl     = 1
+  proxied = false
 }
 
 resource "cloudflare_dns_record" "tenants" {
