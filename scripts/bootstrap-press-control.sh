@@ -256,7 +256,7 @@ rm -f "\$installed_apps_error_file"
 # files behind (notably while syncing Role Profile fixtures). Clear only the
 # current site's lock directory before retrying migrate; this does not touch
 # the database, site files, or any other site.
-python -c 'import shutil, sys; shutil.rmtree(sys.argv[1], ignore_errors=True)' \
+env/bin/python -c 'import shutil, sys; shutil.rmtree(sys.argv[1], ignore_errors=True)' \
   "sites/$PRESS_CONTROL_HOSTNAME/locks"
 bench --site "$PRESS_CONTROL_HOSTNAME" migrate
 bench use "$PRESS_CONTROL_HOSTNAME"
