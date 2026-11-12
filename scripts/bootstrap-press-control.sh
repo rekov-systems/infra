@@ -20,7 +20,7 @@ trap 'status=$?; echo "Press bootstrap failed at line ${BASH_LINENO[0]}: ${BASH_
 press_revision="2339ede7c30e976dd3a76661dc128bfd5519f84e"
 frappe_revision="2e9ecdc03fa5b5b8d1ba05224a1aff7dad832bd0"
 bench_root="/home/frappe/press-bench"
-bench_python="/usr/bin/python3.12"
+bench_python="/usr/bin/python3.11"
 
 bench_env_python_ok() {
   local venv_py="$bench_root/env/bin/python"
@@ -43,12 +43,12 @@ printf '%s\n' 'Acquire::ForceIPv4 "true";' >/etc/apt/apt.conf.d/99-rekov-force-i
 apt-get update
 apt-get install -y ansible build-essential ca-certificates certbot python3-certbot-dns-cloudflare cron curl fail2ban git golang-go libffi-dev libcups2-dev \
   libmariadb-dev libssl-dev mariadb-server nginx pkg-config redis-server sudo \
-  python3-dev python3-pip python3-venv python3.12 python3.12-dev python3.12-venv software-properties-common xvfb
+  python3-dev python3-pip python3-venv python3.11 python3.11-dev python3.11-venv software-properties-common xvfb
 curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
 apt-get install -y nodejs
 corepack enable || true
 command -v "$bench_python" >/dev/null || {
-  echo 'Python 3.12 is required by the supported Press/Frappe runtime.' >&2
+  echo 'Python 3.11 is required by the supported Press/Frappe runtime.' >&2
   exit 1
 }
 
