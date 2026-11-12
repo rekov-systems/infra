@@ -43,6 +43,8 @@ collect_host tenant "$TENANT_IP"
   printf 'git_sha=%s\n' "$(git -C "$root" rev-parse HEAD)"
   printf 'git_ref=%s\n' "$(git -C "$root" symbolic-ref --short HEAD)"
   printf 'control_ip=%s\ntenant_ip=%s\n' "$CONTROL_IP" "$TENANT_IP"
+  printf 'oci_boot_volume_backup_id=%s\n' "${OCI_BOOT_VOLUME_BACKUP_ID:-UNRECORDED}"
+  printf 'contabo_snapshot_id=%s\n' "${CONTABO_SNAPSHOT_ID:-UNRECORDED}"
   printf '\nchecksums=\n'
   (cd "$out" && sha256sum -- * | sort)
 } >"$out/manifest.txt"
