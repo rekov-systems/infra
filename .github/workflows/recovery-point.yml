@@ -61,8 +61,10 @@ jobs:
             -backend-config="skip_s3_checksum=true" \
             -backend-config="use_path_style=true"
           echo "CONTROL_IP=$(terraform output -raw control_public_ip)" >> "$GITHUB_ENV"
+          oci_instance_id="$(terraform state pull | jq -er '.resources[] | select(.type == "oci_core_instance" and .name == "control") | .instances[0].attributes.id')"
+          test -n "$oci_instance_id"
           echo "TENANT_IP=$(terraform output -raw erp_public_ip)" >> "$GITHUB_ENV"
-          terraform output -json > "$RUNNER_TEMP/terraform-outputs.json"
+          terraform output -json | jq --arg id "$oci_instance_id" '. + {control_instance_id: {value: $id}}' > "$RUNNER_TEMP/terraform-outputs.json"
 
       - name: Collect and verify encrypted recovery point
         env:
