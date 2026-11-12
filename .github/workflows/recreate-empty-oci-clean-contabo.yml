@@ -54,7 +54,7 @@ jobs:
             -d 'grant_type=password' \
             'https://auth.contabo.com/auth/realms/contabo/protocol/openid-connect/token' | jq -er '.access_token')"
           headers=(-H "Authorization: Bearer $token" -H "x-request-id: $(uuidgen)")
-          instance="$(curl -fsS "\${headers[@]}" 'https://api.contabo.com/v1/compute/instances/203742078')"
+          instance="$(curl -fsS "${headers[@]}" 'https://api.contabo.com/v1/compute/instances/203742078')"
           image_id="$(jq -er '.imageId' <<<"$instance")"
           ip_address="$(jq -er '.ipConfig.v4[0].ip' <<<"$instance")"
           user_data="#cloud-config
@@ -67,7 +67,7 @@ users:
       - $SSH_PUBLIC_KEY"
           body="$(jq -n --arg imageId "$image_id" --arg userData "$user_data" \
             '{imageId:$imageId,defaultUser:"root",userData:$userData}')"
-          response="$(curl -fsS "\${headers[@]}" -H 'Content-Type: application/json' \
+          response="$(curl -fsS "${headers[@]}" -H 'Content-Type: application/json' \
             -X PUT -d "$body" \
             'https://api.contabo.com/v1/compute/instances/203742078')"
           jq -e '.instanceId' <<<"$response" >/dev/null
