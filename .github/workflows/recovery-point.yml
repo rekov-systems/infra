@@ -35,6 +35,9 @@ jobs:
           project-slug: ${{ vars.INFISICAL_PROJECT_SLUG }}
           env-slug: ${{ vars.INFISICAL_ENV_SLUG }}
 
+      - name: Require recovery encryption key
+        run: test -n "$RECOVERY_PASSPHRASE"
+
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
