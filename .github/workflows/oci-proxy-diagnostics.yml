@@ -70,7 +70,7 @@ jobs:
               fi
             done <<< "$ids"
           done
-          for os in 'Oracle Linux' 'CentOS'; do
+          for os in 'Debian' 'Oracle Linux' 'CentOS'; do
             echo "Compatible $os images:"
             ids="$(oci compute image list --compartment-id "$COMPARTMENT_ID" \
               --operating-system "$os" \
