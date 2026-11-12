@@ -49,6 +49,8 @@ jobs:
           bash -n scripts/verify-recovery-point.sh
           bash -n scripts/create-provider-recovery-snapshots.sh
           bash -n scripts/restore-recovery-point.sh
+          bash -n scripts/test-recovery-point.sh
+          ./scripts/test-recovery-point.sh
           OCI_INSTANCE_ID=plan-test \
             OCI_BOOT_VOLUME_BACKUP_ID=plan-test \
             CONTABO_INSTANCE_ID=plan-test \
