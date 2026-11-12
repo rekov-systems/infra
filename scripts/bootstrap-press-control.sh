@@ -282,6 +282,9 @@ systemctl enable --now \
   "${bench_name}-web.target" \
   "${bench_name}-workers.target" \
   "${bench_name}-frappe-schedule.service"
+for unit in "${systemd_units[@]}"; do
+  systemctl restart "$(basename "$unit")"
+done
 nginx -t
 systemctl enable --now nginx
 systemctl reload-or-restart nginx
