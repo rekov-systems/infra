@@ -10,3 +10,23 @@ El flujo operativo es deliberadamente Press-first: se incorpora la VM Contabo de
 Cloudflare proxifica el control exacto y el wildcard `*.PRESS_ROOT_DOMAIN` hacia Contabo. Los tenants se crearán con dominios como `cliente.<PRESS_ROOT_DOMAIN>`.
 
 Un push a `main` ejecuta `.github/workflows/deploy.yml` en el environment `production`, carga Infisical por OIDC y corre `scripts/deploy.sh`. El despliegue comprueba que Contabo sea accesible por SSH, pero no instala un ERP manual allí.
+
+## Rebuild nativo
+
+Para una reconstrucción limpia, ejecutar manualmente `Deploy ERPNext` desde
+Actions con `native_only=true`. Ese modo instala solamente el control plane de
+Press y no copia ni ejecuta `rekov_press_platform.py`, no cambia paquetes del
+tenant y no reescribe credenciales del Agent.
+
+Después, en Press:
+
+1. Configurar el cluster híbrido, el plan Self Hosted, el Root Domain y el
+   proxy mediante los formularios nativos.
+2. Crear y verificar el Self Hosted Server con la IP, SSH key y plan del nodo.
+3. Ejecutar el setup nativo del servidor y del proxy, esperando que ambos
+   queden `Active`.
+4. Crear el Release Group, build, Bench y sitio desde Press.
+
+El workflow `Create recovery point` debe completarse antes de cualquier
+rebuild. `Restore recovery point` es un workflow separado y protegido; nunca
+forma parte del deploy normal.
