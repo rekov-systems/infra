@@ -63,6 +63,7 @@ jobs:
           echo "OCI_INSTANCE_ID=$oci_instance_id" >> "$GITHUB_ENV"
           echo "TENANT_IP=$(terraform output -raw erp_public_ip)" >> "$GITHUB_ENV"
           echo "CONTABO_INSTANCE_ID=$(terraform output -raw erp_contabo_id)" >> "$GITHUB_ENV"
+          terraform output -json > "$RUNNER_TEMP/terraform-outputs.json"
 
       - name: Install snapshot tooling
         run: |
@@ -75,6 +76,7 @@ jobs:
       - name: Collect and verify encrypted recovery point
         env:
           RECOVERY_OUTPUT_DIR: ${{ runner.temp }}/recovery
+          RECOVERY_METADATA_FILE: ${{ runner.temp }}/terraform-outputs.json
         run: |
           export RECOVERY_POINT="$RECOVERY_OUTPUT_DIR"
           ./scripts/collect-recovery-manifest.sh

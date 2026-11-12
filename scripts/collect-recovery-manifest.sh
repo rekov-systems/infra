@@ -38,6 +38,19 @@ export RECOVERY_PASSPHRASE
 collect_host control "$CONTROL_IP"
 collect_host tenant "$TENANT_IP"
 
+if [[ -n "${PRESS_CONTROL_HOSTNAME:-}" ]]; then
+  remote "$CONTROL_IP" "sudo -u frappe bash -lc 'cd /home/frappe/press-bench && bench --site \"${PRESS_CONTROL_HOSTNAME}\" execute \"__import__(\\\"json\\\").dumps(frappe.get_all(\\\"Self Hosted Server\\\", fields=[\\\"name\\\",\\\"status\\\",\\\"server\\\",\\\"database_server\\\"], limit_page_length=50))\"'" \
+    >"$out/press-status.json" 2>&1 || printf '%s\n' 'Press status unavailable' >"$out/press-status.json"
+else
+  printf '%s\n' 'Press status not requested' >"$out/press-status.json"
+fi
+
+if [[ -n "${RECOVERY_METADATA_FILE:-}" && -r "$RECOVERY_METADATA_FILE" ]]; then
+  cp "$RECOVERY_METADATA_FILE" "$out/terraform-outputs.json"
+else
+  printf '%s\n' 'Terraform outputs not provided' >"$out/terraform-outputs.json"
+fi
+
 {
   printf 'created_at=%s\n' "$stamp"
   printf 'git_sha=%s\n' "$(git -C "$root" rev-parse HEAD)"
