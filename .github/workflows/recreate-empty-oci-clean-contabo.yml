@@ -47,7 +47,9 @@ jobs:
             -d 'grant_type=password' \
             'https://auth.contabo.com/auth/realms/contabo/protocol/openid-connect/token' | jq -er '.access_token')"
           headers=(-H "Authorization: Bearer $token" -H "x-request-id: $(uuidgen)")
-          instance="$(curl -fsS "${headers[@]}" 'https://api.contabo.com/v1/compute/instances/203742078')"
+          instances="$(curl -fsS "${headers[@]}" 'https://api.contabo.com/v1/compute/instances?search=rekov-erp')"
+          instance_id="$(jq -er '.data[] | select(.displayName == "rekov-erp") | .instanceId' <<<"$instances" | head -n1)"
+          instance="$(curl -fsS "${headers[@]}" "https://api.contabo.com/v1/compute/instances/$instance_id")"
           image_id="$(jq -er '.imageId' <<<"$instance")"
           ip_address="$(jq -er '.ipConfig.v4[0].ip' <<<"$instance")"
           user_data="#cloud-config\nusers:\n  - name: ubuntu\n    groups: [sudo]\n    shell: /bin/bash\n    sudo: ALL=(ALL) NOPASSWD:ALL\n    ssh_authorized_keys:\n      - $SSH_PUBLIC_KEY"
@@ -55,7 +57,7 @@ jobs:
             '{imageId:$imageId,defaultUser:"root",userData:$userData}')"
           response="$(curl -fsS "${headers[@]}" -H 'Content-Type: application/json' \
             -X PUT -d "$body" \
-            'https://api.contabo.com/v1/compute/instances/203742078')"
+            "https://api.contabo.com/v1/compute/instances/$instance_id")"
           jq -e '.instanceId' <<<"$response" >/dev/null
           printf 'Contabo instance preserved and reinstallation requested: %s\n' "$ip_address"
 
