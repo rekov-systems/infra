@@ -29,8 +29,5 @@ jobs:
           bash -n scripts/*.sh
           ./scripts/test-recovery-point.sh
           OCI_INSTANCE_ID=plan-test \
-            OCI_BOOT_VOLUME_BACKUP_ID=plan-test \
-            CONTABO_INSTANCE_ID=plan-test \
-            CONTABO_SNAPSHOT_ID=plan-test \
-            ./scripts/restore-recovery-point.sh | grep -q '^Plan only\.'
+          ./scripts/restore-recovery-point.sh | grep -q '^Plan only\.'
           bash scripts/verify-press-source.sh

@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Collects encrypted, point-in-time recovery material. Provider snapshots are
-# deliberately not created here: those APIs require provider credentials and
-# must be recorded separately from Terraform's normal lifecycle.
+# Collects encrypted, point-in-time recovery material in R2. Provider
+# snapshots are intentionally not used by this deployment.
 : "${CONTROL_IP:?Set CONTROL_IP to the OCI control VM IPv4 address}"
 : "${TENANT_IP:?Set TENANT_IP to the Contabo tenant VM IPv4 address}"
 : "${SSH_PRIVATE_KEY:?Set SSH_PRIVATE_KEY}"
@@ -56,8 +55,6 @@ fi
   printf 'git_sha=%s\n' "$(git -C "$root" rev-parse HEAD)"
   printf 'git_ref=%s\n' "$(git -C "$root" symbolic-ref --short HEAD)"
   printf 'control_ip=%s\ntenant_ip=%s\n' "$CONTROL_IP" "$TENANT_IP"
-  printf 'oci_boot_volume_backup_id=%s\n' "${OCI_BOOT_VOLUME_BACKUP_ID:-UNRECORDED}"
-  printf 'contabo_snapshot_id=%s\n' "${CONTABO_SNAPSHOT_ID:-UNRECORDED}"
   printf '\nchecksums=\n'
   # Do not checksum the manifest while it is being written, and never retain
   # the temporary SSH key as recovery material. The key is removed by the EXIT
@@ -74,4 +71,4 @@ fi
 } >"$out/manifest.txt"
 chmod 600 "$out"/*
 printf 'Recovery material created at %s\n' "$out"
-printf 'Create and record OCI/Contabo provider snapshot IDs before deployment.\n'
+printf 'R2-only recovery material created; provider snapshots are not used.\n'

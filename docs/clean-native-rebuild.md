@@ -14,7 +14,7 @@ engineering safety boundary until this document's gates pass.
 | Self Hosted Server verification and setup | native Press API/UI |
 | Proxy setup and agent jobs | native Press API/UI |
 | Release Group, builds, benches, sites | native Press API/UI |
-| Database and VM recovery | provider snapshots + encrypted backups |
+| Database and VM recovery | encrypted R2 backups + clean rebuild |
 
 The repository must not create `Agent Job`, `Bench`, `Deploy Candidate`,
 `Deploy`, `Proxy Server`, or `Self Hosted Server` rows by writing lifecycle
@@ -24,20 +24,19 @@ fields. Those rows are created by Press's native actions.
 
 1. Freeze the current deployment workflow.
 2. Run `collect-recovery-manifest.sh` against both existing VMs.
-3. Create and retain the OCI boot-volume and Contabo instance snapshots.
-4. Run `verify-recovery-point.sh`; do not continue if it fails.
-5. Export the existing Terraform state and record all resource IDs.
-6. Remove the old Press records and destroy/recreate only the explicitly
-   approved infrastructure resources. Keep the recovery snapshots immutable.
-7. Apply Terraform from `main` to create the clean control and capacity VMs.
-8. Bootstrap only the control VM's Press installation and native systemd
+3. Collect and verify the encrypted R2 recovery artifacts.
+4. Export the existing Terraform state and record all resource IDs.
+5. Remove the old Press records and destroy/recreate only the explicitly
+   approved infrastructure resources. Keep the R2 recovery prefix immutable.
+6. Apply Terraform from `main` to create the clean control and capacity VMs.
+7. Bootstrap only the control VM's Press installation and native systemd
    services. Do not install an Agent or ERPNext manually on the tenant node.
-9. In Press, create the native Self Hosted Server using the tenant IP, SSH
+8. In Press, create the native Self Hosted Server using the tenant IP, SSH
    key, plan, cluster, root domain, and proxy configuration. Let Press run
    verification and setup.
-10. Create the release group/build/bench/site through Press and verify the
+9. Create the release group/build/bench/site through Press and verify the
     Agent job chain end to end.
-11. Re-enable the production workflow only after a second tenant smoke test.
+10. Re-enable the production workflow only after a second tenant smoke test.
 
 ## Destruction guard
 
@@ -54,7 +53,8 @@ an ordinary push to `main` from deleting production.
   repositories directly.
 - Press UI/API creates the Self Hosted Server, Proxy Server, Bench and tenant.
 - A second tenant can be added without an infrastructure-code change.
-- The recovery point can restore both VMs and the database contents.
+- The recovery point can recreate both VMs and restore database/site contents
+  from R2; it is not a byte-for-byte VM disk clone.
 - A failed native job is observable and retriable through Press without a
   repository patch or manual database status edit.
 

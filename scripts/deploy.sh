@@ -41,12 +41,7 @@ trap 'rm -rf "$recovery_point" "$tmp"' EXIT
 AWS_EC2_METADATA_DISABLED=true aws s3 sync \
   "s3://$R2_STORAGE_BUCKET/recovery/$REKOV_RECOVERY_RUN_ID/" "$recovery_point/" \
   --endpoint-url "$R2_STORAGE_ENDPOINT" --only-show-errors
-oci_backup_id="$(sed -n 's/^oci_boot_volume_backup_id=//p' "$recovery_point/manifest.txt")"
-contabo_snapshot_id="$(sed -n 's/^contabo_snapshot_id=//p' "$recovery_point/manifest.txt")"
-[[ -n "$oci_backup_id" && "$oci_backup_id" != UNRECORDED ]] || { echo 'Recovery has no OCI backup.' >&2; exit 1; }
-[[ -n "$contabo_snapshot_id" && "$contabo_snapshot_id" != UNRECORDED ]] || { echo 'Recovery has no Contabo snapshot.' >&2; exit 1; }
-RECOVERY_POINT="$recovery_point" OCI_BOOT_VOLUME_BACKUP_ID="$oci_backup_id" \
-  CONTABO_SNAPSHOT_ID="$contabo_snapshot_id" "$root/scripts/verify-recovery-point.sh"
+RECOVERY_POINT="$recovery_point" "$root/scripts/verify-recovery-point.sh"
 
 cd "$root/terraform"
 terraform init -input=false -reconfigure \

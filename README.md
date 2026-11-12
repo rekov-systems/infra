@@ -18,7 +18,7 @@ comprueba que Contabo sea accesible por SSH, pero no instala un ERP manual allí
 Para una reconstrucción limpia, ejecutar primero `Create recovery point` y
 esperar a que termine correctamente. Luego ejecutar manualmente `Deploy ERPNext`
 desde Actions y copiar en `recovery_run_id` el número de esa ejecución. El deploy
-verifica el manifest, snapshots, checksums y artefactos
+verifica el manifest, checksums y artefactos
 desde R2 antes de tocar Terraform. Ese modo instala solamente el control plane de
 Press y no copia ni ejecuta un módulo de lifecycle propio, no cambia paquetes
 del tenant y no reescribe credenciales del Agent.
@@ -32,6 +32,6 @@ Después, en Press:
    queden `Active`.
 4. Crear el Release Group, build, Bench y sitio desde Press.
 
-El workflow `Create recovery point` debe completarse antes de cualquier
-rebuild. `Restore recovery point` es un workflow separado y protegido; nunca
+El workflow `Create recovery point` guarda los artefactos cifrados únicamente
+en R2. `Restore recovery point` es un workflow separado y protegido; nunca
 forma parte del deploy normal.
