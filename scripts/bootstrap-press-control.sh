@@ -248,6 +248,7 @@ bench --site "$PRESS_CONTROL_HOSTNAME" migrate
 # Press declares press.bundle.js in hooks.py. Build the complete Bench asset
 # set: building only Press leaves Frappe's Desk bundle stale/incomplete (for
 # example, frappe.ui.create_menu can be absent from desk.bundle.js).
+bench use "$PRESS_CONTROL_HOSTNAME"
 bench build
 [[ -L "sites/assets/press" || -d "sites/assets/press" ]] || {
   echo 'Press assets link was not created.' >&2
