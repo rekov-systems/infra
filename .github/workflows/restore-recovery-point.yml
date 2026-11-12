@@ -65,7 +65,9 @@ jobs:
           echo "CONTABO_INSTANCE_ID=$contabo_instance_id" >> "$GITHUB_ENV"
 
       - name: Install OCI CLI
-        run: python3 -m pip install --user --quiet oci-cli
+        run: |
+          python3 -m pip install --user --quiet oci-cli
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Plan or execute provider restore
         env:

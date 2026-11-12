@@ -65,7 +65,9 @@ jobs:
           echo "CONTABO_INSTANCE_ID=$(terraform output -raw erp_contabo_id)" >> "$GITHUB_ENV"
 
       - name: Install snapshot tooling
-        run: python3 -m pip install --user --quiet oci-cli
+        run: |
+          python3 -m pip install --user --quiet oci-cli
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Create provider recovery snapshots
         run: ./scripts/create-provider-recovery-snapshots.sh
