@@ -210,6 +210,7 @@ if [[ -f "sites/$PRESS_CONTROL_HOSTNAME/site_config.json" && ! -f "\$install_mar
 fi
 if [[ ! -f "sites/$PRESS_CONTROL_HOSTNAME/site_config.json" ]]; then
   bench new-site "$PRESS_CONTROL_HOSTNAME" \\
+    --force \\
     --mariadb-root-username root \\
     --mariadb-root-password "$PRESS_DB_ROOT_PASSWORD" \\
     --admin-password "$PRESS_ADMIN_PASSWORD"
