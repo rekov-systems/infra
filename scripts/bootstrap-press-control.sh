@@ -471,21 +471,21 @@ install -o frappe -g frappe -m 0600 "$origin_le_dir/privkey.pem" /home/frappe/.c
 # Cluster, Root Domain, TLS Certificate, Self Hosted Server and Server methods.
 # This does not patch Press or create replacement records outside Press.
 install -o frappe -g frappe -m 0755 /tmp/rekov/provision-native-press.py /home/frappe/provision-native-press.py
-(
-  cd "$bench_root"
-  as_frappe env \
-    PRESS_CONTROL_HOSTNAME="$PRESS_CONTROL_HOSTNAME" \
-    PRESS_ROOT_DOMAIN="$PRESS_ROOT_DOMAIN" \
-    PRESS_DB_ROOT_PASSWORD="$PRESS_DB_ROOT_PASSWORD" \
-    PRESS_TENANT_NODE_PUBLIC_IP="$PRESS_TENANT_NODE_PUBLIC_IP" \
-    PRESS_TENANT_NODE_PRIVATE_IP="$PRESS_TENANT_NODE_PRIVATE_IP" \
-    PRESS_PROXY_NODE_PUBLIC_IP="$PRESS_PROXY_NODE_PUBLIC_IP" \
-    PRESS_PROXY_NODE_PRIVATE_IP="$PRESS_PROXY_NODE_PRIVATE_IP" \
-    PRESS_TLS_CERTIFICATE="/home/frappe/.config/rekov/root-fullchain.pem" \
-    PRESS_TLS_FULL_CHAIN="/home/frappe/.config/rekov/root-fullchain.pem" \
-    PRESS_TLS_PRIVATE_KEY="/home/frappe/.config/rekov/root-privkey.pem" \
-    "$bench_root/env/bin/python" /home/frappe/provision-native-press.py
-)
+as_frappe env \
+  PRESS_CONTROL_HOSTNAME="$PRESS_CONTROL_HOSTNAME" \
+  PRESS_ROOT_DOMAIN="$PRESS_ROOT_DOMAIN" \
+  PRESS_DB_ROOT_PASSWORD="$PRESS_DB_ROOT_PASSWORD" \
+  PRESS_TENANT_NODE_PUBLIC_IP="$PRESS_TENANT_NODE_PUBLIC_IP" \
+  PRESS_TENANT_NODE_PRIVATE_IP="$PRESS_TENANT_NODE_PRIVATE_IP" \
+  PRESS_PROXY_NODE_PUBLIC_IP="$PRESS_PROXY_NODE_PUBLIC_IP" \
+  PRESS_PROXY_NODE_PRIVATE_IP="$PRESS_PROXY_NODE_PRIVATE_IP" \
+  PRESS_TLS_CERTIFICATE="/home/frappe/.config/rekov/root-fullchain.pem" \
+  PRESS_TLS_FULL_CHAIN="/home/frappe/.config/rekov/root-fullchain.pem" \
+  PRESS_TLS_PRIVATE_KEY="/home/frappe/.config/rekov/root-privkey.pem" \
+  bash -c '
+    cd "$1"
+    exec "$2" "$3"
+  ' -- "$bench_root" "$bench_root/env/bin/python" /home/frappe/provision-native-press.py
 rm -f /home/frappe/provision-native-press.py
 
 touch "$bench_root/.rekov-press-control-complete"
