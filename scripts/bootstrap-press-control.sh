@@ -41,6 +41,8 @@ export DEBIAN_FRONTEND=noninteractive
 # IPv6 repository timeouts on the OCI network.
 printf '%s\n' 'Acquire::ForceIPv4 "true";' >/etc/apt/apt.conf.d/99-rekov-force-ipv4
 apt-get update
+add-apt-repository -y ppa:deadsnakes/ppa
+apt-get update
 apt-get install -y ansible build-essential ca-certificates certbot python3-certbot-dns-cloudflare cron curl fail2ban git golang-go libffi-dev libcups2-dev \
   libmariadb-dev libssl-dev mariadb-server nginx pkg-config redis-server sudo \
   python3-dev python3-pip python3-venv python3.11 python3.11-dev python3.11-venv software-properties-common xvfb
