@@ -25,7 +25,7 @@ bench_python="/usr/bin/python3.11"
 bench_env_python_ok() {
   local venv_py="$bench_root/env/bin/python"
   [[ -x "$venv_py" ]] || return 1
-  "$venv_py" -c 'import sys; sys.exit(0 if (3, 10) <= sys.version_info[:2] < (3, 13) else 1)' 2>/dev/null
+  "$venv_py" -c 'import sys; sys.exit(0 if sys.version_info[:2] == (3, 11) else 1)' 2>/dev/null
 }
 
 as_frappe() {
@@ -134,9 +134,11 @@ cd "\$HOME"
 python3 -m pip install --user --break-system-packages frappe-bench
 export PATH="\$HOME/.local/bin:\$PATH"
 export CI=1
+export UV_PYTHON="$bench_python"
+export UV_PYTHON_PREFERENCE=only-system
 if [[ ! -d "$bench_root/apps/frappe" ]]; then
   rm -rf "$bench_root"
-elif [[ -x "$bench_root/env/bin/python" ]] && ! "$bench_root/env/bin/python" -c 'import sys; sys.exit(0 if (3, 10) <= sys.version_info[:2] < (3, 13) else 1)' 2>/dev/null; then
+elif [[ -x "$bench_root/env/bin/python" ]] && ! "$bench_root/env/bin/python" -c 'import sys; sys.exit(0 if sys.version_info[:2] == (3, 11) else 1)' 2>/dev/null; then
   rm -rf "$bench_root"
 fi
 if [[ ! -d "$bench_root/apps/frappe" ]]; then
@@ -146,6 +148,10 @@ if [[ ! -d "$bench_root/apps/frappe" ]]; then
     exit 1
   fi
 fi
+"$bench_root/env/bin/python" -c 'import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 11) else 1)' || {
+  echo "Bench created an unsupported Python runtime; expected 3.11." >&2
+  exit 1
+}
 cd "$bench_root"
 git config --global --add safe.directory "$bench_root"
 git config --global --add safe.directory "$bench_root/apps/frappe"
