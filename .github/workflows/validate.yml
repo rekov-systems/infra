@@ -1,0 +1,37 @@
+name: Validate infrastructure
+
+on:
+  pull_request:
+  push:
+    branches:
+      - experiment/native-press-bootstrap
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.9
+
+      - name: Validate source and recovery contracts
+        run: |
+          terraform -chdir=terraform fmt -check -recursive
+          terraform -chdir=terraform init -backend=false -input=false
+          terraform -chdir=terraform validate
+          bash -n scripts/*.sh
+          ./scripts/test-recovery-point.sh
+          OCI_INSTANCE_ID=plan-test \
+            OCI_BOOT_VOLUME_BACKUP_ID=plan-test \
+            CONTABO_INSTANCE_ID=plan-test \
+            CONTABO_SNAPSHOT_ID=plan-test \
+            ./scripts/restore-recovery-point.sh | grep -q '^Plan only\.'
+          python3 -m py_compile scripts/rekov_press_platform.py
+          bash scripts/verify-press-source.sh
