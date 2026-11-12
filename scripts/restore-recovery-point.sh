@@ -3,8 +3,6 @@ set -Eeuo pipefail
 
 # R2-only recovery intentionally never mutates provider infrastructure. It
 # verifies the encrypted recovery point and prints the clean-rebuild plan.
-: "${RECOVERY_POINT:?Set RECOVERY_POINT}"
-
 cat <<PLAN
 Rollback plan:
   Source:            R2 encrypted recovery point
