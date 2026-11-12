@@ -64,8 +64,6 @@ jobs:
             -backend-config="skip_s3_checksum=true" \
             -backend-config="use_path_style=true"
           terraform -chdir=terraform apply -auto-approve -input=false
-          terraform -chdir=terraform show -json \
-            | jq -c '.values.root_module.resources[] | select(.address == "oci_core_security_list.this") | .values.ingress_security_rules'
           printf 'control_ip=%s\n' "$(terraform -chdir=terraform output -raw control_public_ip)" >> "$GITHUB_OUTPUT"
 
       - name: Install the official Pilot release on OCI control
@@ -125,13 +123,7 @@ jobs:
              sudo iptables -C INPUT -p tcp --dport 443 -j ACCEPT 2>/dev/null || sudo iptables -I INPUT 6 -p tcp --dport 443 -j ACCEPT; \
              sudo iptables-save | sudo tee /etc/iptables/rules.v4 >/dev/null; \
              pilot -b main setup production --admin-domain '$PILOT_ADMIN_DOMAIN' --tls --letsencrypt-email admin@$PILOT_ADMIN_DOMAIN; \
-             pilot ls; \
-             echo '--- listening ---'; ss -lntp; \
-             echo '--- localhost http ---'; curl -sS -I --max-time 5 http://127.0.0.1/ || true; \
-             echo '--- localhost https ---'; curl -k -sS -I --max-time 5 https://127.0.0.1/ || true; \
-             echo '--- ufw ---'; sudo ufw status verbose || true; \
-             echo '--- iptables ---'; sudo iptables -S || true; \
-             echo '--- nftables ---'; sudo nft list ruleset || true"
+             pilot ls"
 
       - name: Verify public Pilot origin reachability
         env:

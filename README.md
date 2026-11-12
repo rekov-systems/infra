@@ -1,37 +1,28 @@
-# Rekov Press
+# Rekov Pilot
 
-La infraestructura tiene dos responsabilidades separadas:
+La infraestructura productiva usa una sola VM OCI Always Free
+`VM.Standard.A1.Flex` de 2 OCPU y 12 GB de RAM con Ubuntu 24.04. La VM ejecuta
+Pilot, Frappe v16, ERPNext v16, MariaDB, Redis y nginx. El Admin UI queda en
+`https://admin.rekov.co`.
 
-- OCI Always Free `VM.Standard.A1.Flex` (2 OCPU, 12 GB, Ubuntu 24.04): control plane Press, con su MariaDB y Redis. Se accede en `PRESS_CONTROL_HOSTNAME`.
-- Contabo Core (`CONTABO_PRODUCT_ID`, región `CONTABO_REGION`, plazo `CONTABO_PERIOD`): nodo de capacidad para tenants. No recibe Docker Compose, ERPNext ni un comando `bench` desde este repositorio.
+Contabo se conserva como una VM independiente y vacía. No se elimina, no se
+recrea y no forma parte del Terraform ni del workflow de Pilot.
 
-El flujo operativo es deliberadamente Press-first: se incorpora la VM Contabo desde la UI de Press como **Self Hosted Server**. Press la verifica por SSH, instala/configura su Agent y crea allí benches, bases de datos, aplicaciones y tenants mediante Press Jobs. El operador crea cada cliente desde Press; los clientes no se auto-registran.
+Cloudflare administra el DNS. El registro `admin` es DNS-only para que Pilot
+obtenga y renueve su certificado nativo de Let’s Encrypt; el wildcard de tenants
+apunta a OCI y queda disponible para los sites.
 
-Cloudflare proxifica el control exacto y el wildcard `*.PRESS_ROOT_DOMAIN` hacia Contabo. Los tenants se crearán con dominios como `cliente.<PRESS_ROOT_DOMAIN>`.
+## Operación
 
-El workflow de producción se ejecuta manualmente desde `main`, carga Infisical por
-OIDC y corre `scripts/deploy.sh` únicamente en modo nativo. El despliegue
-comprueba que Contabo sea accesible por SSH, pero no instala un ERP manual allí.
+El workflow `Bootstrap Pilot on OCI` se ejecuta desde `main`, carga secretos de
+Infisical por OIDC, reconcilia Terraform y ejecuta únicamente el instalador y los
+comandos oficiales de Pilot. También persiste las reglas web del firewall base
+de Ubuntu para que 80/443 funcionen en futuras VMs.
 
-## Rebuild nativo
+Desde el Admin UI se gestionan benches, apps, sites, dominios, backups,
+procesos, logs y tareas. El primer bench `main` ya tiene ERPNext instalado.
+Los tenants y sus usuarios se crean desde la interfaz de Pilot/Frappe, no desde
+un script de lifecycle propio.
 
-Para una reconstrucción limpia, ejecutar primero `Create recovery point` y
-esperar a que termine correctamente. Luego ejecutar manualmente `Deploy ERPNext`
-desde Actions y copiar en `recovery_run_id` el número de esa ejecución. El deploy
-verifica el manifest, checksums y artefactos
-desde R2 antes de tocar Terraform. Ese modo instala solamente el control plane de
-Press y no copia ni ejecuta un módulo de lifecycle propio, no cambia paquetes
-del tenant y no reescribe credenciales del Agent.
-
-Después, en Press:
-
-1. Configurar el cluster híbrido, el plan Self Hosted, el Root Domain y el
-   proxy mediante los formularios nativos.
-2. Crear y verificar el Self Hosted Server con la IP, SSH key y plan del nodo.
-3. Ejecutar el setup nativo del servidor y del proxy, esperando que ambos
-   queden `Active`.
-4. Crear el Release Group, build, Bench y sitio desde Press.
-
-El workflow `Create recovery point` guarda los artefactos cifrados únicamente
-en R2. `Restore recovery point` es un workflow separado y protegido; nunca
-forma parte del deploy normal.
+R2 permanece reservado para estado Terraform y backups. Los workflows de
+recovery son independientes del bootstrap normal.
