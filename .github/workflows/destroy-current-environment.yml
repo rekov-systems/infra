@@ -38,7 +38,32 @@ jobs:
         with:
           terraform_version: 1.15.9
 
-      - name: Destroy Terraform-managed infrastructure
+      - name: Remove the Contabo instance through the official API
+        env:
+          CONTABO_CLIENT_ID: ${{ env.CONTABO_CLIENT_ID }}
+          CONTABO_CLIENT_SECRET: ${{ env.CONTABO_CLIENT_SECRET }}
+          CONTABO_API_USER: ${{ env.CONTABO_API_USER }}
+          CONTABO_API_PASSWORD: ${{ env.CONTABO_API_PASSWORD }}
+        run: |
+          token="$(curl -fsS \
+            -d "client_id=$CONTABO_CLIENT_ID" \
+            -d "client_secret=$CONTABO_CLIENT_SECRET" \
+            --data-urlencode "username=$CONTABO_API_USER" \
+            --data-urlencode "password=$CONTABO_API_PASSWORD" \
+            -d 'grant_type=password' \
+            'https://auth.contabo.com/auth/realms/contabo/protocol/openid-connect/token' | jq -er '.access_token')"
+          request_id="$(uuidgen)"
+          status="$(curl -sS -o /tmp/contabo-delete-response -w '%{http_code}' \
+            -X DELETE \
+            -H "Authorization: Bearer $token" \
+            -H "x-request-id: $request_id" \
+            'https://api.contabo.com/v1/compute/instances/203742078')"
+          case "$status" in
+            204|404) ;;
+            *) cat /tmp/contabo-delete-response >&2; exit 1 ;;
+          esac
+
+      - name: Destroy remaining Terraform-managed infrastructure
         env:
           AWS_ACCESS_KEY_ID: ${{ env.R2_STORAGE_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ env.R2_STORAGE_SECRET_ACCESS_KEY }}
@@ -74,6 +99,7 @@ jobs:
             -backend-config="skip_region_validation=true" \
             -backend-config="skip_s3_checksum=true" \
             -backend-config="use_path_style=true"
+          terraform -chdir=terraform state rm contabo_instance.erp || true
           terraform -chdir=terraform destroy -auto-approve -input=false
 
       - name: Empty R2 recovery objects and remove Terraform state
