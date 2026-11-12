@@ -42,7 +42,7 @@ jobs:
             --operating-system-version '22.04' \
             --shape 'VM.Standard.E2.1.Micro' \
             --sort-by TIMECREATED --sort-order DESC \
-            --query 'data[0:3].{id:id,name:display-name,state: lifecycle-state}'
+            --query 'data[0:3].{id:id,name:"display-name",state:"lifecycle-state"}'
           image_id="$(oci compute image list \
             --compartment-id "$COMPARTMENT_ID" \
             --operating-system 'Canonical Ubuntu' \
