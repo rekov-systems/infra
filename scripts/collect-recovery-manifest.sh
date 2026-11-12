@@ -27,10 +27,10 @@ remote() {
 
 collect_host() {
   local label="$1" host="$2"
-  remote "$host" 'set -o pipefail; printf "hostname="; hostname; printf "\nos-release=\n"; cat /etc/os-release; printf "\npackages=\n"; dpkg-query -W -f="${binary:Package}=${Version}\n"; printf "\npython=\n"; command -v python3 && python3 --version; printf "\npip=\n"; python3 -m pip freeze 2>/dev/null || true; printf "\nsystemd=\n"; systemctl list-unit-files --state=enabled --no-pager 2>/dev/null || true; printf "\npress-git=\n"; git -C /home/frappe/press-bench/apps/frappe rev-parse HEAD 2>/dev/null || true; git -C /home/frappe/press-bench/apps/press rev-parse HEAD 2>/dev/null || true' >"$out/${label}-inventory.txt"
+  remote "$host" 'set -o pipefail; printf "hostname="; hostname; printf "\nos-release=\n"; cat /etc/os-release; printf "\npackages=\n"; dpkg-query -W -f="\${binary:Package}=\${Version}\n"; printf "\npython=\n"; command -v python3 && python3 --version; printf "\npip=\n"; python3 -m pip freeze 2>/dev/null || true; printf "\nsystemd=\n"; systemctl list-unit-files --state=enabled --no-pager 2>/dev/null || true; printf "\npress-git=\n"; git -C /home/frappe/press-bench/apps/frappe rev-parse HEAD 2>/dev/null || true; git -C /home/frappe/press-bench/apps/press rev-parse HEAD 2>/dev/null || true' >"$out/${label}-inventory.txt"
   remote "$host" 'sudo mariadb-dump --all-databases --single-transaction --routines --events --triggers --hex-blob' |
     openssl enc -aes-256-cbc -pbkdf2 -salt -pass env:RECOVERY_PASSPHRASE >"$out/${label}-mariadb.sql.enc"
-  remote "$host" 'set -o pipefail; sudo tar --exclude="*.log" --exclude="*.cache" -C / -czf - home/frappe/press-bench/sites home/frappe/agent etc/nginx etc/systemd/system/press-bench* etc/systemd/system/agent* 2>/dev/null || true' |
+  remote "$host" 'sudo tar --ignore-failed-read --exclude="*.log" --exclude="*.cache" -C / -czf - home/frappe/press-bench/sites home/frappe/agent etc/nginx etc/systemd/system/press-bench* etc/systemd/system/agent* 2>/dev/null' |
     openssl enc -aes-256-cbc -pbkdf2 -salt -pass env:RECOVERY_PASSPHRASE >"$out/${label}-state.tar.gz.enc"
 }
 
