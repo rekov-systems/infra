@@ -103,7 +103,9 @@ jobs:
             > "$RUNNER_TEMP/oci_key"
           chmod 600 "$RUNNER_TEMP/oci_key"
           ssh-keygen -y -f "$RUNNER_TEMP/oci_key" >/dev/null
-          PILOT_PASSWORD_B64="$(printf '%s' "$PILOT_ADMIN_PASSWORD" | base64 -w0)"
+          # The legacy Press secret may not satisfy Pilot's password policy.
+          # Keep it as the base and add the minimum policy characters.
+          PILOT_PASSWORD_B64="$(printf '%s' "${PILOT_ADMIN_PASSWORD}Aa1!" | base64 -w0)"
           ssh -i "$RUNNER_TEMP/oci_key" -o StrictHostKeyChecking=no ubuntu@"$CONTROL_IP" \
             "export PATH=\$HOME/pilot/bin:\$PATH; \
              PILOT_PASSWORD=\$(printf '%s' '$PILOT_PASSWORD_B64' | base64 -d); \
