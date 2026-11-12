@@ -120,6 +120,7 @@ erp_ip="$(terraform output -raw erp_public_ip)"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
+native_only="${REKOV_NATIVE_ONLY:-0}"
 printf '%s\n' "$SSH_PRIVATE_KEY" >"$tmp/id_ed25519"
 chmod 600 "$tmp/id_ed25519"
 ssh_options=(
@@ -221,12 +222,22 @@ R2_STORAGE_SECRET_ACCESS_KEY=${R2_STORAGE_SECRET_ACCESS_KEY@Q}
 R2_STORAGE_BUCKET=${R2_STORAGE_BUCKET@Q}
 R2_STORAGE_ENDPOINT=${R2_STORAGE_ENDPOINT@Q}
 R2_STORAGE_REGION=${R2_STORAGE_REGION@Q}
+REKOV_NATIVE_ONLY=${native_only@Q}
 EOF
 chmod 600 "$tmp/press.env"
 
 remote "$control_ip" "sudo rm -rf /tmp/rekov && sudo mkdir -p /tmp/rekov && sudo chown ubuntu:ubuntu /tmp/rekov"
 scp "${ssh_options[@]}" "$root/scripts/bootstrap-press-control.sh" "$root/scripts/bootstrap-press-platform.sh" "$root/scripts/rekov_press_platform.py" "$tmp/press.env" "ubuntu@${control_ip}:/tmp/rekov/"
 remote "$control_ip" "sudo test -s /tmp/rekov/press.env && sudo test -s /tmp/rekov/bootstrap-press-control.sh"
+
+if [[ "$native_only" == "1" ]]; then
+  echo "Native-only mode: installing Press control plane; tenant provisioning remains in native Press."
+  remote "$control_ip" "sudo bash -c 'set -a && source /tmp/rekov/press.env && set +a && exec bash /tmp/rekov/bootstrap-press-control.sh'"
+  remote "$control_ip" "sudo rm -rf /tmp/rekov"
+  echo "Press control plane installed at https://${PRESS_CONTROL_HOSTNAME}."
+  echo "Create the Self Hosted Server and all tenant resources from native Press."
+  exit 0
+fi
 
 # Resolve the control and registry origins before Press can enqueue a build.
 # This prevents the first callback/repository access from taking the public

@@ -56,3 +56,9 @@ an ordinary push to `main` from deleting production.
 - The recovery point can restore both VMs and the database contents.
 - A failed native job is observable and retriable through Press without a
   repository patch or manual database status edit.
+
+The experimental deploy supports `REKOV_NATIVE_ONLY=1`. It provisions the
+Terraform resources and control plane, then stops before all tenant-side
+legacy preparation and before invoking `rekov_press_platform.py`. This is the
+mode intended for the clean rebuild; the native Self Hosted Server flow is
+then started from Press itself.
