@@ -1,0 +1,85 @@
+name: Bootstrap Pilot on OCI
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: rekov-oci-pilot
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Load secrets from Infisical
+        uses: Infisical/secrets-action@v1.0.18
+        with:
+          method: oidc
+          identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
+          project-slug: ${{ vars.INFISICAL_PROJECT_SLUG }}
+          env-slug: ${{ vars.INFISICAL_ENV_SLUG }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.9
+
+      - name: Reconcile the single OCI VM and DNS
+        id: infra
+        env:
+          AWS_ACCESS_KEY_ID: ${{ env.R2_STORAGE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.R2_STORAGE_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ env.R2_STORAGE_REGION }}
+          TF_VAR_cloudflare_api_token: ${{ env.TF_VAR_cloudflare_api_token }}
+          TF_VAR_cloudflare_zone_id: ${{ env.TF_VAR_cloudflare_zone_id }}
+          TF_VAR_compartment_ocid: ${{ env.TF_VAR_compartment_ocid }}
+          TF_VAR_fingerprint: ${{ env.TF_VAR_fingerprint }}
+          TF_VAR_oci_region: ${{ env.TF_VAR_oci_region }}
+          TF_VAR_private_key: ${{ env.TF_VAR_private_key }}
+          TF_VAR_ssh_public_key: ${{ env.TF_VAR_ssh_public_key }}
+          TF_VAR_tenancy_ocid: ${{ env.TF_VAR_tenancy_ocid }}
+          TF_VAR_user_ocid: ${{ env.TF_VAR_user_ocid }}
+          TF_VAR_press_control_hostname: ${{ env.PRESS_CONTROL_HOSTNAME }}
+          TF_VAR_press_root_domain: ${{ env.PRESS_ROOT_DOMAIN }}
+          TF_VAR_ocpus: "2"
+          TF_VAR_memory_in_gbs: "12"
+        run: |
+          terraform -chdir=terraform init -input=false \
+            -backend-config="bucket=$R2_STORAGE_BUCKET" \
+            -backend-config="key=$R2_STORAGE_STATE_KEY" \
+            -backend-config="region=$R2_STORAGE_REGION" \
+            -backend-config="endpoint=$R2_STORAGE_ENDPOINT" \
+            -backend-config="skip_credentials_validation=true" \
+            -backend-config="skip_metadata_api_check=true" \
+            -backend-config="skip_requesting_account_id=true" \
+            -backend-config="skip_region_validation=true" \
+            -backend-config="skip_s3_checksum=true" \
+            -backend-config="use_path_style=true"
+          terraform -chdir=terraform apply -auto-approve -input=false
+          printf 'control_ip=%s\n' "$(terraform -chdir=terraform output -raw control_public_ip)" >> "$GITHUB_OUTPUT"
+
+      - name: Install the official Pilot release on OCI control
+        env:
+          CONTROL_IP: ${{ steps.infra.outputs.control_ip }}
+          SSH_PRIVATE_KEY: ${{ env.SSH_PRIVATE_KEY }}
+        run: |
+          umask 077
+          printf '%s' "$SSH_PRIVATE_KEY" > "$RUNNER_TEMP/oci_key"
+          for attempt in {1..30}; do
+            if ssh -i "$RUNNER_TEMP/oci_key" -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@"$CONTROL_IP" true; then
+              break
+            fi
+            sleep 10
+          done
+          ssh -i "$RUNNER_TEMP/oci_key" -o StrictHostKeyChecking=no ubuntu@"$CONTROL_IP" \
+            'curl -fsSL https://raw.githubusercontent.com/frappe/pilot/develop/install.sh | bash'
+          ssh -i "$RUNNER_TEMP/oci_key" -o StrictHostKeyChecking=no ubuntu@"$CONTROL_IP" \
+            'command -v pilot && pilot --version || true'

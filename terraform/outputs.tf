@@ -1,9 +1,4 @@
 output "control_public_ip" { value = oci_core_instance.control.public_ip }
 output "control_instance_id" { value = oci_core_instance.control.id }
-output "proxy_public_ip" { value = oci_core_instance.proxy.public_ip }
-output "proxy_instance_id" { value = oci_core_instance.proxy.id }
-output "erp_contabo_id" { value = contabo_instance.erp.id }
-output "erp_contabo_status" { value = contabo_instance.erp.status }
-output "erp_public_ip" { value = try(contabo_instance.erp.ip_config[0].v4[0].ip, "") }
-output "press_url" { value = "https://${var.press_control_hostname}" }
+output "pilot_url" { value = "https://${var.press_control_hostname}" }
 output "tenant_wildcard" { value = "*.${var.press_root_domain}" }

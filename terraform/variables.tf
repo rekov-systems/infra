@@ -17,20 +17,6 @@ variable "ssh_public_key" { type = string }
 variable "press_control_hostname" { type = string }
 variable "press_root_domain" { type = string }
 
-variable "contabo_client_id" { type = string }
-variable "contabo_client_secret" {
-  type      = string
-  sensitive = true
-}
-variable "contabo_api_user" { type = string }
-variable "contabo_api_password" {
-  type      = string
-  sensitive = true
-}
-variable "contabo_product_id" { type = string }
-variable "contabo_region" { type = string }
-variable "contabo_period" { type = number }
-
 variable "availability_domain_index" {
   type    = number
   default = 0
@@ -41,11 +27,11 @@ variable "instance_shape" {
 }
 variable "ocpus" {
   type    = number
-  default = 1
+  default = 2
 }
 variable "memory_in_gbs" {
   type    = number
-  default = 10
+  default = 12
 }
 variable "os_name" {
   type    = string
