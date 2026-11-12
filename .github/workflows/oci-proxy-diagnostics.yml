@@ -1,0 +1,61 @@
+name: OCI proxy diagnostics
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: Infisical/secrets-action@v1.0.18
+        with:
+          method: oidc
+          identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
+          project-slug: ${{ vars.INFISICAL_PROJECT_SLUG }}
+          env-slug: ${{ vars.INFISICAL_ENV_SLUG }}
+
+      - name: Install OCI CLI
+        run: python3 -m pip install --quiet oci-cli
+
+      - name: Inspect E2 Micro availability
+        env:
+          OCI_CLI_USER: ${{ env.TF_VAR_user_ocid }}
+          OCI_CLI_TENANCY: ${{ env.TF_VAR_tenancy_ocid }}
+          OCI_CLI_FINGERPRINT: ${{ env.TF_VAR_fingerprint }}
+          OCI_CLI_KEY_CONTENT: ${{ env.TF_VAR_private_key }}
+          OCI_CLI_REGION: ${{ env.TF_VAR_oci_region }}
+          COMPARTMENT_ID: ${{ env.TF_VAR_compartment_ocid }}
+        run: |
+          set -euo pipefail
+          ad="$(oci iam availability-domain list --compartment-id "$OCI_CLI_TENANCY" --query 'data[0].name' --raw-output)"
+          echo "OCI region: $OCI_CLI_REGION"
+          echo "Availability domain: $ad"
+          echo "Ubuntu 22.04 images compatible with E2 Micro:"
+          oci compute image list \
+            --compartment-id "$COMPARTMENT_ID" \
+            --operating-system 'Canonical Ubuntu' \
+            --operating-system-version '22.04' \
+            --shape 'VM.Standard.E2.1.Micro' \
+            --sort-by TIMECREATED --sort-order DESC \
+            --query 'data[0:3].{id:id,name:display-name,state: lifecycle-state}'
+          image_id="$(oci compute image list \
+            --compartment-id "$COMPARTMENT_ID" \
+            --operating-system 'Canonical Ubuntu' \
+            --operating-system-version '22.04' \
+            --shape 'VM.Standard.E2.1.Micro' \
+            --sort-by TIMECREATED --sort-order DESC \
+            --query 'data[0].id' --raw-output)"
+          echo "Shape list for selected image:"
+          oci compute shape list --compartment-id "$COMPARTMENT_ID" --image-id "$image_id" \
+            --query "data[?shape=='VM.Standard.E2.1.Micro']"
+          echo "E2 Micro service limit availability:"
+          oci limits resource-availability get \
+            --compartment-id "$OCI_CLI_TENANCY" \
+            --service-name compute \
+            --limit-name standard-e2-micro-core-count \
+            --availability-domain "$ad"
