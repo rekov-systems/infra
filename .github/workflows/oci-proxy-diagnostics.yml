@@ -53,6 +53,23 @@ jobs:
           echo "Shape list for selected image:"
           oci compute shape list --compartment-id "$COMPARTMENT_ID" --image-id "$image_id" \
             --query "data[?shape=='VM.Standard.E2.1.Micro']"
+          echo "Compatible Ubuntu images by release:"
+          for version in 20.04 22.04 24.04; do
+            ids="$(oci compute image list --compartment-id "$COMPARTMENT_ID" \
+              --operating-system 'Canonical Ubuntu' \
+              --operating-system-version "$version" \
+              --sort-by TIMECREATED --sort-order DESC \
+              --query 'data[0:10].id' --raw-output | tr -d '[],' | tr -d '"' | tr ' ' '\n' | sed '/^$/d')"
+            while read -r candidate; do
+              [ -n "$candidate" ] || continue
+              compatible="$(oci compute shape list --compartment-id "$COMPARTMENT_ID" --image-id "$candidate" \
+                --query "data[?shape=='VM.Standard.E2.1.Micro'] | length(@)" --raw-output)"
+              if [ "$compatible" = "1" ]; then
+                echo "Ubuntu $version compatible image: $candidate"
+                break
+              fi
+            done <<< "$ids"
+          done
           echo "E2 Micro service limit availability:"
           oci limits resource-availability get \
             --compartment-id "$OCI_CLI_TENANCY" \
