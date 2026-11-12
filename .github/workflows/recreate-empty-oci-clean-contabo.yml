@@ -50,11 +50,9 @@ jobs:
           instances="$(curl -fsS "${headers[@]}" 'https://api.contabo.com/v1/compute/instances')"
           jq -r '{top_keys: keys, data_type: (.data | type), data_keys: (if (.data | type) == "object" then (.data | keys) else [] end)}' <<<"$instances"
           jq -r 'if (.data | type) == "array" then .data[] elif (.data | type) == "object" then (if (.data.content | type) == "array" then .data.content[] else .data end) else empty end | {instanceId, displayName, name, status}' <<<"$instances"
-          instance_id="$(jq -er 'if (.data | type) == "array" then .data[] elif (.data | type) == "object" then (if (.data.content | type) == "array" then .data.content[] else .data end) else empty end | select((.displayName // .name // "") | ascii_downcase | test("rekov|erp")) | .instanceId' <<<"$instances" | head -n1)"
-          instance="$(curl -fsS "${headers[@]}" "https://api.contabo.com/v1/compute/instances/$instance_id")"
-          instance_payload="$(jq -c 'if (.data | type) == "object" then .data elif (.data | type) == "array" then .data[0] else . end' <<<"$instance")"
-          image_id="$(jq -er '.imageId' <<<"$instance_payload")"
-          ip_address="$(jq -er 'if (.ipConfig.v4 | type) == "array" then .ipConfig.v4[0].ip elif (.ipConfig.v4 | type) == "object" then .ipConfig.v4.ip else .ipConfig.v4 end' <<<"$instance_payload")"
+          instance_record="$(jq -ec 'if (.data | type) == "array" then .data[] elif (.data | type) == "object" then (if (.data.content | type) == "array" then .data.content[] else .data end) else empty end | select((.displayName // .name // "") | ascii_downcase | test("rekov|erp"))' <<<"$instances" | head -n1)"
+          instance_id="$(jq -er '.instanceId' <<<"$instance_record")"
+          image_id="$(jq -er '.imageId' <<<"$instance_record")"
           user_data="#cloud-config\nusers:\n  - name: ubuntu\n    groups: [sudo]\n    shell: /bin/bash\n    sudo: ALL=(ALL) NOPASSWD:ALL\n    ssh_authorized_keys:\n      - $SSH_PUBLIC_KEY"
           body="$(jq -n --arg imageId "$image_id" --arg userData "$user_data" \
             '{imageId:$imageId,defaultUser:"root",userData:$userData}')"
@@ -62,7 +60,7 @@ jobs:
             -X PUT -d "$body" \
             "https://api.contabo.com/v1/compute/instances/$instance_id")"
           jq -e '.instanceId' <<<"$response" >/dev/null
-          printf 'Contabo instance preserved and reinstallation requested: %s\n' "$ip_address"
+          printf 'Contabo instance preserved and reinstallation requested: %s\n' "$instance_id"
 
       - name: Recreate only OCI infrastructure and DNS
         env:
