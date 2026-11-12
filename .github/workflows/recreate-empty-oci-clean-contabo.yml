@@ -48,8 +48,8 @@ jobs:
             'https://auth.contabo.com/auth/realms/contabo/protocol/openid-connect/token' | jq -er '.access_token')"
           headers=(-H "Authorization: Bearer $token" -H "x-request-id: $(uuidgen)")
           instances="$(curl -fsS "${headers[@]}" 'https://api.contabo.com/v1/compute/instances')"
-          jq -r '(.data.content // .data) | if type == "array" then .[] else empty end | [.instanceId, (.displayName // .name // ""), (.status // ""), (.ipConfig.v4[0].ip // "")] | @tsv' <<<"$instances"
-          instance_id="$(jq -er '(.data.content // .data) | if type == "array" then .[] else empty end | select((.displayName // .name // "") == "rekov-erp") | .instanceId' <<<"$instances" | head -n1)"
+          jq -r '(.data | if type == "array" then . else (.content // []) end)[] | [.instanceId, (.displayName // .name // ""), (.status // ""), (.ipConfig.v4[0].ip // "")] | @tsv' <<<"$instances"
+          instance_id="$(jq -er '(.data | if type == "array" then . else (.content // []) end)[] | select((.displayName // .name // "") == "rekov-erp") | .instanceId' <<<"$instances" | head -n1)"
           instance="$(curl -fsS "${headers[@]}" "https://api.contabo.com/v1/compute/instances/$instance_id")"
           image_id="$(jq -er '.imageId' <<<"$instance")"
           ip_address="$(jq -er '.ipConfig.v4[0].ip' <<<"$instance")"
