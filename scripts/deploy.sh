@@ -174,6 +174,7 @@ fi
 wait_ssh "$control_ip"
 wait_ssh "$erp_ip"
 
+if [[ "$native_only" != "1" ]]; then
 # Press creates its managed `frappe` account with UID/GID 1000. Ubuntu cloud
 # images already reserve that identity for the default `ubuntu` account, so
 # move only that account out of the way before Press runs its Ansible play.
@@ -207,6 +208,8 @@ remote "$erp_ip" "sudo apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=5 
 # image only ships Python 3.12, so without this package the agent accepts the
 # request and its worker leaves the Agent Job Pending with FileNotFoundError.
 remote "$erp_ip" "agent_restart=0; if [ ! -x /usr/bin/python3.14 ]; then sudo DEBIAN_FRONTEND=noninteractive add-apt-repository -y ppa:deadsnakes/ppa; sudo apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=5 update; sudo DEBIAN_FRONTEND=noninteractive apt-get install -y python3.14 python3.14-dev python3.14-venv; agent_restart=1; fi; test -x /usr/bin/python3.14; sudo -u frappe /usr/bin/python3.14 --version; if [ \"\$agent_restart\" = 1 ]; then sudo supervisorctl restart agent:* >/dev/null; fi"
+
+fi
 
 cat >"$tmp/press.env" <<EOF
 PRESS_CONTROL_HOSTNAME=${PRESS_CONTROL_HOSTNAME@Q}

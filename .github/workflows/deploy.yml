@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      native_only:
+        description: Install only the Press control plane; provision tenants natively from Press
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -48,4 +54,6 @@ jobs:
           bash scripts/verify-press-source.sh
 
       - name: Provision Press control plane, tenant node, and DNS
+        env:
+          REKOV_NATIVE_ONLY: ${{ inputs.native_only && '1' || '0' }}
         run: ./scripts/deploy.sh
