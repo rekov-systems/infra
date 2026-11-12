@@ -88,6 +88,8 @@ jobs:
             sleep 10
           done
           ssh -i "$RUNNER_TEMP/oci_key" -o StrictHostKeyChecking=no ubuntu@"$CONTROL_IP" \
+            'for attempt in {1..60}; do if sudo fuser /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock >/dev/null 2>&1; then sleep 5; else break; fi; done'
+          ssh -i "$RUNNER_TEMP/oci_key" -o StrictHostKeyChecking=no ubuntu@"$CONTROL_IP" \
             'curl -fsSL https://raw.githubusercontent.com/frappe/pilot/develop/install.sh | bash'
           ssh -i "$RUNNER_TEMP/oci_key" -o StrictHostKeyChecking=no ubuntu@"$CONTROL_IP" \
             'export PATH="$HOME/pilot/bin:$PATH"; command -v pilot && pilot --version || true'
