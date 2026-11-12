@@ -54,7 +54,15 @@ jobs:
           instance_id="$(jq -er '.instanceId' <<<"$instance_record")"
           image_id="$(jq -er '.imageId' <<<"$instance_record")"
           jq -r '{instanceId, imageId, imageName, productId, region, displayName}' <<<"$instance_record"
-          user_data="#cloud-config\nusers:\n  - name: ubuntu\n    groups: [sudo]\n    shell: /bin/bash\n    sudo: ALL=(ALL) NOPASSWD:ALL\n    ssh_authorized_keys:\n      - $SSH_PUBLIC_KEY"
+          user_data="$(printf '%s\n' \
+            '#cloud-config' \
+            'users:' \
+            '  - name: ubuntu' \
+            '    groups: [sudo]' \
+            '    shell: /bin/bash' \
+            '    sudo: ALL=(ALL) NOPASSWD:ALL' \
+            '    ssh_authorized_keys:' \
+            "      - $SSH_PUBLIC_KEY")"
           body="$(jq -n --arg imageId "$image_id" --arg userData "$user_data" \
             '{imageId:$imageId,defaultUser:"root",userData:$userData}')"
           response="$(curl -sS "${headers[@]}" -H 'Content-Type: application/json' \
