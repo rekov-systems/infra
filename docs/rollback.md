@@ -69,6 +69,14 @@ retention policy that does not delete the last known-good point.
 7. Move `main` back to the recorded tag only if the source rollback is also
    required. The infrastructure tag alone does not restore VM state.
 
+For the provider-level operation, run `scripts/restore-recovery-point.sh`
+without `ROLLBACK_CONFIRMATION` first; it prints the exact target IDs and
+actions without changing anything. Only a deliberate recovery operation may
+set `ROLLBACK_CONFIRMATION=RESTORE_REKOV_RECOVERY_POINT`. The script restores
+the OCI boot volume to the existing instance and invokes Contabo's snapshot
+rollback endpoint. Afterward, verify SSH, MariaDB, Press, Agent, DNS and
+application health before restoring any logical dump.
+
 ## No-go conditions
 
 An experimental deploy must stop if any of the following is missing:

@@ -51,6 +51,7 @@ jobs:
           bash -n scripts/collect-recovery-manifest.sh
           bash -n scripts/verify-recovery-point.sh
           bash -n scripts/create-provider-recovery-snapshots.sh
+          bash -n scripts/restore-recovery-point.sh
           python3 -m py_compile scripts/rekov_press_platform.py
           bash scripts/verify-press-source.sh
 

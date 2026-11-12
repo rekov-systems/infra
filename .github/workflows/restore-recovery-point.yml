@@ -1,0 +1,75 @@
+name: Restore recovery point
+
+on:
+  workflow_dispatch:
+    inputs:
+      rollback_confirmation:
+        description: Leave blank for plan; type RESTORE_REKOV_RECOVERY_POINT to execute
+        required: false
+        type: string
+      oci_boot_volume_backup_id:
+        description: OCI boot-volume backup OCID
+        required: true
+        type: string
+      contabo_snapshot_id:
+        description: Contabo instance snapshot ID
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Load secrets from Infisical
+        uses: Infisical/secrets-action@v1.0.18
+        with:
+          method: oidc
+          identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
+          project-slug: ${{ vars.INFISICAL_PROJECT_SLUG }}
+          env-slug: ${{ vars.INFISICAL_ENV_SLUG }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.9
+
+      - name: Resolve current provider IDs from state
+        working-directory: terraform
+        run: |
+          export AWS_ACCESS_KEY_ID="$R2_STORAGE_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_STORAGE_SECRET_ACCESS_KEY"
+          export AWS_REGION="$R2_STORAGE_REGION"
+          terraform init -input=false -reconfigure \
+            -backend-config="bucket=$R2_STORAGE_BUCKET" \
+            -backend-config="key=$R2_STORAGE_STATE_KEY" \
+            -backend-config="region=$R2_STORAGE_REGION" \
+            -backend-config="endpoint=$R2_STORAGE_ENDPOINT" \
+            -backend-config="skip_credentials_validation=true" \
+            -backend-config="skip_metadata_api_check=true" \
+            -backend-config="skip_requesting_account_id=true" \
+            -backend-config="skip_region_validation=true" \
+            -backend-config="skip_s3_checksum=true" \
+            -backend-config="use_path_style=true"
+          oci_instance_id="$(terraform state show -no-color oci_core_instance.control | awk -F' = ' '$1 == "id" { gsub(/"/, "", $2); print $2; exit }')"
+          contabo_instance_id="$(terraform output -raw erp_contabo_id)"
+          test -n "$oci_instance_id" && test -n "$contabo_instance_id"
+          echo "OCI_INSTANCE_ID=$oci_instance_id" >> "$GITHUB_ENV"
+          echo "CONTABO_INSTANCE_ID=$contabo_instance_id" >> "$GITHUB_ENV"
+
+      - name: Install OCI CLI
+        run: python3 -m pip install --user --quiet oci-cli
+
+      - name: Plan or execute provider restore
+        env:
+          OCI_BOOT_VOLUME_BACKUP_ID: ${{ inputs.oci_boot_volume_backup_id }}
+          CONTABO_SNAPSHOT_ID: ${{ inputs.contabo_snapshot_id }}
+          ROLLBACK_CONFIRMATION: ${{ inputs.rollback_confirmation }}
+        run: ./scripts/restore-recovery-point.sh
