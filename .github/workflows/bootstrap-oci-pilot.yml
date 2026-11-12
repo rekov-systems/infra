@@ -72,7 +72,13 @@ jobs:
           SSH_PRIVATE_KEY: ${{ env.SSH_PRIVATE_KEY }}
         run: |
           umask 077
-          printf '%s' "$SSH_PRIVATE_KEY" > "$RUNNER_TEMP/oci_key"
+          # Infisical may preserve the key with CRLF or literal "\\n" escapes.
+          # Normalize both forms before handing it to OpenSSH.
+          printf '%s\n' "$SSH_PRIVATE_KEY" \
+            | perl -pe 's/\\\\n/\n/g; s/\r//g' \
+            > "$RUNNER_TEMP/oci_key"
+          chmod 600 "$RUNNER_TEMP/oci_key"
+          ssh-keygen -y -f "$RUNNER_TEMP/oci_key" >/dev/null
           for attempt in {1..30}; do
             if ssh -i "$RUNNER_TEMP/oci_key" -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@"$CONTROL_IP" true; then
               break
