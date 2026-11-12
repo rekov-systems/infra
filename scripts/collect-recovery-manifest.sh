@@ -25,16 +25,22 @@ remote() {
 }
 
 collect_host() {
-  local label="$1" host="$2"
+  local label="$1" host="$2" dump_password="${3:-}" dump_command password_b64
   remote "$host" 'set -o pipefail; printf "hostname="; hostname; printf "\nos-release=\n"; cat /etc/os-release; printf "\npackages=\n"; dpkg-query -W -f="\${binary:Package}=\${Version}\n"; printf "\npython=\n"; command -v python3 && python3 --version; printf "\npip=\n"; python3 -m pip freeze 2>/dev/null || true; printf "\nsystemd=\n"; systemctl list-unit-files --state=enabled --no-pager 2>/dev/null || true; printf "\npress-git=\n"; git -C /home/frappe/press-bench/apps/frappe rev-parse HEAD 2>/dev/null || true; git -C /home/frappe/press-bench/apps/press rev-parse HEAD 2>/dev/null || true' >"$out/${label}-inventory.txt"
-  remote "$host" 'sudo mariadb-dump --all-databases --single-transaction --routines --events --triggers --hex-blob' |
+  if [[ -n "$dump_password" ]]; then
+    password_b64="$(printf '%s' "$dump_password" | base64 -w0)"
+    dump_command="sudo env MARIADB_PWD=\"\$(printf '%s' '$password_b64' | base64 -d)\" mariadb-dump -u root --all-databases --single-transaction --routines --events --triggers --hex-blob"
+  else
+    dump_command='sudo mariadb-dump --all-databases --single-transaction --routines --events --triggers --hex-blob'
+  fi
+  remote "$host" "$dump_command" |
     openssl enc -aes-256-cbc -pbkdf2 -salt -pass env:RECOVERY_PASSPHRASE >"$out/${label}-mariadb.sql.enc"
   remote "$host" 'sudo tar --ignore-failed-read --exclude="*.log" --exclude="*.cache" -C / -czf - home/frappe/press-bench/sites home/frappe/agent etc/nginx etc/systemd/system/press-bench* etc/systemd/system/agent* 2>/dev/null' |
     openssl enc -aes-256-cbc -pbkdf2 -salt -pass env:RECOVERY_PASSPHRASE >"$out/${label}-state.tar.gz.enc"
 }
 
 export RECOVERY_PASSPHRASE
-collect_host control "$CONTROL_IP"
+collect_host control "$CONTROL_IP" "${PRESS_DB_ROOT_PASSWORD:-}"
 collect_host tenant "$TENANT_IP"
 
 if [[ -n "${PRESS_CONTROL_HOSTNAME:-}" ]]; then
