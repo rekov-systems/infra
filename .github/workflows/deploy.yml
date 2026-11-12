@@ -50,6 +50,7 @@ jobs:
           bash -n scripts/deploy.sh scripts/bootstrap-press-control.sh scripts/bootstrap-press-platform.sh
           bash -n scripts/collect-recovery-manifest.sh
           bash -n scripts/verify-recovery-point.sh
+          bash -n scripts/create-provider-recovery-snapshots.sh
           python3 -m py_compile scripts/rekov_press_platform.py
           bash scripts/verify-press-source.sh
 

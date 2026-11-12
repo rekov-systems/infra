@@ -39,9 +39,11 @@ Before an experimental deployment, run
 `OCI_BOOT_VOLUME_BACKUP_ID`, and `CONTABO_SNAPSHOT_ID`. It refuses to pass if
 an encrypted database/state artifact is missing or its checksum is invalid.
 
-Provider snapshots must be created outside the normal Terraform resource
-lifecycle. Do not add a one-time snapshot to the main state: a later
-`terraform destroy` or replacement could delete the only rollback point.
+The manual `Create recovery point` workflow creates both provider snapshots
+through the OCI and Contabo APIs, then records their IDs in the manifest. The
+snapshots are deliberately outside the normal Terraform resource lifecycle.
+Do not add a one-time snapshot to the main state: a later `terraform destroy`
+or replacement could delete the only rollback point.
 OCI boot-volume backups are point-in-time backups that can be restored to a
 new boot volume or instance. Contabo instance snapshots serve the equivalent
 purpose for the tenant VM. Keep at least three recovery points and apply a

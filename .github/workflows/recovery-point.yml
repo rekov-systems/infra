@@ -7,14 +7,6 @@ on:
         description: Type CREATE_RECOVERY_POINT to continue
         required: true
         type: string
-      oci_boot_volume_backup_id:
-        description: Existing retained OCI boot-volume backup OCID
-        required: true
-        type: string
-      contabo_snapshot_id:
-        description: Existing retained Contabo instance snapshot ID
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -64,12 +56,18 @@ jobs:
             -backend-config="skip_s3_checksum=true" \
             -backend-config="use_path_style=true"
           echo "CONTROL_IP=$(terraform output -raw control_public_ip)" >> "$GITHUB_ENV"
+          echo "OCI_INSTANCE_ID=$(terraform output -raw control_instance_id)" >> "$GITHUB_ENV"
           echo "TENANT_IP=$(terraform output -raw erp_public_ip)" >> "$GITHUB_ENV"
+          echo "CONTABO_INSTANCE_ID=$(terraform output -raw erp_contabo_id)" >> "$GITHUB_ENV"
+
+      - name: Install snapshot tooling
+        run: python3 -m pip install --user --quiet oci-cli
+
+      - name: Create provider recovery snapshots
+        run: ./scripts/create-provider-recovery-snapshots.sh
 
       - name: Collect and verify encrypted recovery point
         env:
-          OCI_BOOT_VOLUME_BACKUP_ID: ${{ inputs.oci_boot_volume_backup_id }}
-          CONTABO_SNAPSHOT_ID: ${{ inputs.contabo_snapshot_id }}
           RECOVERY_OUTPUT_DIR: ${{ runner.temp }}/recovery
         run: |
           export RECOVERY_POINT="$RECOVERY_OUTPUT_DIR"
