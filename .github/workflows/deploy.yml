@@ -10,6 +10,11 @@ on:
         required: true
         default: false
         type: boolean
+      recovery_run_id:
+        description: Recovery workflow run ID required when native_only is enabled
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -63,4 +68,5 @@ jobs:
       - name: Provision Press control plane, tenant node, and DNS
         env:
           REKOV_NATIVE_ONLY: ${{ inputs.native_only && '1' || '0' }}
+          REKOV_RECOVERY_RUN_ID: ${{ inputs.recovery_run_id || '' }}
         run: ./scripts/deploy.sh

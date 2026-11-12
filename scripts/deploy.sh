@@ -28,6 +28,54 @@ export TF_VAR_contabo_product_id="$CONTABO_PRODUCT_ID"
 export TF_VAR_contabo_region="$CONTABO_REGION"
 export TF_VAR_press_control_hostname="$PRESS_CONTROL_HOSTNAME"
 export TF_VAR_press_root_domain="$PRESS_ROOT_DOMAIN"
+native_only="${REKOV_NATIVE_ONLY:-0}"
+
+verify_native_recovery_point() {
+  local recovery_run_id recovery_point oci_backup_id contabo_snapshot_id
+
+  [[ -n "${REKOV_RECOVERY_RUN_ID:-}" ]] || {
+    echo "Native-only mode requires REKOV_RECOVERY_RUN_ID from a successful recovery-point workflow." >&2
+    exit 1
+  }
+  command -v aws >/dev/null || {
+    echo 'Native-only mode requires the AWS CLI to verify the R2 recovery point.' >&2
+    exit 1
+  }
+
+  recovery_run_id="$REKOV_RECOVERY_RUN_ID"
+  [[ "$recovery_run_id" =~ ^[0-9]+$ ]] || {
+    echo "Invalid recovery workflow run ID: $recovery_run_id" >&2
+    exit 1
+  }
+  recovery_point="$(mktemp -d)"
+  trap 'rm -rf "$recovery_point"' RETURN
+  AWS_EC2_METADATA_DISABLED=true aws s3 sync \
+    "s3://$R2_STORAGE_BUCKET/recovery/$recovery_run_id/" \
+    "$recovery_point/" \
+    --endpoint-url "$R2_STORAGE_ENDPOINT" \
+    --only-show-errors
+
+  oci_backup_id="$(sed -n 's/^oci_boot_volume_backup_id=//p' "$recovery_point/manifest.txt")"
+  contabo_snapshot_id="$(sed -n 's/^contabo_snapshot_id=//p' "$recovery_point/manifest.txt")"
+  [[ -n "$oci_backup_id" && "$oci_backup_id" != UNRECORDED ]] || {
+    echo 'Recovery manifest has no retained OCI boot-volume backup.' >&2
+    exit 1
+  }
+  [[ -n "$contabo_snapshot_id" && "$contabo_snapshot_id" != UNRECORDED ]] || {
+    echo 'Recovery manifest has no retained Contabo snapshot.' >&2
+    exit 1
+  }
+
+  RECOVERY_POINT="$recovery_point" \
+    OCI_BOOT_VOLUME_BACKUP_ID="$oci_backup_id" \
+    CONTABO_SNAPSHOT_ID="$contabo_snapshot_id" \
+    "$root/scripts/verify-recovery-point.sh"
+  echo "Verified recovery point recovery/$recovery_run_id before native-only deployment."
+}
+
+if [[ "$native_only" == "1" ]]; then
+  verify_native_recovery_point
+fi
 
 cd "$root/terraform"
 terraform init -input=false -reconfigure \
@@ -120,7 +168,6 @@ erp_ip="$(terraform output -raw erp_public_ip)"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
-native_only="${REKOV_NATIVE_ONLY:-0}"
 printf '%s\n' "$SSH_PRIVATE_KEY" >"$tmp/id_ed25519"
 chmod 600 "$tmp/id_ed25519"
 ssh_options=(
