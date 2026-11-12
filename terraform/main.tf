@@ -107,7 +107,10 @@ resource "oci_core_instance" "control" {
     subnet_id        = oci_core_subnet.this.id
     assign_public_ip = true
   }
-  metadata = { ssh_authorized_keys = var.ssh_public_key }
+  metadata = {
+    ssh_authorized_keys = var.ssh_public_key
+    user_data           = base64encode(templatefile("${path.module}/cloud-init-erp.yaml.tftpl", { ssh_public_key = var.ssh_public_key }))
+  }
   agent_config {
     are_all_plugins_disabled = false
     is_management_disabled   = false
@@ -117,7 +120,7 @@ resource "oci_core_instance" "control" {
     }
   }
   lifecycle {
-    ignore_changes = [metadata, source_details]
+    ignore_changes = [source_details]
   }
 }
 

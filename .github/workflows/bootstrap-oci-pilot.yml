@@ -118,6 +118,10 @@ jobs:
              if ! pilot -b main list-apps | grep -qx erpnext; then \
                pilot -b main get-app https://github.com/frappe/erpnext --branch version-16; \
              fi; \
+             sudo DEBIAN_FRONTEND=noninteractive apt-get install -y iptables-persistent; \
+             sudo iptables -C INPUT -p tcp --dport 80 -j ACCEPT 2>/dev/null || sudo iptables -I INPUT 5 -p tcp --dport 80 -j ACCEPT; \
+             sudo iptables -C INPUT -p tcp --dport 443 -j ACCEPT 2>/dev/null || sudo iptables -I INPUT 6 -p tcp --dport 443 -j ACCEPT; \
+             sudo iptables-save | sudo tee /etc/iptables/rules.v4 >/dev/null; \
              pilot -b main setup production --admin-domain '$PILOT_ADMIN_DOMAIN' --tls --letsencrypt-email admin@$PILOT_ADMIN_DOMAIN; \
              pilot ls; \
              echo '--- listening ---'; ss -lntp; \
