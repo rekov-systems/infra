@@ -116,5 +116,5 @@ jobs:
              if ! pilot -b main list-apps | grep -qx erpnext; then \
                pilot -b main get-app https://github.com/frappe/erpnext --branch version-16; \
              fi; \
-             pilot -b main setup production --admin-domain '$PILOT_ADMIN_DOMAIN'; \
+             pilot -b main setup production --admin-domain '$PILOT_ADMIN_DOMAIN' --tls --letsencrypt-email admin@$PILOT_ADMIN_DOMAIN; \
              pilot ls"
