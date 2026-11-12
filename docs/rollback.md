@@ -27,12 +27,13 @@ whole-VM restore is not convenient.
 
 ## Creating a recovery point
 
-Run `scripts/collect-recovery-manifest.sh` from a trusted machine with SSH
-access to both VMs. Set `RECOVERY_PASSPHRASE` in the environment; the script
-never writes it to the repository or CI log. The script creates encrypted
-artifacts locally. Upload those artifacts to the encrypted R2 recovery bucket
-using the organisation's backup job, then record the object URLs and provider
-snapshot IDs in the manifest.
+Use the manual `Create recovery point` workflow as the canonical path. It
+loads the SSH key, backup passphrase, provider credentials, and R2 settings
+from Infisical. For an offline/manual run, execute
+`scripts/collect-recovery-manifest.sh` from a trusted machine with SSH access
+to both VMs. Set `RECOVERY_PASSPHRASE` in the environment; the script never
+writes it to the repository or CI log. Upload the resulting encrypted
+artifacts to the encrypted R2 recovery bucket and retain the manifest.
 
 Before an experimental deployment, run
 `scripts/verify-recovery-point.sh` with `RECOVERY_POINT`,
