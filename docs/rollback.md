@@ -34,6 +34,11 @@ artifacts locally. Upload those artifacts to the encrypted R2 recovery bucket
 using the organisation's backup job, then record the object URLs and provider
 snapshot IDs in the manifest.
 
+Before an experimental deployment, run
+`scripts/verify-recovery-point.sh` with `RECOVERY_POINT`,
+`OCI_BOOT_VOLUME_BACKUP_ID`, and `CONTABO_SNAPSHOT_ID`. It refuses to pass if
+an encrypted database/state artifact is missing or its checksum is invalid.
+
 Provider snapshots must be created outside the normal Terraform resource
 lifecycle. Do not add a one-time snapshot to the main state: a later
 `terraform destroy` or replacement could delete the only rollback point.
