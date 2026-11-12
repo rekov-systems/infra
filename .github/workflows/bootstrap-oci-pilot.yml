@@ -89,3 +89,30 @@ jobs:
             'curl -fsSL https://raw.githubusercontent.com/frappe/pilot/develop/install.sh | bash'
           ssh -i "$RUNNER_TEMP/oci_key" -o StrictHostKeyChecking=no ubuntu@"$CONTROL_IP" \
             'command -v pilot && pilot --version || true'
+
+      - name: Initialize the native Pilot bench and Admin UI
+        env:
+          CONTROL_IP: ${{ steps.infra.outputs.control_ip }}
+          PILOT_ADMIN_DOMAIN: ${{ env.PRESS_CONTROL_HOSTNAME }}
+          PILOT_ADMIN_PASSWORD: ${{ env.PRESS_ADMIN_PASSWORD }}
+          SSH_PRIVATE_KEY: ${{ env.SSH_PRIVATE_KEY }}
+        run: |
+          umask 077
+          printf '%s\n' "$SSH_PRIVATE_KEY" \
+            | perl -pe 's/\\\\n/\n/g; s/\r//g' \
+            > "$RUNNER_TEMP/oci_key"
+          chmod 600 "$RUNNER_TEMP/oci_key"
+          ssh-keygen -y -f "$RUNNER_TEMP/oci_key" >/dev/null
+          PILOT_PASSWORD_B64="$(printf '%s' "$PILOT_ADMIN_PASSWORD" | base64 -w0)"
+          ssh -i "$RUNNER_TEMP/oci_key" -o StrictHostKeyChecking=no ubuntu@"$CONTROL_IP" \
+            "export PATH=\$HOME/.local/bin:\$PATH; \
+             PILOT_PASSWORD=\$(printf '%s' '$PILOT_PASSWORD_B64' | base64 -d); \
+             if [ ! -f \"\$HOME/benches/main/bench.toml\" ]; then \
+               pilot new main --admin-password \"\$PILOT_PASSWORD\" --frappe-branch version-16; \
+             fi; \
+             pilot -b main init --no-dev; \
+             if ! pilot -b main list-apps | grep -qx erpnext; then \
+               pilot -b main get-app https://github.com/frappe/erpnext --branch version-16; \
+             fi; \
+             pilot -b main setup production --admin-domain '$PILOT_ADMIN_DOMAIN'; \
+             pilot ls"
