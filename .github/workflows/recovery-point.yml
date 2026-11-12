@@ -18,11 +18,13 @@ concurrency:
 
 jobs:
   backup:
-    if: github.event.inputs.confirmation == 'CREATE_RECOVERY_POINT'
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 60
     steps:
+      - name: Require explicit confirmation
+        run: test "${{ inputs.confirmation }}" = CREATE_RECOVERY_POINT
+
       - uses: actions/checkout@v4
 
       - name: Load secrets from Infisical
@@ -56,7 +58,9 @@ jobs:
             -backend-config="skip_s3_checksum=true" \
             -backend-config="use_path_style=true"
           echo "CONTROL_IP=$(terraform output -raw control_public_ip)" >> "$GITHUB_ENV"
-          echo "OCI_INSTANCE_ID=$(terraform output -raw control_instance_id)" >> "$GITHUB_ENV"
+          oci_instance_id="$(terraform state show -no-color oci_core_instance.control | awk -F' = ' '$1 == "id" { gsub(/"/, "", $2); print $2; exit }')"
+          test -n "$oci_instance_id"
+          echo "OCI_INSTANCE_ID=$oci_instance_id" >> "$GITHUB_ENV"
           echo "TENANT_IP=$(terraform output -raw erp_public_ip)" >> "$GITHUB_ENV"
           echo "CONTABO_INSTANCE_ID=$(terraform output -raw erp_contabo_id)" >> "$GITHUB_ENV"
 
