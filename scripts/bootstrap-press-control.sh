@@ -400,7 +400,7 @@ health_ok=0
 for _ in $(seq 1 30); do
   if curl --fail --silent --show-error --insecure --max-time 15 \
     --resolve "${press_host}:443:127.0.0.1" \
-    "https://${press_host}/login" -o /dev/null; then
+    "https://${press_host}/api/method/frappe.ping" -o /dev/null; then
     health_ok=1
     break
   fi
