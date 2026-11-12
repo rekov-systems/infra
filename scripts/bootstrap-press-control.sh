@@ -254,9 +254,10 @@ rm -f "\$installed_apps_error_file"
 # App Release.deployable).
 # A previously interrupted migration can leave Frappe's native document lock
 # files behind (notably while syncing Role Profile fixtures). Clear only the
-# current site's lock directory through Frappe itself before retrying migrate;
-# this does not touch the database, files, or any other site.
-bench --site "$PRESS_CONTROL_HOSTNAME" execute frappe.installer.clear_site_locks
+# current site's lock directory through Frappe's site-path API before retrying
+# migrate; this does not touch the database, site files, or any other site.
+bench --site "$PRESS_CONTROL_HOSTNAME" execute \
+  '(__import__("shutil").rmtree(frappe.get_site_path("locks"), ignore_errors=True))'
 bench --site "$PRESS_CONTROL_HOSTNAME" migrate
 bench use "$PRESS_CONTROL_HOSTNAME"
 bench --site "$PRESS_CONTROL_HOSTNAME" clear-cache
