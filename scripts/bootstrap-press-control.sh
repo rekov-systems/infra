@@ -315,6 +315,7 @@ import ansible
 assert (Path(ansible.__file__).parent / "config/ansible_builtin_runtime.yml").is_file()
 import stripe
 from OpenSSL import SSL, crypto
+from cryptography.fernet import Fernet
 import frappe_mcp
 '; then
   echo "Press dependency preflight failed (ansible/stripe/pyOpenSSL/frappe_mcp on Python 3.14)." >&2
@@ -429,9 +430,13 @@ done
 ln -sfn "$bench_root/config/nginx.conf" "/etc/nginx/conf.d/${bench_name}.conf"
 systemctl daemon-reload
 # The bench target also starts private Redis instances. This control plane uses
-# the already-running Ubuntu Redis at 127.0.0.1:6379, so enable only web and
-# worker units.
-systemctl enable --now "${bench_name}-web.target" "${bench_name}-workers.target"
+# the already-running Ubuntu Redis at 127.0.0.1:6379, so enable web, workers,
+# and the scheduler explicitly. The scheduler is what drains New Bench Queue;
+# without it, the deploy can finish while the Bench remains queued forever.
+systemctl enable --now \
+  "${bench_name}-web.target" \
+  "${bench_name}-workers.target" \
+  "${bench_name}-frappe-schedule.service"
 nginx -t
 systemctl enable --now nginx
 systemctl reload-or-restart nginx
