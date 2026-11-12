@@ -245,22 +245,6 @@ rm -f "\$installed_apps_error_file"
 # bootstrap touches fields added by newer Press revisions (for example
 # App Release.deployable).
 bench --site "$PRESS_CONTROL_HOSTNAME" migrate
-# Press declares press.bundle.js in hooks.py. Build the complete Bench asset
-# set: building only Press leaves Frappe's Desk bundle stale/incomplete (for
-# example, frappe.ui.create_menu can be absent from desk.bundle.js).
-bench use "$PRESS_CONTROL_HOSTNAME"
-bench build
-[[ -L "sites/assets/press" || -d "sites/assets/press" ]] || {
-  echo 'Press assets link was not created.' >&2
-  exit 1
-}
-# sites/assets/press normally points to apps/press/press/public. Follow that
-# link; without -L find only sees the link itself and reports a false failure.
-press_bundle="\$(find -L sites/assets/press -type f -name 'press.bundle*.js' -print -quit)"
-[[ -n "\$press_bundle" && -s "\$press_bundle" ]] || {
-  echo 'Press frontend bundle was not generated.' >&2
-  exit 1
-}
 bench --site "$PRESS_CONTROL_HOSTNAME" clear-cache
 bench --site "$PRESS_CONTROL_HOSTNAME" set-config developer_mode 0
 EOF
