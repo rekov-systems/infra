@@ -127,7 +127,9 @@ resource "cloudflare_dns_record" "admin" {
   type    = "A"
   content = oci_core_instance.control.public_ip
   ttl     = 1
-  proxied = true
+  # Pilot obtains the Admin certificate with its native HTTP-01 challenge.
+  # Keep this hostname DNS-only so Let's Encrypt can reach the origin directly.
+  proxied = false
 }
 
 resource "cloudflare_dns_record" "tenants" {
