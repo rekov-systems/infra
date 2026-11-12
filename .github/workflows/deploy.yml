@@ -42,6 +42,7 @@ jobs:
           terraform -chdir=terraform init -backend=false -input=false
           terraform -chdir=terraform validate
           bash -n scripts/deploy.sh scripts/bootstrap-press-control.sh scripts/bootstrap-press-platform.sh
+          bash -n scripts/collect-recovery-manifest.sh
           python3 -m py_compile scripts/rekov_press_platform.py
           bash scripts/verify-press-source.sh
 
