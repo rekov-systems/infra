@@ -230,7 +230,10 @@ EOF
 chmod 600 "$tmp/press.env"
 
 remote "$control_ip" "sudo rm -rf /tmp/rekov && sudo mkdir -p /tmp/rekov && sudo chown ubuntu:ubuntu /tmp/rekov"
-scp "${ssh_options[@]}" "$root/scripts/bootstrap-press-control.sh" "$root/scripts/bootstrap-press-platform.sh" "$root/scripts/rekov_press_platform.py" "$tmp/press.env" "ubuntu@${control_ip}:/tmp/rekov/"
+scp "${ssh_options[@]}" "$root/scripts/bootstrap-press-control.sh" "$tmp/press.env" "ubuntu@${control_ip}:/tmp/rekov/"
+if [[ "$native_only" != "1" ]]; then
+  scp "${ssh_options[@]}" "$root/scripts/bootstrap-press-platform.sh" "$root/scripts/rekov_press_platform.py" "ubuntu@${control_ip}:/tmp/rekov/"
+fi
 remote "$control_ip" "sudo test -s /tmp/rekov/press.env && sudo test -s /tmp/rekov/bootstrap-press-control.sh"
 
 if [[ "$native_only" == "1" ]]; then
