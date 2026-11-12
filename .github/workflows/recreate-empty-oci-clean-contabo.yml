@@ -49,8 +49,8 @@ jobs:
           headers=(-H "Authorization: Bearer $token" -H "x-request-id: $(uuidgen)")
           instances="$(curl -fsS "${headers[@]}" 'https://api.contabo.com/v1/compute/instances')"
           jq -r '{top_keys: keys, data_type: (.data | type), data_keys: (if (.data | type) == "object" then (.data | keys) else [] end)}' <<<"$instances"
-          jq -r 'if (.data | type) == "array" then .data[] elif (.data.content | type) == "array" then .data.content[] elif (.data | type) == "object" then .data else empty end | {instanceId, displayName, name, status, ip: (.ipConfig.v4[0].ip // null)}' <<<"$instances"
-          instance_id="$(jq -er 'if (.data | type) == "array" then .data[] elif (.data.content | type) == "array" then .data.content[] elif (.data | type) == "object" then .data else empty end | select((.displayName // .name // "") | ascii_downcase | test("rekov|erp")) | .instanceId' <<<"$instances" | head -n1)"
+          jq -r 'if (.data | type) == "array" then .data[] elif ((.data | type) == "object" and (.data.content | type) == "array") then .data.content[] elif (.data | type) == "object" then .data else empty end | {instanceId, displayName, name, status, ip: (.ipConfig.v4[0].ip // null)}' <<<"$instances"
+          instance_id="$(jq -er 'if (.data | type) == "array" then .data[] elif ((.data | type) == "object" and (.data.content | type) == "array") then .data.content[] elif (.data | type) == "object" then .data else empty end | select((.displayName // .name // "") | ascii_downcase | test("rekov|erp")) | .instanceId' <<<"$instances" | head -n1)"
           instance="$(curl -fsS "${headers[@]}" "https://api.contabo.com/v1/compute/instances/$instance_id")"
           image_id="$(jq -er '.imageId' <<<"$instance")"
           ip_address="$(jq -er '.ipConfig.v4[0].ip' <<<"$instance")"
