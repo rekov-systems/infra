@@ -378,7 +378,8 @@ EOF
 chmod 0755 /etc/letsencrypt/renewal-hooks/deploy/reload-nginx
 systemctl enable --now certbot.timer
 # Do not report a successful deployment while the origin is unreachable.
-# Cloudflare returns 521 when Nginx is stopped or no longer owns HTTPS.
+# Cloudflare returns 521 when Nginx is stopped or no longer owns HTTPS. The
+# web worker can take a short moment to become ready after systemd restarts.
 systemctl enable --now nginx
 systemctl restart nginx
 systemctl is-active --quiet nginx || {
@@ -395,13 +396,21 @@ if ss -ltn '( sport = :80 )' | grep -q LISTEN; then
   nginx -T >&2 || true
   exit 1
 fi
-curl --fail --silent --show-error --insecure --max-time 15 \
-  --resolve "${press_host}:443:127.0.0.1" \
-  "https://${press_host}/login" -o /dev/null || {
+health_ok=0
+for _ in $(seq 1 30); do
+  if curl --fail --silent --show-error --insecure --max-time 15 \
+    --resolve "${press_host}:443:127.0.0.1" \
+    "https://${press_host}/login" -o /dev/null; then
+    health_ok=1
+    break
+  fi
+  sleep 2
+done
+if (( health_ok == 0 )); then
   echo "Local HTTPS health check failed for ${press_host}." >&2
   nginx -T >&2 || true
   exit 1
-}
+fi
 
 # Press's tenant-facing wildcard certificate is used by the hybrid builder and
 # Docker registry. It must be publicly trusted because these hostnames are
