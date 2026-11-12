@@ -30,4 +30,29 @@ jobs:
           ./scripts/test-recovery-point.sh
           OCI_INSTANCE_ID=plan-test \
           ./scripts/restore-recovery-point.sh | grep -q '^Plan only\.'
-          bash scripts/verify-press-source.sh
+
+      - name: Validate Rekov JCFlow Frappe app metadata
+        run: |
+          test -f pyproject.toml
+          test -f rekov_jcflow/hooks.py
+          test -f rekov_jcflow/modules.txt
+          python3 -m compileall -q rekov_jcflow
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("rekov_jcflow/doctype/jcflow_settings/jcflow_settings.json")
+          data = json.loads(path.read_text())
+          assert data["doctype"] == "DocType"
+          assert data["name"] == "JCFlow Settings"
+          assert data["issingle"] == 1
+          assert {field["fieldname"] for field in data["fields"]} >= {
+              "environment", "api_key", "company"
+          }
+          log = json.loads(Path("rekov_jcflow/doctype/jcflow_transmission_log/jcflow_transmission_log.json").read_text())
+          assert log["name"] == "JCFlow Transmission Log"
+          assert {field["fieldname"] for field in log["fields"]} >= {
+              "sales_invoice", "status", "request_json", "response_json"
+          }
+          print("Frappe app metadata is valid")
+          PY

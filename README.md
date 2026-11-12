@@ -26,3 +26,22 @@ un script de lifecycle propio.
 
 R2 permanece reservado para estado Terraform y backups. Los workflows de
 recovery son independientes del bootstrap normal.
+
+## Aplicación privada JCFlow
+
+Este mismo repositorio también contiene la aplicación Frappe privada
+`rekov_jcflow` en la raíz. CI valida su metadata y su compatibilidad básica sin
+instalarla automáticamente en todos los tenants.
+
+Pilot puede importar este repositorio como una app personalizada y luego
+instalarla únicamente en los sitios seleccionados. La primera versión contiene
+la configuración por tenant y separa los ambientes `Sandbox` y `Production`.
+El envío real de facturas se habilitará después de validar el contrato JSON de
+JCFlow en un tenant de prueba; no se deben usar claves de producción durante
+esa etapa.
+
+La app escucha el evento nativo `on_submit` de `Sales Invoice`, crea un
+`JCFlow Transmission Log` y usa la cola de fondo de Frappe. No sobrescribe
+controladores, no modifica tablas de ERPNext y no bloquea el envío de la
+factura. La transmisión permanece apagada hasta activar explícitamente la
+configuración del tenant.
