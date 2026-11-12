@@ -88,7 +88,7 @@ jobs:
           ssh -i "$RUNNER_TEMP/oci_key" -o StrictHostKeyChecking=no ubuntu@"$CONTROL_IP" \
             'curl -fsSL https://raw.githubusercontent.com/frappe/pilot/develop/install.sh | bash'
           ssh -i "$RUNNER_TEMP/oci_key" -o StrictHostKeyChecking=no ubuntu@"$CONTROL_IP" \
-            'command -v pilot && pilot --version || true'
+            'export PATH="$HOME/pilot/bin:$PATH"; command -v pilot && pilot --version || true'
 
       - name: Initialize the native Pilot bench and Admin UI
         env:
@@ -105,7 +105,7 @@ jobs:
           ssh-keygen -y -f "$RUNNER_TEMP/oci_key" >/dev/null
           PILOT_PASSWORD_B64="$(printf '%s' "$PILOT_ADMIN_PASSWORD" | base64 -w0)"
           ssh -i "$RUNNER_TEMP/oci_key" -o StrictHostKeyChecking=no ubuntu@"$CONTROL_IP" \
-            "export PATH=\$HOME/.local/bin:\$PATH; \
+            "export PATH=\$HOME/pilot/bin:\$PATH; \
              PILOT_PASSWORD=\$(printf '%s' '$PILOT_PASSWORD_B64' | base64 -d); \
              if [ ! -f \"\$HOME/benches/main/bench.toml\" ]; then \
                pilot new main --admin-password \"\$PILOT_PASSWORD\" --frappe-branch version-16; \
