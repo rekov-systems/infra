@@ -245,6 +245,7 @@ rm -f "\$installed_apps_error_file"
 # bootstrap touches fields added by newer Press revisions (for example
 # App Release.deployable).
 bench --site "$PRESS_CONTROL_HOSTNAME" migrate
+bench use "$PRESS_CONTROL_HOSTNAME"
 bench --site "$PRESS_CONTROL_HOSTNAME" clear-cache
 bench --site "$PRESS_CONTROL_HOSTNAME" set-config developer_mode 0
 EOF
