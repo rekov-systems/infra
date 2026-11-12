@@ -283,7 +283,15 @@ systemctl enable --now \
   "${bench_name}-workers.target" \
   "${bench_name}-frappe-schedule.service"
 for unit in "${systemd_units[@]}"; do
-  systemctl restart "$(basename "$unit")"
+  unit_name="$(basename "$unit")"
+  # Bench emits template units such as worker@.service. They are definitions,
+  # not runnable units; restarting one without an instance is invalid. The
+  # concrete web/worker/scheduler units are already restarted by their native
+  # Bench targets above.
+  case "$unit_name" in
+    *@.service) continue ;;
+  esac
+  systemctl restart "$unit_name"
 done
 nginx -t
 systemctl enable --now nginx
