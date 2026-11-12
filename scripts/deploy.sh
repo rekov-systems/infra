@@ -251,7 +251,7 @@ agent_token="$(tail -n 1 "$agent_token_file")"
   echo "Press did not return a usable tenant agent credential." >&2
   exit 1
 }
-printf '%s\n' "$agent_token" | ssh "${ssh_options[@]}" "ubuntu@${erp_ip}" "sudo PRESS_URL='https://${PRESS_CONTROL_HOSTNAME}' python3 -c 'import json,os,pathlib,sys,tempfile; p=pathlib.Path(\"/home/frappe/agent/config.json\"); d=json.loads(p.read_text()); d[\"access_token\"]=sys.stdin.read().strip(); d[\"press_url\"]=os.environ[\"PRESS_URL\"]; st=p.stat(); fd,t=tempfile.mkstemp(dir=str(p.parent),prefix=\".config.\",text=True); f=os.fdopen(fd,\"w\"); json.dump(d,f,indent=2); f.write(\"\\n\"); f.close(); os.chown(t,st.st_uid,st.st_gid); os.chmod(t,st.st_mode & 0o777); os.replace(t,p)' && sudo supervisorctl restart agent:* >/dev/null"
+printf '%s\n' "$agent_token" | ssh "${ssh_options[@]}" "ubuntu@${erp_ip}" "sudo PRESS_URL='https://${PRESS_CONTROL_HOSTNAME}' python3 -c 'import json,os,pathlib,sys,tempfile; from passlib.hash import pbkdf2_sha256; p=pathlib.Path(\"/home/frappe/agent/config.json\"); d=json.loads(p.read_text()); d[\"access_token\"]=pbkdf2_sha256.hash(sys.stdin.read().strip()); d[\"press_url\"]=os.environ[\"PRESS_URL\"]; st=p.stat(); fd,t=tempfile.mkstemp(dir=str(p.parent),prefix=\".config.\",text=True); f=os.fdopen(fd,\"w\"); json.dump(d,f,indent=2); f.write(\"\\n\"); f.close(); os.chown(t,st.st_uid,st.st_gid); os.chmod(t,st.st_mode & 0o777); os.replace(t,p)' && sudo supervisorctl restart agent:* >/dev/null"
 unset agent_token
 rm -f "$agent_token_file"
 
