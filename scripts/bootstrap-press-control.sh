@@ -18,7 +18,7 @@ trap 'status=$?; echo "Press bootstrap failed at line ${BASH_LINENO[0]}: ${BASH_
 # moving branch: the deployment must be reproducible and use Press's native
 # self-hosted APIs without local patches.
 press_revision="2339ede7c30e976dd3a76661dc128bfd5519f84e"
-frappe_revision="49789a1711d4dde2be9c6888efe35651465f4b64"
+frappe_revision="2e9ecdc03fa5b5b8d1ba05224a1aff7dad832bd0"
 bench_root="/home/frappe/press-bench"
 bench_python="/usr/bin/python3.12"
 
@@ -138,7 +138,7 @@ elif [[ -x "$bench_root/env/bin/python" ]] && ! "$bench_root/env/bin/python" -c 
   rm -rf "$bench_root"
 fi
 if [[ ! -d "$bench_root/apps/frappe" ]]; then
-  if ! bench init --frappe-branch version-16 --python "$bench_python" "$bench_root" <<< 'n'; then
+  if ! bench init --frappe-branch version-15 --python "$bench_python" "$bench_root" <<< 'n'; then
     rm -rf "$bench_root"
     echo 'bench init failed.' >&2
     exit 1
@@ -148,7 +148,7 @@ cd "$bench_root"
 git config --global --add safe.directory "$bench_root"
 git config --global --add safe.directory "$bench_root/apps/frappe"
 git config --global --add safe.directory "$bench_root/apps/press"
-# version-16 is a moving target. Pin Frappe before installing Press so
+# version-15 is a moving target. Pin Frappe before installing Press so
 # every run uses the same API surface as the pinned Press revision.
 if git -C apps/frappe remote get-url origin >/dev/null 2>&1; then
   git -C apps/frappe remote set-url origin https://github.com/frappe/frappe.git
