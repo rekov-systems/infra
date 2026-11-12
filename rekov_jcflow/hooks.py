@@ -1,5 +1,5 @@
 app_name = "rekov_jcflow"
-app_title = "Rekov JCFlow"
+app_title = "Rekov JCFlow Multi-Company"
 app_publisher = "Rekov Systems"
 app_description = "Private JCFlow integration for Colombian electronic invoicing"
 app_email = "admin@rekov.co"

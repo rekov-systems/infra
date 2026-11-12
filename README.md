@@ -34,11 +34,13 @@ Este mismo repositorio también contiene la aplicación Frappe privada
 instalarla automáticamente en todos los tenants.
 
 Pilot puede importar este repositorio como una app personalizada y luego
-instalarla únicamente en los sitios seleccionados. La primera versión contiene
-la configuración por tenant y separa los ambientes `Sandbox` y `Production`.
-El envío real de facturas se habilitará después de validar el contrato JSON de
-JCFlow en un tenant de prueba; no se deben usar claves de producción durante
-esa etapa.
+instalarla únicamente en los sitios seleccionados. La app separa la
+configuración global administrada por Rekov de la configuración fiscal de cada
+empresa. La API key no se solicita al tenant. Cada empresa tiene un registro
+JCFlow propio para su cuenta, certificado y estado de habilitación.
+El envío real se habilitará después de validar el contrato JSON y el mecanismo
+de selección multiempresa de JCFlow en sandbox; no se deben usar claves de
+producción durante esa etapa.
 
 La app escucha el evento nativo `on_submit` de `Sales Invoice`, crea un
 `JCFlow Transmission Log` y usa la cola de fondo de Frappe. No sobrescribe

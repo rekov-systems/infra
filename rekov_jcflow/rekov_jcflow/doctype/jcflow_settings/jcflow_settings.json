@@ -4,13 +4,12 @@
   "creation": "2026-11-12 00:00:00.000000",
   "doctype": "DocType",
   "engine": "InnoDB",
-  "field_order": ["enabled", "environment", "company", "api_key", "send_automatically", "section_security", "webhook_secret"],
+  "field_order": ["enabled", "environment", "api_key", "send_automatically", "section_security", "webhook_secret"],
   "fields": [
     {"default": "0", "fieldname": "enabled", "fieldtype": "Check", "label": "Enabled"},
     {"default": "Sandbox", "fieldname": "environment", "fieldtype": "Select", "label": "Environment", "options": "Sandbox\nProduction", "reqd": 1},
-    {"fieldname": "company", "fieldtype": "Link", "label": "Company", "options": "Company", "reqd": 1},
-    {"description": "Stored encrypted by Frappe. Use a sandbox key for testing and a live key only for production.", "fieldname": "api_key", "fieldtype": "Password", "label": "JCFlow API Key", "reqd": 1},
-    {"default": "0", "description": "Keep disabled until sandbox validation is complete.", "fieldname": "send_automatically", "fieldtype": "Check", "label": "Send Automatically"},
+    {"description": "Rekov-managed JCFlow credential. Tenants do not enter an API key here.", "fieldname": "api_key", "fieldtype": "Password", "label": "Rekov JCFlow API Key", "reqd": 1},
+    {"default": "0", "description": "Keep disabled until the JCFlow account and certificate for each company are ready.", "fieldname": "send_automatically", "fieldtype": "Check", "label": "Send Automatically"},
     {"fieldname": "section_security", "fieldtype": "Section Break", "label": "Security"},
     {"description": "Optional secret used to verify callbacks from JCFlow.", "fieldname": "webhook_secret", "fieldtype": "Password", "label": "Webhook Secret"}
   ],

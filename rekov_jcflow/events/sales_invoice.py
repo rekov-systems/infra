@@ -12,6 +12,11 @@ def on_submit(doc, method=None):
     if not settings.enabled or not settings.api_key:
         return
 
+    if not frappe.db.exists(
+        "JCFlow Company", {"company": doc.company, "enabled": 1}
+    ):
+        return
+
     log = create_transmission_log(doc, settings)
 
     if settings.send_automatically:

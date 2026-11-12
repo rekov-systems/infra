@@ -36,6 +36,17 @@ def build_invoice_payload(invoice):
 
 
 def create_transmission_log(invoice, settings):
+    company_config = frappe.db.get_value(
+        "JCFlow Company",
+        {"company": invoice.company, "enabled": 1},
+        ["name", "jcflow_account_id", "certificate_status"],
+        as_dict=True,
+    )
+    if not company_config or not company_config.jcflow_account_id:
+        frappe.throw(
+            f"JCFlow is not configured for ERPNext Company '{invoice.company}'."
+        )
+
     existing = frappe.db.exists(
         "JCFlow Transmission Log",
         {"sales_invoice": invoice.name},
@@ -62,9 +73,22 @@ def transmit_log(log_name):
     log = frappe.get_doc("JCFlow Transmission Log", log_name)
     settings = frappe.get_single("JCFlow Settings")
 
+    company_config = frappe.db.get_value(
+        "JCFlow Company",
+        {"company": log.company, "enabled": 1},
+        ["jcflow_account_id", "api_key", "certificate_status"],
+        as_dict=True,
+    )
+
     if not settings.enabled or not settings.api_key:
         log.status = "Paused"
-        log.error_message = "JCFlow is disabled or has no API key."
+        log.error_message = "JCFlow is disabled or Rekov has no API key."
+        log.save(ignore_permissions=True)
+        return
+
+    if not company_config or not company_config.jcflow_account_id:
+        log.status = "Paused"
+        log.error_message = "This company has no JCFlow Account ID configured."
         log.save(ignore_permissions=True)
         return
 
@@ -75,10 +99,15 @@ def transmit_log(log_name):
         return
 
     try:
+        api_key = (
+            company_config.api_key
+            if company_config and company_config.api_key
+            else settings.get_password("api_key")
+        )
         response = requests.post(
             JCFlowEndpoint,
             headers={
-                "Authorization": f"Bearer {settings.get_password('api_key')}",
+                "X-Api-Key": api_key,
                 "Content-Type": "application/json",
             },
             data=log.request_json,
@@ -91,13 +120,18 @@ def transmit_log(log_name):
 
         if response.ok and response_data.get("success"):
             log.status = "Accepted"
-            log.cufe = response_data.get("cufe")
-            files = response_data.get("archivos", response_data)
+            data = response_data.get("data", response_data)
+            log.cufe = data.get("cufe")
+            files = data.get("archivos", data)
             log.pdf_url = files.get("pdf_url")
             log.xml_url = files.get("xml_url")
         else:
             log.status = "Failed"
-            log.error_message = response_data.get("mensaje") or response.text[:1000]
+            log.error_message = (
+                response_data.get("message")
+                or response_data.get("mensaje")
+                or response.text[:1000]
+            )
     except Exception:
         log.status = "Failed"
         log.attempts = (log.attempts or 0) + 1

@@ -14,5 +14,4 @@ def get_current_environment():
         "enabled": bool(settings.enabled),
         "environment": settings.environment,
         "send_automatically": bool(settings.send_automatically),
-        "company": settings.company,
     }
