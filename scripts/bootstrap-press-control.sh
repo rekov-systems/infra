@@ -81,7 +81,7 @@ for managed_ip in "$PRESS_TENANT_NODE_PUBLIC_IP" "$PRESS_PROXY_NODE_PUBLIC_IP"; 
   done
   (( found == 1 )) || { echo "Could not obtain SSH host key for ${managed_ip}." >&2; exit 1; }
 done
-[[ -s /home/frappe/.ssh/known_hosts ]] || {
+[[ -s "$known_hosts_tmp" ]] || {
   echo 'Could not obtain managed Press host SSH keys.' >&2
   exit 1
 }
