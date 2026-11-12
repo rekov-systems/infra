@@ -53,13 +53,19 @@ jobs:
           instance_record="$(jq -ec 'if (.data | type) == "array" then .data[] elif (.data | type) == "object" then (if (.data.content | type) == "array" then .data.content[] else .data end) else empty end | select((.displayName // .name // "") | ascii_downcase | test("rekov|erp"))' <<<"$instances" | head -n1)"
           instance_id="$(jq -er '.instanceId' <<<"$instance_record")"
           image_id="$(jq -er '.imageId' <<<"$instance_record")"
+          jq -r '{instanceId, imageId, imageName, productId, region, displayName}' <<<"$instance_record"
           user_data="#cloud-config\nusers:\n  - name: ubuntu\n    groups: [sudo]\n    shell: /bin/bash\n    sudo: ALL=(ALL) NOPASSWD:ALL\n    ssh_authorized_keys:\n      - $SSH_PUBLIC_KEY"
           body="$(jq -n --arg imageId "$image_id" --arg userData "$user_data" \
             '{imageId:$imageId,defaultUser:"root",userData:$userData}')"
-          response="$(curl -fsS "${headers[@]}" -H 'Content-Type: application/json' \
+          response="$(curl -sS "${headers[@]}" -H 'Content-Type: application/json' \
             -X PUT -d "$body" \
+            -w '\n__HTTP_STATUS:%{http_code}\n' \
             "https://api.contabo.com/v1/compute/instances/$instance_id")"
-          jq -e '.instanceId' <<<"$response" >/dev/null
+          http_status="$(sed -n 's/^__HTTP_STATUS://p' <<<"$response")"
+          if [[ "$http_status" != 2* ]]; then
+            echo "$response"
+            exit 1
+          fi
           printf 'Contabo instance preserved and reinstallation requested: %s\n' "$instance_id"
 
       - name: Recreate only OCI infrastructure and DNS
