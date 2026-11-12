@@ -9,14 +9,16 @@ El flujo operativo es deliberadamente Press-first: se incorpora la VM Contabo de
 
 Cloudflare proxifica el control exacto y el wildcard `*.PRESS_ROOT_DOMAIN` hacia Contabo. Los tenants se crearán con dominios como `cliente.<PRESS_ROOT_DOMAIN>`.
 
-Un push a `main` ejecuta `.github/workflows/deploy.yml` en el environment `production`, carga Infisical por OIDC y corre `scripts/deploy.sh`. El despliegue comprueba que Contabo sea accesible por SSH, pero no instala un ERP manual allí.
+El workflow de producción se ejecuta manualmente desde `main`, carga Infisical por
+OIDC y corre `scripts/deploy.sh` únicamente en modo nativo. El despliegue
+comprueba que Contabo sea accesible por SSH, pero no instala un ERP manual allí.
 
 ## Rebuild nativo
 
 Para una reconstrucción limpia, ejecutar primero `Create recovery point` y
 esperar a que termine correctamente. Luego ejecutar manualmente `Deploy ERPNext`
-desde Actions con `native_only=true` y copiar en `recovery_run_id` el número de
-esa ejecución. El deploy verifica el manifest, snapshots, checksums y artefactos
+desde Actions y copiar en `recovery_run_id` el número de esa ejecución. El deploy
+verifica el manifest, snapshots, checksums y artefactos
 desde R2 antes de tocar Terraform. Ese modo instala solamente el control plane de
 Press y no copia ni ejecuta `rekov_press_platform.py`, no cambia paquetes del
 tenant y no reescribe credenciales del Agent.

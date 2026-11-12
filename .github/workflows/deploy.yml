@@ -1,19 +1,11 @@
 name: Deploy ERPNext
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
-      native_only:
-        description: Install only the Press control plane; provision tenants natively from Press
-        required: true
-        default: false
-        type: boolean
       recovery_run_id:
-        description: Recovery workflow run ID required when native_only is enabled
-        required: false
-        default: ""
+        description: Successful Create recovery point workflow run ID
+        required: true
         type: string
 
 permissions:
@@ -67,6 +59,6 @@ jobs:
 
       - name: Provision Press control plane, tenant node, and DNS
         env:
-          REKOV_NATIVE_ONLY: ${{ inputs.native_only && '1' || '0' }}
-          REKOV_RECOVERY_RUN_ID: ${{ inputs.recovery_run_id || '' }}
+          REKOV_NATIVE_ONLY: "1"
+          REKOV_RECOVERY_RUN_ID: ${{ inputs.recovery_run_id }}
         run: ./scripts/deploy.sh
