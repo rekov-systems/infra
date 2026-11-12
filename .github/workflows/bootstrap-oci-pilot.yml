@@ -117,4 +117,8 @@ jobs:
                pilot -b main get-app https://github.com/frappe/erpnext --branch version-16; \
              fi; \
              pilot -b main setup production --admin-domain '$PILOT_ADMIN_DOMAIN' --tls --letsencrypt-email admin@$PILOT_ADMIN_DOMAIN; \
-             pilot ls"
+             pilot ls; \
+             echo '--- listening ---'; ss -lntp; \
+             echo '--- localhost http ---'; curl -sS -I --max-time 5 http://127.0.0.1/ || true; \
+             echo '--- localhost https ---'; curl -k -sS -I --max-time 5 https://127.0.0.1/ || true; \
+             echo '--- ufw ---'; sudo ufw status verbose || true"
