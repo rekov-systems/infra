@@ -258,31 +258,6 @@ rm -f "$agent_token_file"
 remote "$control_ip" "sudo bash -c 'set -a && source /tmp/rekov/press.env && set +a && exec bash /tmp/rekov/bootstrap-press-platform.sh'"
 remote "$control_ip" "sudo rm -rf /tmp/rekov"
 
-# Reconcile the agent callback destination through the deployment path.  The
-# upstream agent defaults to frappecloud.com when Press is self-hosted; that
-# silently strands completed jobs.  Preserve the access token and restart
-# workers only when the managed value actually changes.
-remote "$erp_ip" "changed=\$(sudo -u frappe PRESS_URL='https://${PRESS_CONTROL_HOSTNAME}' python3 - <<'PY'
-import json, os, pathlib, tempfile
-path = pathlib.Path('/home/frappe/agent/config.json')
-if path.exists():
-    data = json.loads(path.read_text())
-    desired = os.environ['PRESS_URL']
-    if data.get('press_url') != desired:
-        data['press_url'] = desired
-        fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix='.config.', text=True)
-        with os.fdopen(fd, 'w') as handle:
-            json.dump(data, handle, indent=2)
-            handle.write('\n')
-        os.chmod(tmp, path.stat().st_mode & 0o777)
-        os.replace(tmp, path)
-        print('changed')
-    else:
-        print('unchanged')
-PY
-if sudo grep -q '"press_url": "https://${PRESS_CONTROL_HOSTNAME}"' /home/frappe/agent/config.json; then :; else exit 1; fi
-if [ \"\$changed\" = changed ]; then sudo supervisorctl restart agent:* >/dev/null; fi"
-
 # The bootstrap submits the first remote build asynchronously. Keep this
 # diagnostic read-only so a stuck Pending job exposes both sides of the
 # handoff in the same CI run: Press's records and the builder host processes.
