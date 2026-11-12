@@ -85,6 +85,11 @@ wait_ssh() {
 wait_ssh "$control_ip"
 wait_ssh "$proxy_ip"
 wait_ssh "$erp_ip"
+proxy_private_ip="$(remote "$proxy_ip" "ip -4 route get 1.1.1.1 | awk '{for (i=1; i<=NF; i++) if (\$i == \"src\") {print \$(i+1); exit}}'")"
+erp_private_ip="$(remote "$erp_ip" "ip -4 route get 1.1.1.1 | awk '{for (i=1; i<=NF; i++) if (\$i == \"src\") {print \$(i+1); exit}}'")"
+[[ "$proxy_private_ip" =~ ^[0-9]+(\.[0-9]+){3}$ ]] || { echo 'Could not capture proxy private IP.' >&2; exit 1; }
+[[ "$erp_private_ip" =~ ^[0-9]+(\.[0-9]+){3}$ ]] || { echo 'Could not capture tenant private IP.' >&2; exit 1; }
+printf 'Native Press inputs: proxy=%s/%s tenant=%s/%s\n' "$proxy_ip" "$proxy_private_ip" "$erp_ip" "$erp_private_ip"
 
 cat >"$tmp/press.env" <<EOF
 PRESS_CONTROL_HOSTNAME=${PRESS_CONTROL_HOSTNAME@Q}
@@ -93,7 +98,9 @@ PRESS_DB_ROOT_PASSWORD=${PRESS_DB_ROOT_PASSWORD@Q}
 PRESS_ROOT_DOMAIN=${PRESS_ROOT_DOMAIN@Q}
 PRESS_CLOUDFLARE_API_TOKEN=${TF_VAR_cloudflare_api_token@Q}
 PRESS_TENANT_NODE_PUBLIC_IP=${erp_ip@Q}
+PRESS_TENANT_NODE_PRIVATE_IP=${erp_private_ip@Q}
 PRESS_PROXY_NODE_PUBLIC_IP=${proxy_ip@Q}
+PRESS_PROXY_NODE_PRIVATE_IP=${proxy_private_ip@Q}
 PRESS_SSH_PUBLIC_KEY=${TF_VAR_ssh_public_key@Q}
 PRESS_SSH_PRIVATE_KEY=${SSH_PRIVATE_KEY@Q}
 EOF

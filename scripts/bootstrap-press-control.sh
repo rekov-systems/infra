@@ -11,6 +11,9 @@ trap 'status=$?; echo "Press bootstrap failed at line ${BASH_LINENO[0]}: ${BASH_
 : "${PRESS_DB_ROOT_PASSWORD:?Set PRESS_DB_ROOT_PASSWORD}"
 : "${PRESS_SSH_PRIVATE_KEY:?Set PRESS_SSH_PRIVATE_KEY}"
 : "${PRESS_TENANT_NODE_PUBLIC_IP:?Set PRESS_TENANT_NODE_PUBLIC_IP}"
+: "${PRESS_TENANT_NODE_PRIVATE_IP:?Set PRESS_TENANT_NODE_PRIVATE_IP}"
+: "${PRESS_PROXY_NODE_PUBLIC_IP:?Set PRESS_PROXY_NODE_PUBLIC_IP}"
+: "${PRESS_PROXY_NODE_PRIVATE_IP:?Set PRESS_PROXY_NODE_PRIVATE_IP}"
 : "${PRESS_ROOT_DOMAIN:?Set PRESS_ROOT_DOMAIN}"
 : "${PRESS_CLOUDFLARE_API_TOKEN:?Set PRESS_CLOUDFLARE_API_TOKEN}"
 
@@ -63,21 +66,26 @@ chmod 0600 /home/frappe/.ssh/id_ed25519
 # Press runs Ansible as frappe. Seed the host key explicitly so the first
 # managed-server connection is non-interactive and does not fail on the
 # control plane's default StrictHostKeyChecking policy.
-ssh-keygen -R "$PRESS_TENANT_NODE_PUBLIC_IP" -f /home/frappe/.ssh/known_hosts >/dev/null 2>&1 || true
 known_hosts_tmp=$(mktemp)
 trap 'rm -f "$known_hosts_tmp"' EXIT
-for attempt in $(seq 1 12); do
-  if ssh-keyscan -T 10 -H "$PRESS_TENANT_NODE_PUBLIC_IP" >"$known_hosts_tmp" 2>/dev/null \
-    && grep -q 'ssh-' "$known_hosts_tmp"; then
-    install -o frappe -g frappe -m 0600 "$known_hosts_tmp" /home/frappe/.ssh/known_hosts
-    break
-  fi
-  sleep 2
+for managed_ip in "$PRESS_TENANT_NODE_PUBLIC_IP" "$PRESS_PROXY_NODE_PUBLIC_IP"; do
+  ssh-keygen -R "$managed_ip" -f /home/frappe/.ssh/known_hosts >/dev/null 2>&1 || true
+  found=0
+  for attempt in $(seq 1 12); do
+    if ssh-keyscan -T 10 -H "$managed_ip" >>"$known_hosts_tmp" 2>/dev/null \
+      && grep -q 'ssh-' "$known_hosts_tmp"; then
+      found=1
+      break
+    fi
+    sleep 2
+  done
+  (( found == 1 )) || { echo "Could not obtain SSH host key for ${managed_ip}." >&2; exit 1; }
 done
 [[ -s /home/frappe/.ssh/known_hosts ]] || {
-  echo "Could not obtain the SSH host key for ${PRESS_TENANT_NODE_PUBLIC_IP}." >&2
+  echo 'Could not obtain managed Press host SSH keys.' >&2
   exit 1
 }
+sort -u "$known_hosts_tmp" > /home/frappe/.ssh/known_hosts
 chown frappe:frappe /home/frappe/.ssh/known_hosts
 chmod 0600 /home/frappe/.ssh/known_hosts
 if [[ -d "$bench_root/apps/frappe" ]] && bench_env_python_ok; then
