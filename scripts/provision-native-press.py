@@ -37,7 +37,7 @@ cluster_name = os.environ.get("PRESS_NATIVE_CLUSTER", "rekov-hybrid").strip()
 team_name = os.environ.get("PRESS_NATIVE_TEAM", "").strip()
 server_title = os.environ.get("PRESS_NATIVE_SERVER_TITLE", "erp-prod-01").strip()
 
-frappe.init(site=site, sites_path="/home/frappe/press-bench/sites")
+frappe.init(site=site, sites_path="/home/frappe/press-bench/sites", force=True)
 frappe.connect()
 try:
     if not team_name:
