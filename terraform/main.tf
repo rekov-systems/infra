@@ -11,17 +11,6 @@ data "oci_core_images" "ubuntu" {
   sort_order               = "DESC"
 }
 
-data "oci_core_images" "proxy_ubuntu" {
-  compartment_id   = var.compartment_ocid
-  operating_system = var.os_name
-  # OCI's Always Free AMD Micro has a narrower image matrix than A1.Flex.
-  # Keep the proxy on the documented Ubuntu 22.04 image family.
-  operating_system_version = "22.04"
-  shape                    = "VM.Standard.E2.1.Micro"
-  sort_by                  = "TIMECREATED"
-  sort_order               = "DESC"
-}
-
 data "cloudflare_zone" "this" {
   zone_id = var.cloudflare_zone_id
 }
@@ -134,16 +123,19 @@ resource "oci_core_instance" "control" {
   }
 }
 
-# Always Free AMD Micro reserved for Press's native Proxy Server role. Keep
-# this separate from the tenant application/database node: Press's native
-# server playbooks install nginx on both roles and they must not share it.
+# Keep the native Press proxy separate from the control plane. Both OCI A1
+# instances share the VCN while Contabo remains the tenant app/database node.
 resource "oci_core_instance" "proxy" {
   availability_domain = data.oci_identity_availability_domains.this.availability_domains[var.availability_domain_index].name
   compartment_id      = var.compartment_ocid
   display_name        = "${local.name}-proxy"
-  shape               = "VM.Standard.E2.1.Micro"
+  shape               = var.instance_shape
+  shape_config {
+    ocpus         = 1
+    memory_in_gbs = 2
+  }
   source_details {
-    source_id   = data.oci_core_images.proxy_ubuntu.images[0].id
+    source_id   = data.oci_core_images.ubuntu.images[0].id
     source_type = "image"
   }
   create_vnic_details {

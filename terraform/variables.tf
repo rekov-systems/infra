@@ -41,11 +41,11 @@ variable "instance_shape" {
 }
 variable "ocpus" {
   type    = number
-  default = 2
+  default = 1
 }
 variable "memory_in_gbs" {
   type    = number
-  default = 12
+  default = 10
 }
 variable "os_name" {
   type    = string
