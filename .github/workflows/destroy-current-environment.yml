@@ -1,0 +1,86 @@
+name: Destroy current environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type DESTROY_REKOV_CURRENT_ENVIRONMENT to delete the current OCI, Contabo, DNS, Terraform state, and R2 recovery data
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: rekov-erp-production
+  cancel-in-progress: false
+
+jobs:
+  destroy:
+    if: ${{ inputs.confirmation == 'DESTROY_REKOV_CURRENT_ENVIRONMENT' }}
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Load secrets from Infisical
+        uses: Infisical/secrets-action@v1.0.18
+        with:
+          method: oidc
+          identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
+          project-slug: ${{ vars.INFISICAL_PROJECT_SLUG }}
+          env-slug: ${{ vars.INFISICAL_ENV_SLUG }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.9
+
+      - name: Destroy Terraform-managed infrastructure
+        env:
+          AWS_ACCESS_KEY_ID: ${{ env.R2_STORAGE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.R2_STORAGE_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ env.R2_STORAGE_REGION }}
+          TF_VAR_cloudflare_account_id: ${{ env.TF_VAR_cloudflare_account_id }}
+          TF_VAR_cloudflare_api_token: ${{ env.TF_VAR_cloudflare_api_token }}
+          TF_VAR_cloudflare_zone_id: ${{ env.TF_VAR_cloudflare_zone_id }}
+          TF_VAR_compartment_ocid: ${{ env.TF_VAR_compartment_ocid }}
+          TF_VAR_fingerprint: ${{ env.TF_VAR_fingerprint }}
+          TF_VAR_oci_region: ${{ env.TF_VAR_oci_region }}
+          TF_VAR_private_key: ${{ env.TF_VAR_private_key }}
+          TF_VAR_ssh_public_key: ${{ env.TF_VAR_ssh_public_key }}
+          TF_VAR_tenancy_ocid: ${{ env.TF_VAR_tenancy_ocid }}
+          TF_VAR_user_ocid: ${{ env.TF_VAR_user_ocid }}
+          TF_VAR_contabo_client_id: ${{ env.CONTABO_CLIENT_ID }}
+          TF_VAR_contabo_client_secret: ${{ env.CONTABO_CLIENT_SECRET }}
+          TF_VAR_contabo_api_user: ${{ env.CONTABO_API_USER }}
+          TF_VAR_contabo_api_password: ${{ env.CONTABO_API_PASSWORD }}
+          TF_VAR_contabo_period: ${{ env.CONTABO_PERIOD }}
+          TF_VAR_contabo_product_id: ${{ env.CONTABO_PRODUCT_ID }}
+          TF_VAR_contabo_region: ${{ env.CONTABO_REGION }}
+          TF_VAR_press_control_hostname: ${{ env.PRESS_CONTROL_HOSTNAME }}
+          TF_VAR_press_root_domain: ${{ env.PRESS_ROOT_DOMAIN }}
+        run: |
+          terraform -chdir=terraform init -input=false \
+            -backend-config="bucket=$R2_STORAGE_BUCKET" \
+            -backend-config="key=$R2_STORAGE_STATE_KEY" \
+            -backend-config="region=$R2_STORAGE_REGION" \
+            -backend-config="endpoint=$R2_STORAGE_ENDPOINT" \
+            -backend-config="skip_credentials_validation=true" \
+            -backend-config="skip_metadata_api_check=true" \
+            -backend-config="skip_requesting_account_id=true" \
+            -backend-config="skip_region_validation=true" \
+            -backend-config="skip_s3_checksum=true" \
+            -backend-config="use_path_style=true"
+          terraform -chdir=terraform destroy -auto-approve -input=false
+
+      - name: Empty R2 recovery objects and remove Terraform state
+        env:
+          AWS_ACCESS_KEY_ID: ${{ env.R2_STORAGE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.R2_STORAGE_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ env.R2_STORAGE_REGION }}
+        run: |
+          aws s3 rm "s3://$R2_STORAGE_BUCKET/recovery/" --recursive --endpoint-url "$R2_STORAGE_ENDPOINT"
+          aws s3 rm "s3://$R2_STORAGE_BUCKET/$R2_STORAGE_STATE_KEY" --endpoint-url "$R2_STORAGE_ENDPOINT"
