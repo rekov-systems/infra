@@ -52,6 +52,11 @@ jobs:
           bash -n scripts/verify-recovery-point.sh
           bash -n scripts/create-provider-recovery-snapshots.sh
           bash -n scripts/restore-recovery-point.sh
+          OCI_INSTANCE_ID=plan-test \
+            OCI_BOOT_VOLUME_BACKUP_ID=plan-test \
+            CONTABO_INSTANCE_ID=plan-test \
+            CONTABO_SNAPSHOT_ID=plan-test \
+            ./scripts/restore-recovery-point.sh | grep -q '^Plan only\.'
           python3 -m py_compile scripts/rekov_press_platform.py
           bash scripts/verify-press-source.sh
 
