@@ -52,7 +52,7 @@ jobs:
           jq -r 'if (.data | type) == "array" then .data[] elif (.data | type) == "object" then (if (.data.content | type) == "array" then .data.content[] else .data end) else empty end | {instanceId, displayName, name, status}' <<<"$instances"
           instance_id="$(jq -er 'if (.data | type) == "array" then .data[] elif (.data | type) == "object" then (if (.data.content | type) == "array" then .data.content[] else .data end) else empty end | select((.displayName // .name // "") | ascii_downcase | test("rekov|erp")) | .instanceId' <<<"$instances" | head -n1)"
           instance="$(curl -fsS "${headers[@]}" "https://api.contabo.com/v1/compute/instances/$instance_id")"
-          instance_payload="$(jq -c 'if (.data | type) == "object" then .data else . end' <<<"$instance")"
+          instance_payload="$(jq -c 'if (.data | type) == "object" then .data elif (.data | type) == "array" then .data[0] else . end' <<<"$instance")"
           image_id="$(jq -er '.imageId' <<<"$instance_payload")"
           ip_address="$(jq -er 'if (.ipConfig.v4 | type) == "array" then .ipConfig.v4[0].ip elif (.ipConfig.v4 | type) == "object" then .ipConfig.v4.ip else .ipConfig.v4 end' <<<"$instance_payload")"
           user_data="#cloud-config\nusers:\n  - name: ubuntu\n    groups: [sudo]\n    shell: /bin/bash\n    sudo: ALL=(ALL) NOPASSWD:ALL\n    ssh_authorized_keys:\n      - $SSH_PUBLIC_KEY"
