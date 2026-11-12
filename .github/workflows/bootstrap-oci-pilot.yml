@@ -64,6 +64,8 @@ jobs:
             -backend-config="skip_s3_checksum=true" \
             -backend-config="use_path_style=true"
           terraform -chdir=terraform apply -auto-approve -input=false
+          terraform -chdir=terraform show -json \
+            | jq -c '.values.root_module.resources[] | select(.address == "oci_core_security_list.this") | .values.ingress_security_rules'
           printf 'control_ip=%s\n' "$(terraform -chdir=terraform output -raw control_public_ip)" >> "$GITHUB_OUTPUT"
 
       - name: Install the official Pilot release on OCI control
