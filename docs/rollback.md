@@ -54,11 +54,14 @@ retention policy that does not delete the last known-good point.
 
 1. Stop the deployment workflow and preserve its logs.
 2. Select the recovery manifest and verify its checksums before restoring.
-3. Restore the OCI control boot volume and Contabo instance snapshot to new
-   resources first. Do not overwrite the only live copy until SSH and the
-   applications have been checked.
-4. Reattach or promote the restored volumes/instances and update DNS only
-   after the restored services pass health checks.
+3. Use the `Restore recovery point` workflow with the recovery run ID. It
+   downloads the selected manifest and verifies the snapshot IDs and checksums
+   before producing a plan. The current provider script restores the OCI boot
+   volume on the existing instance and requests Contabo's snapshot rollback;
+   preserve the current resources separately if a non-destructive rehearsal is
+   required.
+4. Reattach or promote restored resources and update DNS only after SSH,
+   MariaDB, Press, Agent and application health checks pass.
 5. If a snapshot restore is not possible, install the exact pinned OS/runtime
    versions from the manifest, restore the encrypted MariaDB dumps, restore
    the Press sites and Agent configuration, and restart the recorded systemd
@@ -69,13 +72,12 @@ retention policy that does not delete the last known-good point.
 7. Move `main` back to the recorded tag only if the source rollback is also
    required. The infrastructure tag alone does not restore VM state.
 
-For the provider-level operation, run `scripts/restore-recovery-point.sh`
-without `ROLLBACK_CONFIRMATION` first; it prints the exact target IDs and
-actions without changing anything. Only a deliberate recovery operation may
-set `ROLLBACK_CONFIRMATION=RESTORE_REKOV_RECOVERY_POINT`. The script restores
-the OCI boot volume to the existing instance and invokes Contabo's snapshot
-rollback endpoint. Afterward, verify SSH, MariaDB, Press, Agent, DNS and
-application health before restoring any logical dump.
+The restore workflow runs `scripts/restore-recovery-point.sh` without
+`ROLLBACK_CONFIRMATION` first; it prints the exact target IDs and actions
+without changing anything. Only a deliberate recovery operation may set
+`ROLLBACK_CONFIRMATION=RESTORE_REKOV_RECOVERY_POINT`. Afterward, verify SSH,
+MariaDB, Press, Agent, DNS and application health before restoring any logical
+dump.
 
 ## No-go conditions
 

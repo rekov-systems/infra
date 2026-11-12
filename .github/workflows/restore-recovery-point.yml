@@ -7,12 +7,8 @@ on:
         description: Leave blank for plan; type RESTORE_REKOV_RECOVERY_POINT to execute
         required: false
         type: string
-      oci_boot_volume_backup_id:
-        description: OCI boot-volume backup OCID
-        required: true
-        type: string
-      contabo_snapshot_id:
-        description: Contabo instance snapshot ID
+      recovery_run_id:
+        description: Successful Create recovery point workflow run ID
         required: true
         type: string
 
@@ -35,6 +31,30 @@ jobs:
           identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
           project-slug: ${{ vars.INFISICAL_PROJECT_SLUG }}
           env-slug: ${{ vars.INFISICAL_ENV_SLUG }}
+
+      - name: Download and verify recovery point
+        env:
+          RECOVERY_RUN_ID: ${{ inputs.recovery_run_id }}
+          AWS_EC2_METADATA_DISABLED: "true"
+        run: |
+          [[ "$RECOVERY_RUN_ID" =~ ^[0-9]+$ ]]
+          export AWS_ACCESS_KEY_ID="$R2_STORAGE_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_STORAGE_SECRET_ACCESS_KEY"
+          export AWS_DEFAULT_REGION="$R2_STORAGE_REGION"
+          export RECOVERY_POINT="$RUNNER_TEMP/recovery"
+          mkdir -p "$RECOVERY_POINT"
+          aws s3 sync \
+            "s3://$R2_STORAGE_BUCKET/recovery/$RECOVERY_RUN_ID/" \
+            "$RECOVERY_POINT/" \
+            --endpoint-url "$R2_STORAGE_ENDPOINT" \
+            --only-show-errors
+          export OCI_BOOT_VOLUME_BACKUP_ID="$(sed -n 's/^oci_boot_volume_backup_id=//p' "$RECOVERY_POINT/manifest.txt")"
+          export CONTABO_SNAPSHOT_ID="$(sed -n 's/^contabo_snapshot_id=//p' "$RECOVERY_POINT/manifest.txt")"
+          [[ -n "$OCI_BOOT_VOLUME_BACKUP_ID" && "$OCI_BOOT_VOLUME_BACKUP_ID" != UNRECORDED ]]
+          [[ -n "$CONTABO_SNAPSHOT_ID" && "$CONTABO_SNAPSHOT_ID" != UNRECORDED ]]
+          ./scripts/verify-recovery-point.sh
+          echo "OCI_BOOT_VOLUME_BACKUP_ID=$OCI_BOOT_VOLUME_BACKUP_ID" >> "$GITHUB_ENV"
+          echo "CONTABO_SNAPSHOT_ID=$CONTABO_SNAPSHOT_ID" >> "$GITHUB_ENV"
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
@@ -71,7 +91,5 @@ jobs:
 
       - name: Plan or execute provider restore
         env:
-          OCI_BOOT_VOLUME_BACKUP_ID: ${{ inputs.oci_boot_volume_backup_id }}
-          CONTABO_SNAPSHOT_ID: ${{ inputs.contabo_snapshot_id }}
           ROLLBACK_CONFIRMATION: ${{ inputs.rollback_confirmation }}
         run: ./scripts/restore-recovery-point.sh

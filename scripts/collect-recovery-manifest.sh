@@ -59,7 +59,18 @@ fi
   printf 'oci_boot_volume_backup_id=%s\n' "${OCI_BOOT_VOLUME_BACKUP_ID:-UNRECORDED}"
   printf 'contabo_snapshot_id=%s\n' "${CONTABO_SNAPSHOT_ID:-UNRECORDED}"
   printf '\nchecksums=\n'
-  (cd "$out" && sha256sum -- * | sort)
+  # Do not checksum the manifest while it is being written, and never retain
+  # the temporary SSH key as recovery material. The key is removed by the EXIT
+  # trap before the next workflow step uploads this directory.
+  mapfile -t checksum_files < <(
+    find "$out" -maxdepth 1 -type f \
+      ! -name manifest.txt ! -name id_ed25519 -printf '%f\n' | sort
+  )
+  ((${#checksum_files[@]} > 0)) || {
+    echo 'No recovery artifacts were created.' >&2
+    exit 1
+  }
+  (cd "$out" && sha256sum -- "${checksum_files[@]}" | sort)
 } >"$out/manifest.txt"
 chmod 600 "$out"/*
 printf 'Recovery material created at %s\n' "$out"
