@@ -1,0 +1,121 @@
+name: Recreate empty OCI and clean existing Contabo
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type RECREATE_EMPTY_OCI_CLEAN_CONTABO to continue
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: rekov-erp-production
+  cancel-in-progress: false
+
+jobs:
+  clean-and-recreate:
+    if: \${{ inputs.confirmation == 'RECREATE_EMPTY_OCI_CLEAN_CONTABO' }}
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Load secrets from Infisical
+        uses: Infisical/secrets-action@v1.0.18
+        with:
+          method: oidc
+          identity-id: \${{ vars.INFISICAL_IDENTITY_ID }}
+          project-slug: \${{ vars.INFISICAL_PROJECT_SLUG }}
+          env-slug: \${{ vars.INFISICAL_ENV_SLUG }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.9
+
+      - name: Reinstall the existing Contabo instance without deleting it
+        env:
+          CONTABO_CLIENT_ID: \${{ env.CONTABO_CLIENT_ID }}
+          CONTABO_CLIENT_SECRET: \${{ env.CONTABO_CLIENT_SECRET }}
+          CONTABO_API_USER: \${{ env.CONTABO_API_USER }}
+          CONTABO_API_PASSWORD: \${{ env.CONTABO_API_PASSWORD }}
+          SSH_PUBLIC_KEY: \${{ env.TF_VAR_ssh_public_key }}
+        run: |
+          token="$(curl -fsS \
+            -d "client_id=$CONTABO_CLIENT_ID" \
+            -d "client_secret=$CONTABO_CLIENT_SECRET" \
+            --data-urlencode "username=$CONTABO_API_USER" \
+            --data-urlencode "password=$CONTABO_API_PASSWORD" \
+            -d 'grant_type=password' \
+            'https://auth.contabo.com/auth/realms/contabo/protocol/openid-connect/token' | jq -er '.access_token')"
+          headers=(-H "Authorization: Bearer $token" -H "x-request-id: $(uuidgen)")
+          instance="$(curl -fsS "\${headers[@]}" 'https://api.contabo.com/v1/compute/instances/203742078')"
+          image_id="$(jq -er '.imageId' <<<"$instance")"
+          ip_address="$(jq -er '.ipConfig.v4[0].ip' <<<"$instance")"
+          user_data="#cloud-config
+users:
+  - name: ubuntu
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - $SSH_PUBLIC_KEY"
+          body="$(jq -n --arg imageId "$image_id" --arg userData "$user_data" \
+            '{imageId:$imageId,defaultUser:"root",userData:$userData}')"
+          response="$(curl -fsS "\${headers[@]}" -H 'Content-Type: application/json' \
+            -X PUT -d "$body" \
+            'https://api.contabo.com/v1/compute/instances/203742078')"
+          jq -e '.instanceId' <<<"$response" >/dev/null
+          printf 'Contabo instance preserved and reinstallation requested: %s\n' "$ip_address"
+
+      - name: Recreate only OCI infrastructure and DNS
+        env:
+          AWS_ACCESS_KEY_ID: \${{ env.R2_STORAGE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: \${{ env.R2_STORAGE_SECRET_ACCESS_KEY }}
+          AWS_REGION: \${{ env.R2_STORAGE_REGION }}
+          TF_VAR_cloudflare_account_id: \${{ env.TF_VAR_cloudflare_account_id }}
+          TF_VAR_cloudflare_api_token: \${{ env.TF_VAR_cloudflare_api_token }}
+          TF_VAR_cloudflare_zone_id: \${{ env.TF_VAR_cloudflare_zone_id }}
+          TF_VAR_compartment_ocid: \${{ env.TF_VAR_compartment_ocid }}
+          TF_VAR_fingerprint: \${{ env.TF_VAR_fingerprint }}
+          TF_VAR_oci_region: \${{ env.TF_VAR_oci_region }}
+          TF_VAR_private_key: \${{ env.TF_VAR_private_key }}
+          TF_VAR_ssh_public_key: \${{ env.TF_VAR_ssh_public_key }}
+          TF_VAR_tenancy_ocid: \${{ env.TF_VAR_tenancy_ocid }}
+          TF_VAR_user_ocid: \${{ env.TF_VAR_user_ocid }}
+          TF_VAR_press_control_hostname: \${{ env.PRESS_CONTROL_HOSTNAME }}
+          TF_VAR_press_root_domain: \${{ env.PRESS_ROOT_DOMAIN }}
+          TF_VAR_contabo_client_id: \${{ env.CONTABO_CLIENT_ID }}
+          TF_VAR_contabo_client_secret: \${{ env.CONTABO_CLIENT_SECRET }}
+          TF_VAR_contabo_api_user: \${{ env.CONTABO_API_USER }}
+          TF_VAR_contabo_api_password: \${{ env.CONTABO_API_PASSWORD }}
+          TF_VAR_contabo_product_id: \${{ env.CONTABO_PRODUCT_ID }}
+          TF_VAR_contabo_region: \${{ env.CONTABO_REGION }}
+          TF_VAR_contabo_period: \${{ env.CONTABO_PERIOD }}
+        run: |
+          terraform -chdir=terraform init -input=false \
+            -backend-config="bucket=$R2_STORAGE_BUCKET" \
+            -backend-config="key=$R2_STORAGE_STATE_KEY" \
+            -backend-config="region=$R2_STORAGE_REGION" \
+            -backend-config="endpoint=$R2_STORAGE_ENDPOINT" \
+            -backend-config="skip_credentials_validation=true" \
+            -backend-config="skip_metadata_api_check=true" \
+            -backend-config="skip_requesting_account_id=true" \
+            -backend-config="skip_region_validation=true" \
+            -backend-config="skip_s3_checksum=true" \
+            -backend-config="use_path_style=true"
+          terraform -chdir=terraform apply -auto-approve -input=false \
+            -target=oci_core_vcn.this \
+            -target=oci_core_internet_gateway.this \
+            -target=oci_core_route_table.public \
+            -target=oci_core_security_list.this \
+            -target=oci_core_subnet.this \
+            -target=oci_core_instance.control \
+            -target=oci_core_instance.proxy \
+            -target=cloudflare_dns_record.admin \
+            -target=cloudflare_dns_record.proxy
