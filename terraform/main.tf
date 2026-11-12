@@ -12,9 +12,11 @@ data "oci_core_images" "ubuntu" {
 }
 
 data "oci_core_images" "proxy_ubuntu" {
-  compartment_id           = var.compartment_ocid
-  operating_system         = var.os_name
-  operating_system_version = var.os_version
+  compartment_id   = var.compartment_ocid
+  operating_system = var.os_name
+  # OCI's Always Free AMD Micro has a narrower image matrix than A1.Flex.
+  # Keep the proxy on the documented Ubuntu 22.04 image family.
+  operating_system_version = "22.04"
   shape                    = "VM.Standard.E2.1.Micro"
   sort_by                  = "TIMECREATED"
   sort_order               = "DESC"
