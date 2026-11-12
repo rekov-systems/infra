@@ -42,7 +42,7 @@ jobs:
           import json
           from pathlib import Path
 
-          path = Path("rekov_jcflow/doctype/jcflow_settings/jcflow_settings.json")
+          path = Path("rekov_jcflow/rekov_jcflow/doctype/jcflow_settings/jcflow_settings.json")
           data = json.loads(path.read_text())
           assert data["doctype"] == "DocType"
           assert data["name"] == "JCFlow Settings"
@@ -50,7 +50,7 @@ jobs:
           assert {field["fieldname"] for field in data["fields"]} >= {
               "environment", "api_key", "company"
           }
-          log = json.loads(Path("rekov_jcflow/doctype/jcflow_transmission_log/jcflow_transmission_log.json").read_text())
+          log = json.loads(Path("rekov_jcflow/rekov_jcflow/doctype/jcflow_transmission_log/jcflow_transmission_log.json").read_text())
           assert log["name"] == "JCFlow Transmission Log"
           assert {field["fieldname"] for field in log["fields"]} >= {
               "sales_invoice", "status", "request_json", "response_json"

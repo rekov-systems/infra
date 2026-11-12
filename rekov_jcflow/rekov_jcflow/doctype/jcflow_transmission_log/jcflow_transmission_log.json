@@ -4,22 +4,7 @@
   "creation": "2026-11-12 00:00:00.000000",
   "doctype": "DocType",
   "engine": "InnoDB",
-  "field_order": [
-    "sales_invoice",
-    "company",
-    "environment",
-    "status",
-    "attempts",
-    "http_status",
-    "section_response",
-    "cufe",
-    "pdf_url",
-    "xml_url",
-    "error_message",
-    "section_payload",
-    "request_json",
-    "response_json"
-  ],
+  "field_order": ["sales_invoice", "company", "environment", "status", "attempts", "http_status", "section_response", "cufe", "pdf_url", "xml_url", "error_message", "section_payload", "request_json", "response_json"],
   "fields": [
     {"fieldname": "sales_invoice", "fieldtype": "Link", "label": "Sales Invoice", "options": "Sales Invoice", "reqd": 1, "unique": 1},
     {"fieldname": "company", "fieldtype": "Link", "label": "Company", "options": "Company", "reqd": 1},
