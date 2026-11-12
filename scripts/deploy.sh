@@ -239,6 +239,22 @@ remote "$control_ip" "if ! sudo grep -Eq '^[[:space:]]*${erp_ip}[[:space:]]+regi
 remote "$erp_ip" "client_ip=\${SSH_CONNECTION%% *}; sudo systemctl enable ssh >/dev/null; sudo systemctl restart ssh; printf '%s\\n' '[sshd]' 'ignoreip = 127.0.0.1/8 ::1 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 ${erp_ip} ${control_ip} \${client_ip}' | sudo tee /etc/fail2ban/jail.d/zz-rekov-control-plane.conf >/dev/null; if ! sudo systemctl enable --now fail2ban; then sudo systemctl status fail2ban --no-pager -l || true; sudo journalctl -u fail2ban -n 80 --no-pager || true; exit 1; fi; if ! sudo systemctl restart fail2ban; then sudo systemctl status fail2ban --no-pager -l || true; sudo journalctl -u fail2ban -n 80 --no-pager || true; exit 1; fi; if ! sudo fail2ban-client status sshd; then sudo systemctl status fail2ban --no-pager -l || true; sudo journalctl -u fail2ban -n 120 --no-pager || true; sudo fail2ban-client -t || true; exit 1; fi"
 
 remote "$control_ip" "sudo bash -c 'set -a && source /tmp/rekov/press.env && set +a && exec bash /tmp/rekov/bootstrap-press-control.sh'"
+
+# The tenant agent may survive a previous interrupted bootstrap with an access
+# token that no longer matches Press's encrypted server credential. Reconcile
+# the token before Press submits or retries any builder job. Keep the token in
+# a temporary local file/stdin path; never echo it into the CI log.
+agent_token_file="$tmp/agent-token"
+remote "$control_ip" "sudo -u frappe env PATH=/home/frappe/.local/bin:/home/frappe/press-bench/env/bin:\$PATH bash -lc 'cd /home/frappe/press-bench && bench --site \"${PRESS_CONTROL_HOSTNAME}\" execute \"__import__(\\\"press.agent\\\", fromlist=[\\\"get_decrypted_password\\\"]).get_decrypted_password(\\\"Self Hosted Server\\\", frappe.db.get_value(\\\"Self Hosted Server\\\", {\\\"ip\\\": \\\"${erp_ip}\\\"}, \\\"name\\\"), \\\"agent_password\\\")\"'" >"$agent_token_file"
+agent_token="$(tail -n 1 "$agent_token_file")"
+[[ -n "$agent_token" && "$agent_token" != *" "* ]] || {
+  echo "Press did not return a usable tenant agent credential." >&2
+  exit 1
+}
+printf '%s\n' "$agent_token" | ssh "${ssh_options[@]}" "ubuntu@${erp_ip}" "sudo PRESS_URL='https://${PRESS_CONTROL_HOSTNAME}' python3 -c 'import json,os,pathlib,sys,tempfile; p=pathlib.Path(\"/home/frappe/agent/config.json\"); d=json.loads(p.read_text()); d[\"access_token\"]=sys.stdin.read().strip(); d[\"press_url\"]=os.environ[\"PRESS_URL\"]; st=p.stat(); fd,t=tempfile.mkstemp(dir=str(p.parent),prefix=\".config.\",text=True); f=os.fdopen(fd,\"w\"); json.dump(d,f,indent=2); f.write(\"\\n\"); f.close(); os.chown(t,st.st_uid,st.st_gid); os.chmod(t,st.st_mode & 0o777); os.replace(t,p)' && sudo supervisorctl restart agent:* >/dev/null"
+unset agent_token
+rm -f "$agent_token_file"
+
 remote "$control_ip" "sudo bash -c 'set -a && source /tmp/rekov/press.env && set +a && exec bash /tmp/rekov/bootstrap-press-platform.sh'"
 remote "$control_ip" "sudo rm -rf /tmp/rekov"
 
