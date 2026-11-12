@@ -59,6 +59,7 @@ command -v "$bench_python" >/dev/null || {
 
 id frappe >/dev/null 2>&1 || useradd --create-home --shell /bin/bash frappe
 install -d -o frappe -g frappe /home/frappe
+install -d -o frappe -g frappe -m 0755 /home/frappe/logs
 install -d -o frappe -g frappe -m 0700 /home/frappe/.ssh
 printf '%s\n' "$PRESS_SSH_PRIVATE_KEY" > /home/frappe/.ssh/id_ed25519
 chown frappe:frappe /home/frappe/.ssh/id_ed25519
