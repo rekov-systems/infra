@@ -12,6 +12,7 @@ import json
 import base64
 import shlex
 import subprocess
+import time
 from datetime import timedelta
 from pathlib import Path
 
@@ -83,6 +84,70 @@ def reconcile_agent_auth(server) -> None:
     if result.returncode:
         detail = result.stderr.strip() or "unknown SSH error"
         raise RuntimeError(f"Could not reconcile tenant agent credential: {detail}")
+
+
+def ensure_proxy_setup(proxy_name: str, app_server) -> None:
+    """Prepare the self-hosted proxy and drain its pre-existing agent jobs.
+
+    A self-hosted tenant uses one agent process for the application and proxy
+    records. Keep both Press credentials identical, run Press's native proxy
+    setup when needed, and requeue existing requests in place after setup.
+    """
+    proxy = frappe.get_doc("Proxy Server", proxy_name)
+    token = get_decrypted_password("Server", app_server.name, "agent_password")
+    if not token:
+        raise RuntimeError(f"Server {app_server.name} has no agent credential")
+
+    if proxy.get_password("agent_password") != token:
+        proxy.agent_password = token
+        proxy.save(ignore_permissions=True)
+
+    if proxy.status != "Active" or not proxy.is_server_setup:
+        if proxy.status != "Installing":
+            proxy.status = "Pending"
+            proxy.save(ignore_permissions=True)
+            proxy.setup_server()
+
+        deadline = time.monotonic() + 900
+        while time.monotonic() < deadline:
+            time.sleep(10)
+            frappe.db.commit()
+            proxy.reload()
+            if proxy.status == "Active" and proxy.is_server_setup:
+                break
+            if proxy.status == "Broken":
+                raise RuntimeError(
+                    f"Proxy Server {proxy.name} setup finished as Broken"
+                )
+        else:
+            raise RuntimeError(
+                f"Proxy Server {proxy.name} did not become Active within 15 minutes"
+            )
+
+    frappe.db.delete(
+        "Agent Request Failure",
+        {"server_type": "Proxy Server", "server": proxy.name},
+    )
+    proxy.halt_agent_jobs = 0
+    proxy.save(ignore_permissions=True)
+    jobs = frappe.get_all(
+        "Agent Job",
+        filters={
+            "server_type": "Proxy Server",
+            "server": proxy.name,
+            "job_type": "Add User to Proxy",
+            "status": "Undelivered",
+        },
+        pluck="name",
+    )
+    for job_name in jobs:
+        job = frappe.get_doc("Agent Job", job_name)
+        job.status = "Pending"
+        job.next_retry_at = None
+        job.retry_count = 0
+        job.save(ignore_permissions=True)
+        job.enqueue_http_request()
+    frappe.db.commit()
 
 
 def progress(message: str) -> None:
@@ -949,6 +1014,8 @@ def bootstrap() -> dict:
                     f"Application Server {app_server.name} is {app_server.status}; "
                     "its Ansible setup has not completed"
                 )
+            progress("setting up proxy server")
+            ensure_proxy_setup(proxy, app_server)
         ensure_frappe_version()
         progress("ensuring release pipeline")
         ensure_release_pipeline(team, "Version 16", self_hosted_server)
