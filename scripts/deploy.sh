@@ -66,7 +66,7 @@ fi
 rm -f "$refresh_log"
 recovery_oci_instance_id="$(jq -er '.control_instance_id.value // empty' "$recovery_point/terraform-outputs.json")"
 recovery_contabo_instance_id="$(jq -er '.erp_contabo_id.value // empty' "$recovery_point/terraform-outputs.json")"
-current_oci_instance_id="$(terraform state show -no-color oci_core_instance.control | awk -F' = ' '$1 == "id" { gsub(/"/, "", $2); print $2; exit }')"
+current_oci_instance_id="$(terraform output -raw control_instance_id)"
 current_contabo_instance_id="$(terraform output -raw erp_contabo_id)"
 [[ "$recovery_oci_instance_id" == "$current_oci_instance_id" ]] || { echo 'Recovery OCI target differs from Terraform.' >&2; exit 1; }
 [[ "$recovery_contabo_instance_id" == "$current_contabo_instance_id" ]] || { echo 'Recovery Contabo target differs from Terraform.' >&2; exit 1; }
