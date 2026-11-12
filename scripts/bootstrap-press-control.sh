@@ -400,7 +400,7 @@ health_ok=0
 for _ in $(seq 1 30); do
   if curl --fail --silent --show-error --insecure --max-time 15 \
     --resolve "${press_host}:443:127.0.0.1" \
-    "https://${press_host}/api/method/frappe.ping" -o /dev/null; then
+    "https://${press_host}/api/method/ping" -o /dev/null; then
     health_ok=1
     break
   fi
@@ -408,6 +408,10 @@ for _ in $(seq 1 30); do
 done
 if (( health_ok == 0 )); then
   echo "Local HTTPS health check failed for ${press_host}." >&2
+  curl --silent --show-error --insecure --max-time 10 --resolve "${press_host}:443:127.0.0.1" \
+    -i "https://${press_host}/api/method/ping" | head -40 >&2 || true
+  curl --silent --show-error --max-time 10 -H "Host: ${press_host}" \
+    -i "http://127.0.0.1:8000/api/method/ping" | head -40 >&2 || true
   nginx -T >&2 || true
   exit 1
 fi
