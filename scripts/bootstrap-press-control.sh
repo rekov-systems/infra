@@ -468,6 +468,12 @@ install -d -o frappe -g frappe -m 0750 /home/frappe/.config/rekov
 install -o frappe -g frappe -m 0644 "$origin_le_dir/fullchain.pem" /home/frappe/.config/rekov/root-fullchain.pem
 install -o frappe -g frappe -m 0600 "$origin_le_dir/privkey.pem" /home/frappe/.config/rekov/root-privkey.pem
 
+# Frappe creates site logs lazily in some supported bootstrap paths, but the
+# native Press registration imports the database logger before that happens.
+# Keep this as a normal Bench site directory prerequisite; it is not a Press
+# source patch and does not alter any database or site data.
+install -d -o frappe -g frappe -m 0755 "$bench_root/sites/$PRESS_CONTROL_HOSTNAME/logs"
+
 # Register and configure the managed infrastructure through Press's native
 # Cluster, Root Domain, TLS Certificate, Self Hosted Server and Server methods.
 # This does not patch Press or create replacement records outside Press.
