@@ -27,6 +27,22 @@ grep -q '^init_telemetry[[:space:]]*=' "$workdir/frappe/frappe/utils/telemetry/_
   exit 1
 }
 
+selfhosted_api="$workdir/press/press/api/selfhosted.py"
+for symbol in create_and_verify_selfhosted verify setup; do
+  grep -q "^def ${symbol}(" "$selfhosted_api" || {
+    echo "Pinned Press source lacks native self-hosted API: ${symbol}." >&2
+    exit 1
+  }
+done
+grep -q '^[[:space:]]*def _setup_server(' "$workdir/press/press/press/doctype/proxy_server/proxy_server.py" || {
+  echo 'Pinned Press source lacks native proxy setup implementation.' >&2
+  exit 1
+}
+grep -R -q '^[[:space:]]*def setup_server(' "$workdir/press/press/press/doctype" || {
+  echo 'Pinned Press source lacks native server setup API.' >&2
+  exit 1
+}
+
 # Match the only Python-3.14 syntax compatibility transform performed by the
 # bootstrap, then ensure the transformed upstream module actually compiles.
 cache_utils="$workdir/press/press/press/doctype/deploy_candidate/cache_utils.py"
