@@ -157,6 +157,14 @@ git -C apps/frappe checkout --detach "$frappe_revision"
 if [[ ! -d apps/press/.git ]]; then
   git clone https://github.com/frappe/press.git apps/press
 fi
+# The VM may contain files modified by the removed custom bootstrap. The
+# application checkouts are disposable source trees; sites, databases and
+# Bench state live outside them. Clear only these trees before selecting the
+# immutable native Press revision.
+git -C apps/frappe reset --hard HEAD >/dev/null 2>&1 || true
+git -C apps/frappe clean -fd >/dev/null 2>&1 || true
+git -C apps/press reset --hard HEAD >/dev/null 2>&1 || true
+git -C apps/press clean -fd >/dev/null 2>&1 || true
 if git -C apps/press remote get-url origin >/dev/null 2>&1; then
   git -C apps/press remote set-url origin https://github.com/frappe/press.git
 else
