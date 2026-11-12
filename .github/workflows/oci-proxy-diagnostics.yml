@@ -70,6 +70,22 @@ jobs:
               fi
             done <<< "$ids"
           done
+          for os in 'Oracle Linux' 'CentOS'; do
+            echo "Compatible $os images:"
+            ids="$(oci compute image list --compartment-id "$COMPARTMENT_ID" \
+              --operating-system "$os" \
+              --sort-by TIMECREATED --sort-order DESC \
+              --query 'data[0:5].id' --raw-output | tr -d '[],' | tr -d '"' | tr ' ' '\n' | sed '/^$/d')"
+            while read -r candidate; do
+              [ -n "$candidate" ] || continue
+              compatible="$(oci compute shape list --compartment-id "$COMPARTMENT_ID" --image-id "$candidate" \
+                --query "data[?shape=='VM.Standard.E2.1.Micro'] | length(@)" --raw-output)"
+              if [ "$compatible" = "1" ]; then
+                echo "$os compatible image: $candidate"
+                break
+              fi
+            done <<< "$ids"
+          done
           echo "E2 Micro service limit availability:"
           oci limits resource-availability get \
             --compartment-id "$OCI_CLI_TENANCY" \
