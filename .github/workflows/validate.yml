@@ -33,5 +33,4 @@ jobs:
             CONTABO_INSTANCE_ID=plan-test \
             CONTABO_SNAPSHOT_ID=plan-test \
             ./scripts/restore-recovery-point.sh | grep -q '^Plan only\.'
-          python3 -m py_compile scripts/rekov_press_platform.py
           bash scripts/verify-press-source.sh

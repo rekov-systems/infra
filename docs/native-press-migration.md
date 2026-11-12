@@ -2,11 +2,10 @@
 
 ## Current state
 
-The repository currently installs and patches Press on the control VM, then
-copies `rekov_press_platform.py` into the Press app and calls it directly.
-That module creates and reconciles Press records, credentials, proxy setup,
-release pipeline objects, and retries. It is useful for recovering the first
-environment, but it is a second control plane layered on top of Press.
+The previous implementation installed and patched Press on the control VM,
+then copied `rekov_press_platform.py` into the Press app and called it
+directly. That module has been removed. It was a second control plane layered
+on top of Press and is not part of the native deployment anymore.
 
 That layering caused the recent failures: records were created before native
 setup was invoked, the scheduler was not initially enabled, agent credentials
@@ -48,5 +47,5 @@ mix into the rollback work.
 - A second tenant can be created from Press without changing this repository.
 - A recovery test restores a non-production clone from the selected point.
 
-Until all gates pass, `main` continues using the known baseline and this
-branch must not deploy automatically.
+The production workflow is manual and recovery-gated. No ordinary push can
+destroy or replace the provider resources.

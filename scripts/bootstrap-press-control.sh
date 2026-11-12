@@ -14,18 +14,18 @@ trap 'status=$?; echo "Press bootstrap failed at line ${BASH_LINENO[0]}: ${BASH_
 : "${PRESS_ROOT_DOMAIN:?Set PRESS_ROOT_DOMAIN}"
 : "${PRESS_CLOUDFLARE_API_TOKEN:?Set PRESS_CLOUDFLARE_API_TOKEN}"
 
-# These two revisions are a compatibility unit.  Do not replace either with a
-# moving branch: Press still imports ``init_telemetry`` and Frappe removed that
-# compatibility export after this revision.
-press_revision="3890b928eecc2f0b08d084c40559ca5ebd7d1f64"
-frappe_revision="629c997393dd4e72f69bcb2dc0fde8907cddc6a4"
+# These two revisions are a compatibility unit. Do not replace either with a
+# moving branch: the deployment must be reproducible and use Press's native
+# self-hosted APIs without local patches.
+press_revision="2339ede7c30e976dd3a76661dc128bfd5519f84e"
+frappe_revision="49789a1711d4dde2be9c6888efe35651465f4b64"
 bench_root="/home/frappe/press-bench"
-bench_python="/usr/bin/python3.14"
+bench_python="/usr/bin/python3"
 
 bench_env_python_ok() {
   local venv_py="$bench_root/env/bin/python"
   [[ -x "$venv_py" ]] || return 1
-  "$venv_py" -c 'import sys; sys.exit(0 if sys.version_info[:2] == (3, 14) else 1)' 2>/dev/null
+  "$venv_py" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null
 }
 
 as_frappe() {
@@ -40,10 +40,6 @@ export DEBIAN_FRONTEND=noninteractive
 # The control VM may retain a stale source from an earlier retry. Also avoid
 # IPv6 repository timeouts on the OCI network.
 printf '%s\n' 'Acquire::ForceIPv4 "true";' >/etc/apt/apt.conf.d/99-rekov-force-ipv4
-if command -v python3.14 >/dev/null 2>&1; then
-  sed -i '/ppa\.launchpadcontent\.net\/deadsnakes\/ppa/d' /etc/apt/sources.list
-  find /etc/apt/sources.list.d -maxdepth 1 -type f -print0 | xargs -0 -r grep -Il 'ppa.launchpadcontent.net/deadsnakes/ppa' | xargs -r rm -f || true
-fi
 apt-get update
 apt-get install -y ansible build-essential ca-certificates certbot python3-certbot-dns-cloudflare cron curl fail2ban git golang-go libffi-dev libcups2-dev \
   libmariadb-dev libssl-dev mariadb-server nginx pkg-config redis-server sudo \
@@ -51,19 +47,7 @@ apt-get install -y ansible build-essential ca-certificates certbot python3-certb
 curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
 apt-get install -y nodejs
 corepack enable || true
-if command -v python3.14 >/dev/null 2>&1; then
-  # The control VM is reused across deploy retries. Do not contact Launchpad
-  # again when the required interpreter is already installed; transient
-  # Launchpad/IPv6 failures must not block an otherwise repeatable bootstrap.
-  bench_python="$(command -v python3.14)"
-else
-  if ! grep -Rqs 'ppa.launchpadcontent.net/deadsnakes/ppa' /etc/apt/sources.list.d 2>/dev/null; then
-    add-apt-repository -y ppa:deadsnakes/ppa
-  fi
-  apt-get update
-  apt-get install -y python3.14 python3.14-dev python3.14-venv
-  bench_python="$(command -v python3.14)"
-fi
+bench_python="$(command -v python3)"
 
 id frappe >/dev/null 2>&1 || useradd --create-home --shell /bin/bash frappe
 install -d -o frappe -g frappe /home/frappe
@@ -147,7 +131,7 @@ export PATH="\$HOME/.local/bin:\$PATH"
 export CI=1
 if [[ ! -d "$bench_root/apps/frappe" ]]; then
   rm -rf "$bench_root"
-elif [[ -x "$bench_root/env/bin/python" ]] && ! "$bench_root/env/bin/python" -c 'import sys; sys.exit(0 if sys.version_info[:2] == (3, 14) else 1)' 2>/dev/null; then
+elif [[ -x "$bench_root/env/bin/python" ]] && ! "$bench_root/env/bin/python" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null; then
   rm -rf "$bench_root"
 fi
 if [[ ! -d "$bench_root/apps/frappe" ]]; then
@@ -170,10 +154,6 @@ else
 fi
 git -C apps/frappe fetch --depth=1 origin "$frappe_revision"
 git -C apps/frappe checkout --detach "$frappe_revision"
-if ! ./env/bin/python -c 'from frappe.utils.telemetry import init_telemetry'; then
-  echo 'Pinned Frappe revision does not provide Press-required init_telemetry.' >&2
-  exit 1
-fi
 if [[ ! -d apps/press/.git ]]; then
   git clone https://github.com/frappe/press.git apps/press
 fi
@@ -184,143 +164,8 @@ else
 fi
 git -C apps/press fetch --depth=1 origin "$press_revision"
 git -C apps/press checkout --detach "$press_revision"
-# Press's stock essentials role uses a bare apt update. Give transient
-# network/lock conditions the same retry behavior supported by Ansible's apt
-# module instead of immediately marking the application server Broken.
-python3 - <<'PY'
-from pathlib import Path
-
-path = Path("apps/press/press/playbooks/roles/essentials/tasks/main.yml")
-text = path.read_text()
-old = "- name: Update APT Cache\n  apt:\n    update_cache: yes\n"
-new = "- name: Update APT Cache\n  apt:\n    update_cache: yes\n    update_cache_retries: 5\n    update_cache_retry_max_delay: 12\n    lock_timeout: 120\n"
-if "update_cache_retries:" not in text and old in text:
-    path.write_text(text.replace(old, new, 1))
-PY
 grep -qxF press apps.txt 2>/dev/null || echo press >>apps.txt
-patch_press_for_python314() {
-  local f=apps/press/pyproject.toml
-  [[ -f "\$f" ]] || { echo "missing \$f" >&2; return 1; }
-  # Press pins pre-3.14 stacks; vendor six.* and old builds fail on CPython 3.14/aarch64.
-  # The pinned Frappe revision requires cryptography 46 / pyOpenSSL 26, so
-  # keep Press on the same OpenSSL stack instead of creating an impossible
-  # cryptography<45 + pyOpenSSL<26 dependency set.
-  sed -i \
-    -e 's/ansible==3.4.0/ansible==10.7.0/' \
-    -e 's/playwright==1.49.1/playwright>=1.50.0/' \
-    -e 's/stripe~=2.56.0/stripe>=10.0.0,<13/' \
-    -e 's/pyOpenSSL~=25.0.0/pyOpenSSL>=26.0.0,<27/' \
-    -e '/frappe-mcp @ git+https:\/\/github.com\/frappe\/mcp/d' \
-    -e '/types-stripe/d' \
-    "\$f"
-}
-patch_press_typeddict_for_python314() {
-  local f=apps/press/press/press/doctype/deploy_candidate/cache_utils.py
-  [[ -f "\$f" ]] || return 0
-  grep -q 'cwd=str,' "\$f" || return 0
-  python3.14 - "\$f" <<'PY'
-import sys
-from pathlib import Path
-
-p = Path(sys.argv[1])
-text = p.read_text()
-old = (
-    'CommandOutput = TypedDict(\n'
-    '\t"CommandOutput",\n'
-    '\tcwd=str,\n'
-    '\timage_tag=str,\n'
-    '\treturncode=int,\n'
-    '\toutput=str,\n'
-    ')'
-)
-new = (
-    'CommandOutput = TypedDict(\n'
-    '\t"CommandOutput",\n'
-    '\t{\n'
-    '\t\t"cwd": str,\n'
-    '\t\t"image_tag": str,\n'
-    '\t\t"returncode": int,\n'
-    '\t\t"output": str,\n'
-    '\t},\n'
-    ')'
-)
-if old not in text:
-    if '"cwd": str' in text:
-        sys.exit(0)
-    print('unexpected TypedDict in deploy_candidate/cache_utils.py', file=sys.stderr)
-    sys.exit(1)
-p.write_text(text.replace(old, new, 1))
-PY
-}
-patch_press_hooks_for_asset_build() {
-  local f=apps/press/press/hooks.py
-  [[ -f "\$f" ]] || { echo "missing \$f" >&2; return 1; }
-  # Press imports the DB-backed Frappe Cloud login URL while bench build is
-  # running without a bound site. Self-hosted control planes use the local
-  # dashboard route, so keep this hook site-independent.
-  sed -i 's#get_frappe_io_auth_url() or "/"#"/"#' "\$f"
-}
-patch_press_for_ansible_collection_loader() {
-  local f=apps/press/press/runner.py
-  [[ -f "\$f" ]] || { echo "missing \$f" >&2; return 1; }
-  python3.14 - "\$f" <<'PY'
-import sys
-from pathlib import Path
-
-p = Path(sys.argv[1])
-text = p.read_text()
-old_import = 'from ansible.plugins.action.async_status import ActionModule\n'
-new_import = old_import + 'from ansible.plugins.loader import init_plugin_loader\n'
-if 'from ansible.plugins.loader import init_plugin_loader' not in text:
-    if old_import not in text:
-        raise SystemExit('unexpected Press runner imports')
-    text = text.replace(old_import, new_import, 1)
-
-old_load = '\t\tplaybook = Playbook.load(\n'
-new_load = '\t\tinit_plugin_loader()\n\t\tplaybook = Playbook.load(\n'
-if '\t\tinit_plugin_loader()\n\t\tplaybook = Playbook.load(' not in text:
-    if old_load not in text:
-        raise SystemExit('unexpected Press runner playbook loader')
-    text = text.replace(old_load, new_load, 1)
-p.write_text(text)
-PY
-}
-patch_press_for_python314
-patch_press_typeddict_for_python314
-patch_press_hooks_for_asset_build
-patch_press_for_ansible_collection_loader
-export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
 bench setup requirements
-# Press's Ansible runner relies on the collection loader behavior shipped with
-# Ansible 10 (ansible-core 2.17).  Do not allow a newer major release here:
-# Ansible 14/Core 2.19 currently fails while loading ansible.builtin module
-# utilities from Press's embedded PlaybookExecutor.
-uv pip install --python ./env/bin/python 'ansible==10.7.0' 'stripe>=10.0.0,<13' --upgrade
-# Keep the OpenSSL bindings on the versions supported by the pinned Frappe
-# revision.  A loose pyOpenSSL constraint lets uv select cryptography 50,
-# which removes symbols still imported by pyOpenSSL's compatibility layer.
-uv pip install --python ./env/bin/python \
-  'cryptography==46.0.7' 'pyOpenSSL==26.0.0'
-# Dropped from pyproject only to avoid uv building pydantic-core; Press still imports it at runtime.
-# frappe-mcp pins pydantic~=2.11.7 (core 2.33.2 has no cp314 wheels); use a matched pair with wheels.
-uv pip install --python ./env/bin/python 'pydantic==2.12.5' 'pydantic-core==2.41.5'
-uv pip install --python ./env/bin/python \
-  'Werkzeug==3.1.3' 'jsonschema>=4.24.0,<5' 'Click>=8.1.8,<9'
-uv pip install --python ./env/bin/python --no-deps 'frappe-mcp @ git+https://github.com/frappe/mcp'
-if ! ./env/bin/python -c '
-from ansible import constants, context
-from ansible.executor.playbook_executor import PlaybookExecutor
-from pathlib import Path
-import ansible
-assert (Path(ansible.__file__).parent / "config/ansible_builtin_runtime.yml").is_file()
-import stripe
-from OpenSSL import SSL, crypto
-from cryptography.fernet import Fernet
-import frappe_mcp
-'; then
-  echo "Press dependency preflight failed (ansible/stripe/pyOpenSSL/frappe_mcp on Python 3.14)." >&2
-  exit 1
-fi
 if ! systemctl is-active --quiet redis-server; then
   echo 'The system Redis service is not running.' >&2
   exit 1
@@ -367,12 +212,6 @@ if ! awk '\$1 == "press" { found = 1 } END { exit !found }' "\$installed_apps_fi
   if [[ -f "\$install_marker" ]]; then
     echo 'Press is missing from an initialized control plane; retrying only install-app (no site or database deletion).' >&2
   fi
-  uv pip install --python ./env/bin/python \
-    'cryptography==46.0.7' 'pyOpenSSL==26.0.0'
-  uv pip install --python ./env/bin/python 'pydantic==2.12.5' 'pydantic-core==2.41.5'
-  uv pip install --python ./env/bin/python \
-    'Werkzeug==3.1.3' 'jsonschema>=4.24.0,<5' 'Click>=8.1.8,<9'
-  uv pip install --python ./env/bin/python --no-deps 'frappe-mcp @ git+https://github.com/frappe/mcp'
   bench --site "$PRESS_CONTROL_HOSTNAME" install-app press
   bench --site "$PRESS_CONTROL_HOSTNAME" list-apps | awk '\$1 == "press" { found = 1 } END { exit !found }' || {
     echo 'Press installation returned without registering the app.' >&2

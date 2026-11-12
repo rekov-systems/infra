@@ -44,7 +44,7 @@ jobs:
           terraform -chdir=terraform fmt -check -recursive
           terraform -chdir=terraform init -backend=false -input=false
           terraform -chdir=terraform validate
-          bash -n scripts/deploy.sh scripts/bootstrap-press-control.sh scripts/bootstrap-press-platform.sh
+          bash -n scripts/deploy.sh scripts/bootstrap-press-control.sh
           bash -n scripts/collect-recovery-manifest.sh
           bash -n scripts/verify-recovery-point.sh
           bash -n scripts/create-provider-recovery-snapshots.sh
@@ -56,7 +56,6 @@ jobs:
             CONTABO_INSTANCE_ID=plan-test \
             CONTABO_SNAPSHOT_ID=plan-test \
             ./scripts/restore-recovery-point.sh | grep -q '^Plan only\.'
-          python3 -m py_compile scripts/rekov_press_platform.py
           bash scripts/verify-press-source.sh
 
       - name: Provision Press control plane, tenant node, and DNS

@@ -22,11 +22,6 @@ git -C "$workdir/press" remote add origin https://github.com/frappe/press.git
 git -C "$workdir/press" fetch --quiet --depth=1 origin "$press_revision"
 git -C "$workdir/press" checkout --quiet --detach "$press_revision"
 
-grep -q '^init_telemetry[[:space:]]*=' "$workdir/frappe/frappe/utils/telemetry/__init__.py" || {
-  echo 'Pinned Frappe source lacks init_telemetry required by Press.' >&2
-  exit 1
-}
-
 selfhosted_api="$workdir/press/press/api/selfhosted.py"
 for symbol in create_and_verify_selfhosted verify setup; do
   grep -q "^def ${symbol}(" "$selfhosted_api" || {
@@ -43,35 +38,6 @@ grep -R -q '^[[:space:]]*def setup_server(' "$workdir/press/press/press/doctype"
   exit 1
 }
 
-# Match the only Python-3.14 syntax compatibility transform performed by the
-# bootstrap, then ensure the transformed upstream module actually compiles.
-cache_utils="$workdir/press/press/press/doctype/deploy_candidate/cache_utils.py"
-python3.14 - "$cache_utils" <<'PY'
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-text = path.read_text()
-old = '''CommandOutput = TypedDict(
-\t"CommandOutput",
-\tcwd=str,
-\timage_tag=str,
-\treturncode=int,
-\toutput=str,
-)'''
-new = '''CommandOutput = TypedDict(
-\t"CommandOutput",
-\t{
-\t\t"cwd": str,
-\t\t"image_tag": str,
-\t\t"returncode": int,
-\t\t"output": str,
-\t},
-)'''
-if old not in text:
-    raise SystemExit("Unexpected TypedDict source; update bootstrap and verifier together.")
-path.write_text(text.replace(old, new, 1))
-PY
-python3.14 -m py_compile "$cache_utils"
+python3 -m py_compile "$selfhosted_api"
 
 echo "Verified Press $press_revision with Frappe $frappe_revision."

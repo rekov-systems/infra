@@ -20,8 +20,8 @@ esperar a que termine correctamente. Luego ejecutar manualmente `Deploy ERPNext`
 desde Actions y copiar en `recovery_run_id` el número de esa ejecución. El deploy
 verifica el manifest, snapshots, checksums y artefactos
 desde R2 antes de tocar Terraform. Ese modo instala solamente el control plane de
-Press y no copia ni ejecuta `rekov_press_platform.py`, no cambia paquetes del
-tenant y no reescribe credenciales del Agent.
+Press y no copia ni ejecuta un módulo de lifecycle propio, no cambia paquetes
+del tenant y no reescribe credenciales del Agent.
 
 Después, en Press:
 

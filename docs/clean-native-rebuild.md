@@ -48,7 +48,8 @@ an ordinary push to `main` from deleting production.
 
 ## Acceptance criteria
 
-- A fresh run from `main` succeeds without copying `rekov_press_platform.py`.
+- A fresh run from `main` succeeds without any repository Press lifecycle
+  module being copied into the Press app.
 - No deploy step edits the tenant Agent credential, Fail2Ban state, or package
   repositories directly.
 - Press UI/API creates the Self Hosted Server, Proxy Server, Bench and tenant.
@@ -57,8 +58,6 @@ an ordinary push to `main` from deleting production.
 - A failed native job is observable and retriable through Press without a
   repository patch or manual database status edit.
 
-The experimental deploy supports `REKOV_NATIVE_ONLY=1`. It provisions the
-Terraform resources and control plane, then stops before all tenant-side
-legacy preparation and before invoking `rekov_press_platform.py`. This is the
-mode intended for the clean rebuild; the native Self Hosted Server flow is
-then started from Press itself.
+The deploy is permanently native-only. It provisions the Terraform resources
+and the Press control plane, then stops before tenant-side lifecycle actions.
+The native Self Hosted Server flow is started from Press itself.
