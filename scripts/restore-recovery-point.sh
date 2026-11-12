@@ -8,19 +8,6 @@ set -Eeuo pipefail
 : "${OCI_BOOT_VOLUME_BACKUP_ID:?Set OCI_BOOT_VOLUME_BACKUP_ID}"
 : "${CONTABO_INSTANCE_ID:?Set CONTABO_INSTANCE_ID}"
 : "${CONTABO_SNAPSHOT_ID:?Set CONTABO_SNAPSHOT_ID}"
-: "${TF_VAR_tenancy_ocid:?Set TF_VAR_tenancy_ocid}"
-: "${TF_VAR_compartment_ocid:?Set TF_VAR_compartment_ocid}"
-: "${TF_VAR_user_ocid:?Set TF_VAR_user_ocid}"
-: "${TF_VAR_fingerprint:?Set TF_VAR_fingerprint}"
-: "${TF_VAR_oci_region:?Set TF_VAR_oci_region}"
-: "${TF_VAR_private_key:?Set TF_VAR_private_key}"
-: "${CONTABO_CLIENT_ID:?Set CONTABO_CLIENT_ID}"
-: "${CONTABO_CLIENT_SECRET:?Set CONTABO_CLIENT_SECRET}"
-: "${CONTABO_API_USER:?Set CONTABO_API_USER}"
-: "${CONTABO_API_PASSWORD:?Set CONTABO_API_PASSWORD}"
-
-command -v oci >/dev/null || { echo 'OCI CLI is required.' >&2; exit 1; }
-command -v jq >/dev/null || { echo 'jq is required.' >&2; exit 1; }
 
 cat <<PLAN
 Rollback plan:
@@ -35,6 +22,19 @@ if [[ "${ROLLBACK_CONFIRMATION:-}" != "RESTORE_REKOV_RECOVERY_POINT" ]]; then
   echo 'Plan only. Set ROLLBACK_CONFIRMATION=RESTORE_REKOV_RECOVERY_POINT to execute.'
   exit 0
 fi
+
+: "${TF_VAR_tenancy_ocid:?Set TF_VAR_tenancy_ocid}"
+: "${TF_VAR_compartment_ocid:?Set TF_VAR_compartment_ocid}"
+: "${TF_VAR_user_ocid:?Set TF_VAR_user_ocid}"
+: "${TF_VAR_fingerprint:?Set TF_VAR_fingerprint}"
+: "${TF_VAR_oci_region:?Set TF_VAR_oci_region}"
+: "${TF_VAR_private_key:?Set TF_VAR_private_key}"
+: "${CONTABO_CLIENT_ID:?Set CONTABO_CLIENT_ID}"
+: "${CONTABO_CLIENT_SECRET:?Set CONTABO_CLIENT_SECRET}"
+: "${CONTABO_API_USER:?Set CONTABO_API_USER}"
+: "${CONTABO_API_PASSWORD:?Set CONTABO_API_PASSWORD}"
+command -v oci >/dev/null || { echo 'OCI CLI is required.' >&2; exit 1; }
+command -v jq >/dev/null || { echo 'jq is required.' >&2; exit 1; }
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
