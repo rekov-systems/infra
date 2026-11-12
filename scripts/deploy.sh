@@ -245,7 +245,7 @@ remote "$control_ip" "sudo bash -c 'set -a && source /tmp/rekov/press.env && set
 # the token before Press submits or retries any builder job. Keep the token in
 # a temporary local file/stdin path; never echo it into the CI log.
 agent_token_file="$tmp/agent-token"
-remote "$control_ip" "sudo -u frappe env PATH=/home/frappe/.local/bin:/home/frappe/press-bench/env/bin:\$PATH bash -lc 'cd /home/frappe/press-bench && bench --site \"${PRESS_CONTROL_HOSTNAME}\" execute \"__import__(\\\"press.agent\\\", fromlist=[\\\"get_decrypted_password\\\"]).get_decrypted_password(\\\"Self Hosted Server\\\", frappe.db.get_value(\\\"Self Hosted Server\\\", {\\\"ip\\\": \\\"${erp_ip}\\\"}, \\\"name\\\"), \\\"agent_password\\\")\"'" >"$agent_token_file"
+remote "$control_ip" "sudo -u frappe env PATH=/home/frappe/.local/bin:/home/frappe/press-bench/env/bin:\$PATH bash -lc 'cd /home/frappe/press-bench && bench --site \"${PRESS_CONTROL_HOSTNAME}\" execute \"__import__(\\\"press.agent\\\", fromlist=[\\\"get_decrypted_password\\\"]).get_decrypted_password(\\\"Server\\\", frappe.db.get_value(\\\"Server\\\", {\\\"ip\\\": \\\"${erp_ip}\\\"}, \\\"name\\\"), \\\"agent_password\\\")\"'" >"$agent_token_file"
 agent_token="$(tail -n 1 "$agent_token_file")"
 [[ -n "$agent_token" && "$agent_token" != *" "* ]] || {
   echo "Press did not return a usable tenant agent credential." >&2
