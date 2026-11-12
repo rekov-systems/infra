@@ -29,6 +29,8 @@ export TF_VAR_contabo_region="$CONTABO_REGION"
 export TF_VAR_press_control_hostname="$PRESS_CONTROL_HOSTNAME"
 export TF_VAR_press_root_domain="$PRESS_ROOT_DOMAIN"
 native_only="${REKOV_NATIVE_ONLY:-0}"
+native_recovery_oci_instance_id=""
+native_recovery_contabo_instance_id=""
 
 verify_native_recovery_point() {
   local recovery_run_id recovery_point oci_backup_id contabo_snapshot_id
@@ -39,6 +41,10 @@ verify_native_recovery_point() {
   }
   command -v aws >/dev/null || {
     echo 'Native-only mode requires the AWS CLI to verify the R2 recovery point.' >&2
+    exit 1
+  }
+  command -v jq >/dev/null || {
+    echo 'Native-only mode requires jq to verify recovery target identity.' >&2
     exit 1
   }
 
@@ -70,6 +76,8 @@ verify_native_recovery_point() {
     OCI_BOOT_VOLUME_BACKUP_ID="$oci_backup_id" \
     CONTABO_SNAPSHOT_ID="$contabo_snapshot_id" \
     "$root/scripts/verify-recovery-point.sh"
+  native_recovery_oci_instance_id="$(jq -er '.control_instance_id.value // empty' "$recovery_point/terraform-outputs.json")"
+  native_recovery_contabo_instance_id="$(jq -er '.erp_contabo_id.value // empty' "$recovery_point/terraform-outputs.json")"
   echo "Verified recovery point recovery/$recovery_run_id before native-only deployment."
 }
 
@@ -89,6 +97,20 @@ terraform init -input=false -reconfigure \
   -backend-config="skip_region_validation=true" \
   -backend-config="skip_s3_checksum=true" \
   -backend-config="use_path_style=true"
+
+if [[ "$native_only" == "1" ]]; then
+  current_oci_instance_id="$(terraform state show -no-color oci_core_instance.control | awk -F' = ' '$1 == "id" { gsub(/"/, "", $2); print $2; exit }')"
+  current_contabo_instance_id="$(terraform output -raw erp_contabo_id)"
+  [[ "$native_recovery_oci_instance_id" == "$current_oci_instance_id" ]] || {
+    echo 'Recovery point OCI instance does not match the current Terraform target.' >&2
+    exit 1
+  }
+  [[ "$native_recovery_contabo_instance_id" == "$current_contabo_instance_id" ]] || {
+    echo 'Recovery point Contabo instance does not match the current Terraform target.' >&2
+    exit 1
+  }
+  echo 'Recovery point target identity matches Terraform state.'
+fi
 
 reconcile_contabo_state() {
   if ! terraform state list 2>/dev/null | grep -qx 'contabo_instance.erp'; then

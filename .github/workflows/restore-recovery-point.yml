@@ -81,6 +81,10 @@ jobs:
           oci_instance_id="$(terraform state show -no-color oci_core_instance.control | awk -F' = ' '$1 == "id" { gsub(/"/, "", $2); print $2; exit }')"
           contabo_instance_id="$(terraform output -raw erp_contabo_id)"
           test -n "$oci_instance_id" && test -n "$contabo_instance_id"
+          recovery_oci_instance_id="$(jq -er '.control_instance_id.value // empty' "$RUNNER_TEMP/recovery/terraform-outputs.json")"
+          recovery_contabo_instance_id="$(jq -er '.erp_contabo_id.value // empty' "$RUNNER_TEMP/recovery/terraform-outputs.json")"
+          test "$recovery_oci_instance_id" = "$oci_instance_id"
+          test "$recovery_contabo_instance_id" = "$contabo_instance_id"
           echo "OCI_INSTANCE_ID=$oci_instance_id" >> "$GITHUB_ENV"
           echo "CONTABO_INSTANCE_ID=$contabo_instance_id" >> "$GITHUB_ENV"
 
