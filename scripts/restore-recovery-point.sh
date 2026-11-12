@@ -64,7 +64,7 @@ attachment_id="$(oci compute boot-volume-attachment list --config-file "$oci_con
 
 restored_boot_volume_id="$(oci bv boot-volume create --config-file "$oci_config" \
   --compartment-id "$TF_VAR_compartment_ocid" --availability-domain "$ad" \
-  --source-boot-volume-backup-id "$OCI_BOOT_VOLUME_BACKUP_ID" \
+  --boot-volume-backup-id "$OCI_BOOT_VOLUME_BACKUP_ID" \
   --display-name "rekov-restored-control-$(date -u +%Y%m%dT%H%M%SZ)" \
   --wait-for-state AVAILABLE --max-wait-seconds 1800 --query 'data.id' --raw-output)"
 oci compute instance action --config-file "$oci_config" \
