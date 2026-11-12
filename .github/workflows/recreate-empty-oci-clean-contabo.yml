@@ -50,14 +50,7 @@ jobs:
           instance="$(curl -fsS "${headers[@]}" 'https://api.contabo.com/v1/compute/instances/203742078')"
           image_id="$(jq -er '.imageId' <<<"$instance")"
           ip_address="$(jq -er '.ipConfig.v4[0].ip' <<<"$instance")"
-          user_data="#cloud-config
-users:
-  - name: ubuntu
-    groups: [sudo]
-    shell: /bin/bash
-    sudo: ALL=(ALL) NOPASSWD:ALL
-    ssh_authorized_keys:
-      - $SSH_PUBLIC_KEY"
+          user_data="#cloud-config\nusers:\n  - name: ubuntu\n    groups: [sudo]\n    shell: /bin/bash\n    sudo: ALL=(ALL) NOPASSWD:ALL\n    ssh_authorized_keys:\n      - $SSH_PUBLIC_KEY"
           body="$(jq -n --arg imageId "$image_id" --arg userData "$user_data" \
             '{imageId:$imageId,defaultUser:"root",userData:$userData}')"
           response="$(curl -fsS "${headers[@]}" -H 'Content-Type: application/json' \
