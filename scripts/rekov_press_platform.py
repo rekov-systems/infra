@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import os
 import json
+import base64
+import shlex
+import subprocess
 from datetime import timedelta
 from pathlib import Path
 
@@ -24,6 +27,62 @@ def required(name: str) -> str:
     if not value:
         frappe.throw(f"Missing required Press platform configuration: {name}")
     return value
+
+
+def reconcile_agent_auth(server) -> None:
+    """Restore the agent credential after Press finishes configuring the node.
+
+    Registry setup can rerun the agent role on a hybrid node and replace its
+    config.json.  Do this after that setup, immediately before the first
+    builder request, so Press and the agent use the same plaintext credential.
+    """
+    token = get_decrypted_password("Server", server.name, "agent_password")
+    if not token:
+        raise RuntimeError(f"Server {server.name} has no agent credential")
+
+    script = (
+        "import json,os,pathlib,sys,tempfile; "
+        "from passlib.hash import pbkdf2_sha256; "
+        "p=pathlib.Path('/home/frappe/agent/config.json'); "
+        "d=json.loads(p.read_text()); "
+        "d['access_token']=pbkdf2_sha256.hash(sys.stdin.read().strip()); "
+        "d['press_url']=os.environ['PRESS_URL']; "
+        "st=p.stat(); fd,t=tempfile.mkstemp(dir=str(p.parent), prefix='.config.', text=True); "
+        "f=os.fdopen(fd,'w'); json.dump(d,f,indent=2); f.write('\\n'); f.close(); "
+        "os.chown(t,st.st_uid,st.st_gid); os.chmod(t,st.st_mode & 0o777); os.replace(t,p)"
+    )
+    encoded = base64.b64encode(script.encode()).decode()
+    press_url = f"https://{required('PRESS_CONTROL_HOSTNAME')}"
+    remote_command = (
+        "sudo env "
+        f"PRESS_URL={shlex.quote(press_url)} "
+        "/home/frappe/agent/env/bin/python -c "
+        f"\"import base64; exec(base64.b64decode('{encoded}'))\" "
+        "&& sudo supervisorctl restart agent:* >/dev/null"
+    )
+    result = subprocess.run(
+        [
+            "ssh",
+            "-i",
+            "/home/frappe/.ssh/id_ed25519",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=15",
+            "-o",
+            "StrictHostKeyChecking=accept-new",
+            f"{server.ssh_user or 'ubuntu'}@{server.ip}",
+            remote_command,
+        ],
+        input=f"{token}\n",
+        text=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        timeout=45,
+    )
+    if result.returncode:
+        detail = result.stderr.strip() or "unknown SSH error"
+        raise RuntimeError(f"Could not reconcile tenant agent credential: {detail}")
 
 
 def progress(message: str) -> None:
@@ -441,6 +500,10 @@ def ensure_release_pipeline(team: str, version: str, server_name: str) -> str | 
     if not app_server.use_agent_job_callbacks:
         app_server.use_agent_job_callbacks = 1
         app_server.save(ignore_permissions=True)
+
+    # The registry setup above may have rerun the agent role and replaced its
+    # token. Reconcile after that setup and before the first builder request.
+    reconcile_agent_auth(app_server)
 
     frappe_source = ensure_app_source(
         "frappe", "Frappe", "https://github.com/frappe/frappe", version, team
