@@ -1,5 +1,5 @@
 from frappe.model.document import Document
 
 
-class FactusTransmissionLog(Document):
+class JCFlowTransmissionLog(Document):
     pass

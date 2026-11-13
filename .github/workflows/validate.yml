@@ -32,42 +32,36 @@ jobs:
           OCI_INSTANCE_ID=plan-test \
           ./scripts/restore-recovery-point.sh | grep -q '^Plan only\.'
 
-      - name: Validate Rekov Factus Frappe app metadata
+      - name: Validate Rekov JCFlow Frappe app metadata
         run: |
           test -f pyproject.toml
-          test -f rekov_factus/hooks.py
-          test -f rekov_factus/modules.txt
-          python3 -m compileall -q rekov_factus
+          test -f rekov_jcflow/hooks.py
+          test -f rekov_jcflow/modules.txt
+          python3 -m compileall -q rekov_jcflow
           python3 - <<'PY'
           import json
           from pathlib import Path
 
-          path = Path("rekov_factus/rekov_factus/doctype/factus_settings/factus_settings.json")
+          path = Path("rekov_jcflow/rekov_jcflow/doctype/jcflow_settings/jcflow_settings.json")
           data = json.loads(path.read_text())
           assert data["doctype"] == "DocType"
-          assert data["name"] == "Factus Settings"
+          assert data["name"] == "JCFlow Settings"
           assert data["issingle"] == 1
           assert {field["fieldname"] for field in data["fields"]} >= {
-              "environment", "send_automatically"
+              "enabled", "send_automatically"
           }
           assert not {field["fieldname"] for field in data["fields"]} & {
               "api_key", "webhook_secret"
           }
-          company = json.loads(Path("rekov_factus/rekov_factus/doctype/factus_company/factus_company.json").read_text())
-          assert company["name"] == "Factus Company"
+          company = json.loads(Path("rekov_jcflow/rekov_jcflow/doctype/jcflow_company/jcflow_company.json").read_text())
+          assert company["name"] == "JCFlow Company"
           assert {field["fieldname"] for field in company["fields"]} >= {
-              "company", "identification_document_code", "tax_id",
-              "environment",
-              "tax_id_verification_digit", "legal_name", "legal_organization_code",
-              "tribute_code", "country_code", "tax_responsibilities",
-              "municipality_code", "address", "billing_email", "phone",
-              "numbering_range_id", "client_id", "client_secret", "email",
-              "password", "enabled"
+              "company", "api_key", "enabled"
           }
-          log = json.loads(Path("rekov_factus/rekov_factus/doctype/factus_transmission_log/factus_transmission_log.json").read_text())
-          assert log["name"] == "Factus Transmission Log"
+          log = json.loads(Path("rekov_jcflow/rekov_jcflow/doctype/jcflow_transmission_log/jcflow_transmission_log.json").read_text())
+          assert log["name"] == "JCFlow Transmission Log"
           assert {field["fieldname"] for field in log["fields"]} >= {
-              "sales_invoice", "status", "factus_number", "cufe", "public_url",
+              "sales_invoice", "status", "provider_number", "idempotency_key", "cufe", "public_url",
               "qr_url", "request_json", "response_json"
           }
           print("Frappe app metadata is valid")

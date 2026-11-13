@@ -1,0 +1,23 @@
+{
+  "actions": [],
+  "allow_rename": 0,
+  "creation": "2026-11-12 00:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": ["company", "section_credentials", "api_key", "enabled"],
+  "fields": [
+    {"fieldname": "company", "fieldtype": "Link", "label": "ERPNext Company", "options": "Company", "reqd": 1, "unique": 1},
+    {"fieldname": "section_credentials", "fieldtype": "Section Break", "label": "JCFlow credentials"},
+    {"description": "Paste the key issued by JCFlow for this emitter: sk_test_... or sk_live_.... It is stored encrypted by Frappe.", "fieldname": "api_key", "fieldtype": "Password", "label": "JCFlow API Key", "reqd": 1},
+    {"default": "0", "fieldname": "enabled", "fieldtype": "Check", "label": "Enabled"}
+  ],
+  "module": "Rekov JCFlow",
+  "name": "JCFlow Company",
+  "owner": "Administrator",
+  "permissions": [
+    {"create": 1, "delete": 0, "read": 1, "role": "System Manager", "write": 1}
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "track_changes": 1
+}

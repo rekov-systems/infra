@@ -1,0 +1,20 @@
+{
+  "actions": [],
+  "allow_rename": 0,
+  "creation": "2026-11-13 00:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": ["enabled", "send_automatically"],
+  "fields": [
+    {"default": "0", "fieldname": "enabled", "fieldtype": "Check", "label": "Enabled"},
+    {"default": "0", "description": "Enables the JCFlow integration for this ERPNext site.", "fieldname": "send_automatically", "fieldtype": "Check", "label": "Send Automatically"}
+  ],
+  "issingle": 1,
+  "module": "Rekov JCFlow",
+  "name": "JCFlow Settings",
+  "owner": "Administrator",
+  "permissions": [{"create": 1, "delete": 1, "read": 1, "role": "System Manager", "write": 1}],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "track_changes": 1
+}
