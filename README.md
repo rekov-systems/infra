@@ -37,7 +37,7 @@ Pilot puede importar este repositorio como una app personalizada y luego
 instalarla únicamente en los sitios seleccionados. La app separa la
 configuración global administrada por Rekov de la configuración fiscal de cada
 empresa. La API key no se solicita al tenant. Cada empresa tiene un registro
-JCFlow propio para su cuenta, certificado y estado de habilitación.
+JCFlow propio para su empresa, sin exponer credenciales técnicas al tenant.
 El envío real se habilitará después de validar el contrato JSON y el mecanismo
 de selección multiempresa de JCFlow en sandbox; no se deben usar claves de
 producción durante esa etapa.

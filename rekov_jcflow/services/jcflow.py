@@ -39,10 +39,10 @@ def create_transmission_log(invoice, settings):
     company_config = frappe.db.get_value(
         "JCFlow Company",
         {"company": invoice.company, "enabled": 1},
-        ["name", "jcflow_account_id", "certificate_status"],
+        ["name"],
         as_dict=True,
     )
-    if not company_config or not company_config.jcflow_account_id:
+    if not company_config:
         frappe.throw(
             f"JCFlow is not configured for ERPNext Company '{invoice.company}'."
         )
@@ -76,7 +76,7 @@ def transmit_log(log_name):
     company_config = frappe.db.get_value(
         "JCFlow Company",
         {"company": log.company, "enabled": 1},
-        ["jcflow_account_id", "api_key", "certificate_status"],
+        ["name"],
         as_dict=True,
     )
 
@@ -86,9 +86,9 @@ def transmit_log(log_name):
         log.save(ignore_permissions=True)
         return
 
-    if not company_config or not company_config.jcflow_account_id:
+    if not company_config:
         log.status = "Paused"
-        log.error_message = "This company has no JCFlow Account ID configured."
+        log.error_message = "This company has no JCFlow configuration."
         log.save(ignore_permissions=True)
         return
 
@@ -99,15 +99,10 @@ def transmit_log(log_name):
         return
 
     try:
-        api_key = (
-            company_config.api_key
-            if company_config and company_config.api_key
-            else settings.get_password("api_key")
-        )
         response = requests.post(
             JCFlowEndpoint,
             headers={
-                "X-Api-Key": api_key,
+                "X-Api-Key": settings.get_password("api_key"),
                 "Content-Type": "application/json",
             },
             data=log.request_json,

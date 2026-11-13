@@ -53,7 +53,7 @@ jobs:
           company = json.loads(Path("rekov_jcflow/rekov_jcflow/doctype/jcflow_company/jcflow_company.json").read_text())
           assert company["name"] == "JCFlow Company"
           assert {field["fieldname"] for field in company["fields"]} >= {
-              "company", "jcflow_account_id", "certificate_status", "tax_id", "legal_name"
+              "company", "tax_id", "legal_name", "enabled"
           }
           log = json.loads(Path("rekov_jcflow/rekov_jcflow/doctype/jcflow_transmission_log/jcflow_transmission_log.json").read_text())
           assert log["name"] == "JCFlow Transmission Log"

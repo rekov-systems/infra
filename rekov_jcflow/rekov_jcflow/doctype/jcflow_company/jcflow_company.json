@@ -4,12 +4,9 @@
   "creation": "2026-11-12 00:00:00.000000",
   "doctype": "DocType",
   "engine": "InnoDB",
-  "field_order": ["company", "jcflow_account_id", "api_key", "certificate_status", "section_setup", "tax_id", "legal_name", "enabled"],
+  "field_order": ["company", "section_setup", "tax_id", "legal_name", "enabled"],
   "fields": [
     {"fieldname": "company", "fieldtype": "Link", "label": "ERPNext Company", "options": "Company", "reqd": 1, "unique": 1},
-    {"description": "JCFlow account identifier for this company. Entered by a Rekov administrator.", "fieldname": "jcflow_account_id", "fieldtype": "Data", "label": "JCFlow Account ID"},
-    {"description": "Optional company-scoped key managed by Rekov. Leave empty to use the global key.", "fieldname": "api_key", "fieldtype": "Password", "label": "JCFlow API Key"},
-    {"default": "Not configured", "fieldname": "certificate_status", "fieldtype": "Select", "label": "Certificate Status", "options": "Not configured\nRequested\nActive\nExpired\nRejected", "read_only": 1},
     {"fieldname": "section_setup", "fieldtype": "Section Break", "label": "Company data"},
     {"fieldname": "tax_id", "fieldtype": "Data", "label": "NIT", "reqd": 1},
     {"fieldname": "legal_name", "fieldtype": "Data", "label": "Legal Name", "reqd": 1},
