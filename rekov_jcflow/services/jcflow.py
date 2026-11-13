@@ -3,6 +3,7 @@ import json
 import frappe
 import requests
 
+from rekov_jcflow.rekov_jcflow.doctype.jcflow_settings.jcflow_settings import get_api_key
 
 JCFlowEndpoint = "https://api.jcflow.com.co/v1/api/documentos/factura"
 
@@ -80,9 +81,10 @@ def transmit_log(log_name):
         as_dict=True,
     )
 
-    if not settings.enabled or not settings.api_key:
+    api_key = get_api_key()
+    if not settings.enabled or not api_key:
         log.status = "Paused"
-        log.error_message = "JCFlow is disabled or Rekov has no API key."
+        log.error_message = "JCFlow is disabled or the Rekov server secret is missing."
         log.save(ignore_permissions=True)
         return
 
@@ -102,7 +104,7 @@ def transmit_log(log_name):
         response = requests.post(
             JCFlowEndpoint,
             headers={
-                "X-Api-Key": settings.get_password("api_key"),
+                "X-Api-Key": api_key,
                 "Content-Type": "application/json",
             },
             data=log.request_json,
@@ -142,8 +144,8 @@ def queue_sales_invoice(sales_invoice):
         frappe.throw("Only submitted Sales Invoices can be sent to JCFlow.")
 
     settings = frappe.get_single("JCFlow Settings")
-    if not settings.enabled or not settings.api_key:
-        frappe.throw("Configure and enable JCFlow before sending an invoice.")
+    if not settings.enabled or not get_api_key():
+        frappe.throw("JCFlow is disabled or its Rekov server secret is missing.")
 
     log = create_transmission_log(invoice, settings)
     frappe.enqueue(

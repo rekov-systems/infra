@@ -1,6 +1,7 @@
 import frappe
 
 from rekov_jcflow.services.jcflow import create_transmission_log
+from rekov_jcflow.rekov_jcflow.doctype.jcflow_settings.jcflow_settings import get_api_key
 
 
 def on_submit(doc, method=None):
@@ -9,7 +10,7 @@ def on_submit(doc, method=None):
         return
 
     settings = frappe.get_single("JCFlow Settings")
-    if not settings.enabled or not settings.api_key:
+    if not settings.enabled or not get_api_key():
         return
 
     if not frappe.db.exists(

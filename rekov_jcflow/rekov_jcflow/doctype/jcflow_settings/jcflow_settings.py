@@ -6,6 +6,11 @@ class JCFlowSettings(Document):
     pass
 
 
+def get_api_key():
+    """Return the Rekov-managed key from server configuration only."""
+    return frappe.conf.get("rekov_jcflow_api_key")
+
+
 @frappe.whitelist()
 def get_current_environment():
     """Return non-secret settings for the current tenant."""

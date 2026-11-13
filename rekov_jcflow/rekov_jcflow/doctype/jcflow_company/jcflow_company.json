@@ -4,12 +4,17 @@
   "creation": "2026-11-12 00:00:00.000000",
   "doctype": "DocType",
   "engine": "InnoDB",
-  "field_order": ["company", "section_setup", "tax_id", "legal_name", "enabled"],
+  "field_order": ["company", "section_setup", "tax_id", "tax_id_verification_digit", "legal_name", "address", "city", "billing_email", "tax_responsibilities", "enabled"],
   "fields": [
     {"fieldname": "company", "fieldtype": "Link", "label": "ERPNext Company", "options": "Company", "reqd": 1, "unique": 1},
     {"fieldname": "section_setup", "fieldtype": "Section Break", "label": "Company data"},
     {"fieldname": "tax_id", "fieldtype": "Data", "label": "NIT", "reqd": 1},
+    {"fieldname": "tax_id_verification_digit", "fieldtype": "Data", "label": "Verification Digit", "reqd": 1},
     {"fieldname": "legal_name", "fieldtype": "Data", "label": "Legal Name", "reqd": 1},
+    {"fieldname": "address", "fieldtype": "Data", "label": "Fiscal Address", "reqd": 1},
+    {"fieldname": "city", "fieldtype": "Data", "label": "City", "reqd": 1},
+    {"fieldname": "billing_email", "fieldtype": "Data", "label": "Billing Email", "options": "Email", "reqd": 1},
+    {"description": "Tax responsibilities from the company's RUT.", "fieldname": "tax_responsibilities", "fieldtype": "Small Text", "label": "Tax Responsibilities"},
     {"default": "0", "fieldname": "enabled", "fieldtype": "Check", "label": "Enabled"}
   ],
   "module": "Rekov JCFlow",
