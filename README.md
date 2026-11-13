@@ -53,3 +53,15 @@ Los documentos que tienen requisitos legales distintos —por ejemplo Documento
 Soporte, notas, RADIAN y nómina— no se emiten a ciegas al guardar cualquier
 documento ERPNext. Cada uno necesita un mapeo y una acción explícita con sus
 datos obligatorios.
+
+La integración publicada cubre las rutas actuales de facturación de JCFlow:
+factura, nota crédito, nota débito, documento soporte, nota de ajuste de
+documento soporte, exportación, POS y nota de ajuste POS. Las notas requieren
+que el documento original ya tenga un ID aceptado por JCFlow. Los cinco eventos
+RADIAN publicados por JCFlow están disponibles desde Purchase Invoice como
+acciones explícitas y quedan en `JCFlow Event Log`.
+
+JCFlow anuncia nómina electrónica en sus páginas comerciales, pero el Swagger
+público actual no expone rutas de nómina. La app no inventa una URL: nómina
+queda pendiente de la especificación técnica de JCFlow y de instalar HRMS en
+el bench.

@@ -61,8 +61,13 @@ jobs:
           log = json.loads(Path("rekov_jcflow/rekov_jcflow/doctype/jcflow_transmission_log/jcflow_transmission_log.json").read_text())
           assert log["name"] == "JCFlow Transmission Log"
           assert {field["fieldname"] for field in log["fields"]} >= {
-              "sales_invoice", "status", "provider_number", "idempotency_key", "email_sent", "cufe", "public_url",
+              "source_doctype", "source_name", "sales_invoice", "document_type", "status", "provider_id", "provider_number", "idempotency_key", "email_sent", "cufe", "public_url",
               "qr_url", "request_json", "response_json"
+          }
+          event = json.loads(Path("rekov_jcflow/rekov_jcflow/doctype/jcflow_event_log/jcflow_event_log.json").read_text())
+          assert event["name"] == "JCFlow Event Log"
+          assert {field["fieldname"] for field in event["fields"]} >= {
+              "source_doctype", "source_name", "company", "event_type", "cufe", "status"
           }
           print("Frappe app metadata is valid")
           PY

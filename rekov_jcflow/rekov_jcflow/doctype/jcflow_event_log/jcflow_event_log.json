@@ -1,0 +1,25 @@
+{
+  "actions": [],
+  "allow_rename": 0,
+  "creation": "2026-11-13 00:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": ["source_doctype", "source_name", "company", "event_type", "cufe", "status", "response_json", "error_message"],
+  "fields": [
+    {"fieldname": "source_doctype", "fieldtype": "Data", "label": "Source DocType", "reqd": 1},
+    {"fieldname": "source_name", "fieldtype": "Data", "label": "Source Document", "reqd": 1},
+    {"fieldname": "company", "fieldtype": "Link", "label": "Company", "options": "Company", "reqd": 1},
+    {"fieldname": "event_type", "fieldtype": "Select", "label": "RADIAN Event", "options": "acuse_recibo\nreclamo\nrecibo_bien\naceptacion_expresa\naceptacion_tacita", "reqd": 1},
+    {"fieldname": "cufe", "fieldtype": "Data", "label": "CUFE", "reqd": 1},
+    {"fieldname": "status", "fieldtype": "Select", "label": "Status", "options": "Pending\nAccepted\nFailed", "reqd": 1},
+    {"fieldname": "response_json", "fieldtype": "Code", "label": "Response JSON", "options": "JSON", "read_only": 1},
+    {"fieldname": "error_message", "fieldtype": "Small Text", "label": "Error", "read_only": 1}
+  ],
+  "module": "Rekov JCFlow",
+  "name": "JCFlow Event Log",
+  "owner": "Administrator",
+  "permissions": [{"create": 1, "delete": 1, "read": 1, "role": "System Manager", "write": 1}],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "track_changes": 1
+}

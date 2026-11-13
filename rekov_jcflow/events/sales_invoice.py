@@ -1,6 +1,10 @@
 import frappe
 
-from rekov_jcflow.services.jcflow import create_transmission_log, get_company_credentials
+from rekov_jcflow.services.jcflow import (
+    create_transmission_log,
+    document_type_for,
+    get_company_credentials,
+)
 
 
 def on_submit(doc, method=None):
@@ -17,7 +21,7 @@ def on_submit(doc, method=None):
     if not get_company_credentials(frappe.get_doc("JCFlow Company", company_config)):
         return
 
-    log = create_transmission_log(doc, settings)
+    log = create_transmission_log(doc, document_type_for(doc))
 
     if settings.send_automatically:
         frappe.enqueue(
