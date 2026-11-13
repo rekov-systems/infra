@@ -13,4 +13,5 @@ def get_settings():
     return {
         "enabled": bool(settings.enabled),
         "send_automatically": bool(settings.send_automatically),
+        "send_email_after_acceptance": bool(settings.send_email_after_acceptance),
     }

@@ -48,7 +48,7 @@ jobs:
           assert data["name"] == "JCFlow Settings"
           assert data["issingle"] == 1
           assert {field["fieldname"] for field in data["fields"]} >= {
-              "enabled", "send_automatically"
+              "enabled", "send_automatically", "send_email_after_acceptance"
           }
           assert not {field["fieldname"] for field in data["fields"]} & {
               "api_key", "webhook_secret"
@@ -61,7 +61,7 @@ jobs:
           log = json.loads(Path("rekov_jcflow/rekov_jcflow/doctype/jcflow_transmission_log/jcflow_transmission_log.json").read_text())
           assert log["name"] == "JCFlow Transmission Log"
           assert {field["fieldname"] for field in log["fields"]} >= {
-              "sales_invoice", "status", "provider_number", "idempotency_key", "cufe", "public_url",
+              "sales_invoice", "status", "provider_number", "idempotency_key", "email_sent", "cufe", "public_url",
               "qr_url", "request_json", "response_json"
           }
           print("Frappe app metadata is valid")

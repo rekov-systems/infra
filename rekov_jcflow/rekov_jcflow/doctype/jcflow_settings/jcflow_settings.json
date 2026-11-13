@@ -4,10 +4,11 @@
   "creation": "2026-11-13 00:00:00.000000",
   "doctype": "DocType",
   "engine": "InnoDB",
-  "field_order": ["enabled", "send_automatically"],
+  "field_order": ["enabled", "send_automatically", "send_email_after_acceptance"],
   "fields": [
     {"default": "0", "fieldname": "enabled", "fieldtype": "Check", "label": "Enabled"},
-    {"default": "0", "description": "Enables the JCFlow integration for this ERPNext site.", "fieldname": "send_automatically", "fieldtype": "Check", "label": "Send Automatically"}
+    {"default": "1", "description": "Transmit supported documents automatically after their native ERPNext submit event.", "fieldname": "send_automatically", "fieldtype": "Check", "label": "Automatic DIAN Transmission"},
+    {"default": "1", "description": "Send an ERPNext email with the accepted JCFlow document links after transmission.", "fieldname": "send_email_after_acceptance", "fieldtype": "Check", "label": "Email After Acceptance"}
   ],
   "issingle": 1,
   "module": "Rekov JCFlow",

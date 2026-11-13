@@ -100,6 +100,30 @@ def _response_data(result):
     return data if isinstance(data, dict) else result
 
 
+def _send_acceptance_email(invoice, log, settings):
+    if not settings.send_email_after_acceptance or log.email_sent:
+        return
+    customer = frappe.get_doc("Customer", invoice.customer)
+    recipient = customer.get("email_id")
+    if not recipient:
+        return
+    links = [link for link in (log.public_url, log.pdf_url, log.xml_url) if link]
+    body = [
+        f"La factura {invoice.name} fue aceptada por JCFlow.",
+        f"CUFE: {log.cufe or 'Pendiente de respuesta'}",
+    ]
+    if links:
+        body.append("Documentos: " + "\n".join(links))
+    frappe.sendmail(
+        recipients=[recipient],
+        subject=f"Factura electrónica {invoice.name}",
+        message="\n\n".join(body),
+        reference_doctype="Sales Invoice",
+        reference_name=invoice.name,
+    )
+    log.email_sent = 1
+
+
 def transmit_log(log_name):
     log = frappe.get_doc("JCFlow Transmission Log", log_name)
     settings = frappe.get_single("JCFlow Settings")
@@ -139,6 +163,11 @@ def transmit_log(log_name):
         log.pdf_url = links.get("pdf_url")
         log.xml_url = links.get("xml_url")
         log.error_message = None
+        try:
+            _send_acceptance_email(invoice, log, settings)
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "JCFlow acceptance email")
+            log.error_message = "DIAN accepted the document, but the ERPNext email could not be queued."
     else:
         log.status = "Failed"
         log.error_message = response.text[:2000]

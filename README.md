@@ -43,7 +43,13 @@ contraseña adicionales. La provisión del NIT, certificado, software DIAN y
 paquetes se hace en JCFlow.
 
 La app escucha el evento nativo `on_submit` de `Sales Invoice`, crea un
-`JCFlow Transmission Log` y usa la cola de fondo de Frappe. No sobrescribe
-controladores, no modifica tablas de ERPNext y no bloquea el envío de la
-factura. La transmisión permanece apagada hasta activar explícitamente la
-configuración del tenant.
+`JCFlow Transmission Log` y usa la cola de fondo de Frappe. Con JCFlow y la
+empresa configurados, la transmisión DIAN puede ejecutarse automáticamente.
+Después de una aceptación, la app puede crear un correo en la cola nativa de
+ERPNext con el CUFE y los enlaces PDF/XML; el envío requiere configurar un
+`Email Account` saliente y que el Customer tenga correo.
+
+Los documentos que tienen requisitos legales distintos —por ejemplo Documento
+Soporte, notas, RADIAN y nómina— no se emiten a ciegas al guardar cualquier
+documento ERPNext. Cada uno necesita un mapeo y una acción explícita con sus
+datos obligatorios.

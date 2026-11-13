@@ -4,7 +4,7 @@
   "creation": "2026-11-12 00:00:00.000000",
   "doctype": "DocType",
   "engine": "InnoDB",
-  "field_order": ["sales_invoice", "company", "status", "attempts", "http_status", "idempotency_key", "section_response", "provider_number", "cufe", "public_url", "qr_url", "pdf_url", "xml_url", "error_message", "section_payload", "request_json", "response_json"],
+  "field_order": ["sales_invoice", "company", "status", "attempts", "http_status", "idempotency_key", "email_sent", "section_response", "provider_number", "cufe", "public_url", "qr_url", "pdf_url", "xml_url", "error_message", "section_payload", "request_json", "response_json"],
   "fields": [
     {"fieldname": "sales_invoice", "fieldtype": "Link", "label": "Sales Invoice", "options": "Sales Invoice", "reqd": 1, "unique": 1},
     {"fieldname": "company", "fieldtype": "Link", "label": "Company", "options": "Company", "reqd": 1},
@@ -12,6 +12,7 @@
     {"default": "0", "fieldname": "attempts", "fieldtype": "Int", "label": "Attempts"},
     {"fieldname": "http_status", "fieldtype": "Int", "label": "HTTP Status"},
     {"fieldname": "idempotency_key", "fieldtype": "Data", "label": "Idempotency Key", "read_only": 1},
+    {"default": "0", "fieldname": "email_sent", "fieldtype": "Check", "label": "Email Sent", "read_only": 1},
     {"fieldname": "section_response", "fieldtype": "Section Break", "label": "Response"},
     {"fieldname": "provider_number", "fieldtype": "Data", "label": "JCFlow Number", "read_only": 1},
     {"fieldname": "cufe", "fieldtype": "Data", "label": "CUFE", "read_only": 1},
