@@ -1,9 +1,9 @@
 [project]
-name = "rekov_jcflow"
+name = "rekov_factus"
 authors = [
   { name = "Rekov Systems" }
 ]
-description = "Private JCFlow DIAN integration for Frappe and ERPNext"
+description = "Private Factus DIAN integration for Frappe and ERPNext"
 requires-python = ">=3.11"
 readme = "README.md"
 license = { text = "GPL-3.0-or-later" }

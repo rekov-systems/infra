@@ -8,11 +8,11 @@
   "fields": [
     {"default": "0", "fieldname": "enabled", "fieldtype": "Check", "label": "Enabled"},
     {"default": "Sandbox", "fieldname": "environment", "fieldtype": "Select", "label": "Environment", "options": "Sandbox\nProduction", "reqd": 1},
-    {"default": "0", "description": "Keep disabled until the Rekov JCFlow server secret and every company are ready.", "fieldname": "send_automatically", "fieldtype": "Check", "label": "Send Automatically"}
+    {"default": "0", "description": "Keep disabled until the Factus OAuth credentials and every company are ready.", "fieldname": "send_automatically", "fieldtype": "Check", "label": "Send Automatically"}
   ],
   "issingle": 1,
-  "module": "Rekov JCFlow",
-  "name": "JCFlow Settings",
+  "module": "Rekov Factus",
+  "name": "Factus Settings",
   "owner": "Administrator",
   "permissions": [{"create": 1, "delete": 1, "read": 1, "role": "System Manager", "write": 1}],
   "sort_field": "modified",

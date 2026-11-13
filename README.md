@@ -27,25 +27,23 @@ un script de lifecycle propio.
 R2 permanece reservado para estado Terraform y backups. Los workflows de
 recovery son independientes del bootstrap normal.
 
-## Aplicación privada JCFlow
+## Aplicación privada Factus
 
 Este mismo repositorio también contiene la aplicación Frappe privada
-`rekov_jcflow` en la raíz. CI valida su metadata y su compatibilidad básica sin
+`rekov_factus` en la raíz. CI valida su metadata y su compatibilidad básica sin
 instalarla automáticamente en todos los tenants.
 
 Pilot puede importar este repositorio como una app personalizada y luego
 instalarla únicamente en los sitios seleccionados. La app separa la
-configuración global administrada por Rekov de la configuración fiscal de cada
+configuración administrada por Rekov de la configuración fiscal de cada
 empresa. La API key no se solicita al tenant. Cada empresa tiene un registro
-JCFlow propio para su empresa, sin exponer credenciales técnicas al tenant.
-La credencial global se lee desde `rekov_jcflow_api_key` en la configuración
-segura del bench/site y nunca se guarda en un DocType visible desde Desk.
-El envío real se habilitará después de validar el contrato JSON y el mecanismo
-de selección multiempresa de JCFlow en sandbox; no se deben usar claves de
-producción durante esa etapa.
+Factus propio, con las credenciales únicas del facturador guardadas como
+campos Password cifrados por Frappe y administradas por Rekov. La provisión
+del NIT, certificado, rango y bolsa se hace en el Panel de Aliados de Factus;
+no se inventa un endpoint para crear subempresas.
 
 La app escucha el evento nativo `on_submit` de `Sales Invoice`, crea un
-`JCFlow Transmission Log` y usa la cola de fondo de Frappe. No sobrescribe
+`Factus Transmission Log` y usa la cola de fondo de Frappe. No sobrescribe
 controladores, no modifica tablas de ERPNext y no bloquea el envío de la
 factura. La transmisión permanece apagada hasta activar explícitamente la
 configuración del tenant.

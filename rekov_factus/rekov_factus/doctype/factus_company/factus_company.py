@@ -1,5 +1,5 @@
 from frappe.model.document import Document
 
 
-class JCFlowCompany(Document):
+class FactusCompany(Document):
     pass
