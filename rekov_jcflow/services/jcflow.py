@@ -195,22 +195,33 @@ def transmit_log(log_name):
         return
     payload = build_document_payload(doc, log.document_type)
     endpoint = DOCUMENT_ENDPOINTS[log.document_type]
-    response = requests.post(
-        f"{JCFLOW_URL}{endpoint}",
-        headers={
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "X-Api-Key": credentials["api_key"],
-            "Idempotency-Key": log.idempotency_key or str(uuid.uuid4()),
-        },
-        json=payload,
-        timeout=60,
-    )
+    try:
+        response = requests.post(
+            f"{JCFLOW_URL}{endpoint}",
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "X-Api-Key": credentials["api_key"],
+                "Idempotency-Key": log.idempotency_key or str(uuid.uuid4()),
+            },
+            json=payload,
+            timeout=60,
+        )
+    except requests.RequestException as exc:
+        log.attempts = (log.attempts or 0) + 1
+        log.status = "Failed"
+        log.error_message = str(exc)[:2000]
+        log.save(ignore_permissions=True)
+        return
     log.attempts = (log.attempts or 0) + 1
     log.http_status = response.status_code
     log.response_json = response.text
-    if response.ok:
+    try:
         result = response.json()
+    except ValueError:
+        result = {}
+    accepted = response.ok and result.get("success", True) is not False
+    if accepted:
         data = _response_data(result)
         links = data.get("links") or data.get("archivos") or {}
         log.status = "Accepted"
@@ -229,7 +240,11 @@ def transmit_log(log_name):
             log.error_message = "JCFlow accepted the document, but the ERPNext email could not be queued."
     else:
         log.status = "Failed"
-        log.error_message = response.text[:2000]
+        log.error_message = (
+            result.get("message")
+            or result.get("error")
+            or response.text[:2000]
+        )
     log.save(ignore_permissions=True)
 
 
@@ -325,14 +340,25 @@ def transmit_radian_event(log_name, motivo=None, notes=None):
         payload["motivo"] = motivo
     if notes:
         payload["notes"] = notes
-    response = requests.post(
-        f"{JCFLOW_URL}{RADIAN_ENDPOINTS[log.event_type]}",
-        headers={"Accept": "application/json", "Content-Type": "application/json", "X-Api-Key": credentials["api_key"]},
-        json=payload,
-        timeout=60,
-    )
+    try:
+        response = requests.post(
+            f"{JCFLOW_URL}{RADIAN_ENDPOINTS[log.event_type]}",
+            headers={"Accept": "application/json", "Content-Type": "application/json", "X-Api-Key": credentials["api_key"]},
+            json=payload,
+            timeout=60,
+        )
+    except requests.RequestException as exc:
+        log.status = "Failed"
+        log.error_message = str(exc)[:2000]
+        log.save(ignore_permissions=True)
+        return
     log.response_json = response.text
-    log.status = "Accepted" if response.ok else "Failed"
-    if not response.ok:
-        log.error_message = response.text[:2000]
+    try:
+        result = response.json()
+    except ValueError:
+        result = {}
+    accepted = response.ok and result.get("success", True) is not False
+    log.status = "Accepted" if accepted else "Failed"
+    if not accepted:
+        log.error_message = result.get("message") or result.get("error") or response.text[:2000]
     log.save(ignore_permissions=True)
