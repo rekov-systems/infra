@@ -48,7 +48,12 @@ jobs:
           assert data["name"] == "JCFlow Settings"
           assert data["issingle"] == 1
           assert {field["fieldname"] for field in data["fields"]} >= {
-              "environment", "api_key", "company"
+              "environment", "api_key", "send_automatically"
+          }
+          company = json.loads(Path("rekov_jcflow/rekov_jcflow/doctype/jcflow_company/jcflow_company.json").read_text())
+          assert company["name"] == "JCFlow Company"
+          assert {field["fieldname"] for field in company["fields"]} >= {
+              "company", "jcflow_account_id", "certificate_status", "tax_id", "legal_name"
           }
           log = json.loads(Path("rekov_jcflow/rekov_jcflow/doctype/jcflow_transmission_log/jcflow_transmission_log.json").read_text())
           assert log["name"] == "JCFlow Transmission Log"
