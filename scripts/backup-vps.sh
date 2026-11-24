@@ -18,7 +18,8 @@ ssh "${opts[@]}" "$BACKUP_USER@$BACKUP_HOST" \
   'sudo tar --ignore-failed-read --numeric-owner -C / -czf - home/frappe home/ubuntu/pilot /opt /etc/nginx /etc/caddy /etc/systemd/system /var/lib/docker/volumes /var/lib/mysql /var/lib/redis 2>/dev/null' \
   | openssl enc -aes-256-cbc -pbkdf2 -salt -pass env:RECOVERY_PASSPHRASE \
       >"$RECOVERY_DIR/$BACKUP_LABEL-state.tar.gz.enc"
-if ssh "${opts[@]}" "$BACKUP_USER@$BACKUP_HOST" 'command -v mariadb-dump >/dev/null || command -v mysqldump >/dev/null'; then
+if ssh "${opts[@]}" "$BACKUP_USER@$BACKUP_HOST" \
+  '(command -v mariadb-dump >/dev/null || command -v mysqldump >/dev/null) && { systemctl is-active --quiet mariadb || systemctl is-active --quiet mysql || systemctl is-active --quiet mysqld; }'; then
   ssh "${opts[@]}" "$BACKUP_USER@$BACKUP_HOST" \
     'if command -v mariadb-dump >/dev/null; then sudo mariadb-dump --all-databases --single-transaction --routines --events --triggers --hex-blob; else sudo mysqldump --all-databases --single-transaction --routines --events --triggers --hex-blob; fi' \
     | openssl enc -aes-256-cbc -pbkdf2 -salt -pass env:RECOVERY_PASSPHRASE \
