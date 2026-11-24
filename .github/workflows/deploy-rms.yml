@@ -72,6 +72,9 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ env.R2_STORAGE_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ${{ env.R2_STORAGE_REGION }}
         run: |
+          : "${CONTABO_PUBLIC_IP:?Infisical must provide CONTABO_PUBLIC_IP}"
+          : "${CONTABO_SSH_PRIVATE_KEY:?Infisical must provide CONTABO_SSH_PRIVATE_KEY}"
+          : "${OCI_POS_IP:?OCI public IP was not resolved from Terraform state}"
           mkdir -p "$RECOVERY_DIR"
           printf '%s\n' "$SSH_PRIVATE_KEY" > "$RUNNER_TEMP/oci_key"
           printf '%s\n' "$CONTABO_SSH_PRIVATE_KEY" > "$RUNNER_TEMP/contabo_key"
