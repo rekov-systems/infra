@@ -1,0 +1,9 @@
+api.pos.rekov.co {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8000
+}
+
+studio.pos.rekov.co {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8000
+}

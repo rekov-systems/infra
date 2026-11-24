@@ -1,0 +1,21 @@
+services:
+  functions:
+    environment:
+      DESK_AI_WORKER_URL: ${DESK_AI_WORKER_URL:-}
+
+  api-gw:
+    ports: !override
+      - "127.0.0.1:8000:8000/tcp"
+
+  supavisor:
+    ports: !override []
+
+  rms-caddy:
+    image: caddy:2-alpine
+    container_name: rms-caddy
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - /opt/rms/Caddyfile:/etc/caddy/Caddyfile:ro
+      - /opt/rms/caddy-data:/data
+      - /opt/rms/caddy-config:/config

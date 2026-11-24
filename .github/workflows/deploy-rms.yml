@@ -1,0 +1,206 @@
+name: Deploy RMS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: rekov-rms-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Load production secrets from Infisical
+        uses: Infisical/secrets-action@v1.0.18
+        with:
+          method: oidc
+          identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
+          project-slug: ${{ vars.INFISICAL_PROJECT_SLUG }}
+          env-slug: ${{ vars.INFISICAL_ENV_SLUG }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.9
+
+      - name: Resolve the existing OCI host and Terraform state
+        env:
+          AWS_ACCESS_KEY_ID: ${{ env.R2_STORAGE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.R2_STORAGE_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ env.R2_STORAGE_REGION }}
+          TF_VAR_cloudflare_api_token: ${{ env.TF_VAR_cloudflare_api_token }}
+          TF_VAR_cloudflare_zone_id: ${{ env.TF_VAR_cloudflare_zone_id }}
+          TF_VAR_compartment_ocid: ${{ env.TF_VAR_compartment_ocid }}
+          TF_VAR_fingerprint: ${{ env.TF_VAR_fingerprint }}
+          TF_VAR_oci_region: ${{ env.TF_VAR_oci_region }}
+          TF_VAR_private_key: ${{ env.TF_VAR_private_key }}
+          TF_VAR_ssh_public_key: ${{ env.TF_VAR_ssh_public_key }}
+          TF_VAR_tenancy_ocid: ${{ env.TF_VAR_tenancy_ocid }}
+          TF_VAR_user_ocid: ${{ env.TF_VAR_user_ocid }}
+          TF_VAR_cloudflare_root_domain: ${{ env.CLOUDFLARE_ROOT_DOMAIN || env.PRESS_ROOT_DOMAIN }}
+          TF_VAR_contabo_public_ip: ${{ env.CONTABO_PUBLIC_IP }}
+          TF_VAR_ocpus: "2"
+          TF_VAR_memory_in_gbs: "12"
+        run: |
+          terraform -chdir=terraform init -input=false \
+            -backend-config="bucket=$R2_STORAGE_BUCKET" \
+            -backend-config="key=$R2_STORAGE_STATE_KEY" \
+            -backend-config="region=$R2_STORAGE_REGION" \
+            -backend-config="endpoint=$R2_STORAGE_ENDPOINT" \
+            -backend-config="skip_credentials_validation=true" \
+            -backend-config="skip_metadata_api_check=true" \
+            -backend-config="skip_requesting_account_id=true" \
+            -backend-config="skip_region_validation=true" \
+            -backend-config="skip_s3_checksum=true" \
+            -backend-config="use_path_style=true"
+          terraform -chdir=terraform state pull > "$RUNNER_TEMP/terraform-state.json"
+          echo "OCI_POS_IP=$(terraform -chdir=terraform output -raw control_public_ip)" >> "$GITHUB_ENV"
+
+      - name: Back up both VPS before cutover
+        env:
+          RECOVERY_DIR: ${{ runner.temp }}/rms-recovery
+          RECOVERY_PASSPHRASE: ${{ env.RECOVERY_PASSPHRASE }}
+          AWS_ACCESS_KEY_ID: ${{ env.R2_STORAGE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.R2_STORAGE_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ env.R2_STORAGE_REGION }}
+        run: |
+          mkdir -p "$RECOVERY_DIR"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$RUNNER_TEMP/oci_key"
+          printf '%s\n' "$CONTABO_SSH_PRIVATE_KEY" > "$RUNNER_TEMP/contabo_key"
+          chmod 600 "$RUNNER_TEMP/oci_key" "$RUNNER_TEMP/contabo_key"
+          BACKUP_HOST="$OCI_POS_IP" BACKUP_USER=ubuntu BACKUP_LABEL=oci \
+            BACKUP_SSH_KEY="$SSH_PRIVATE_KEY" bash scripts/backup-vps.sh
+          BACKUP_HOST="$CONTABO_PUBLIC_IP" BACKUP_USER="${CONTABO_SSH_USER:-ubuntu}" \
+            BACKUP_LABEL=contabo BACKUP_SSH_KEY="$CONTABO_SSH_PRIVATE_KEY" \
+            bash scripts/backup-vps.sh
+          cp "$RUNNER_TEMP/terraform-state.json" "$RECOVERY_DIR/terraform-state.json"
+          (cd "$RECOVERY_DIR" && sha256sum * > SHA256SUMS)
+          aws s3 sync "$RECOVERY_DIR" "s3://$R2_STORAGE_BUCKET/recovery/rms/$GITHUB_RUN_ID/" \
+            --endpoint-url "$R2_STORAGE_ENDPOINT" --only-show-errors
+
+      - name: Reconcile DNS while retaining both hosts
+        env:
+          AWS_ACCESS_KEY_ID: ${{ env.R2_STORAGE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.R2_STORAGE_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ env.R2_STORAGE_REGION }}
+          TF_VAR_cloudflare_api_token: ${{ env.TF_VAR_cloudflare_api_token }}
+          TF_VAR_cloudflare_zone_id: ${{ env.TF_VAR_cloudflare_zone_id }}
+          TF_VAR_compartment_ocid: ${{ env.TF_VAR_compartment_ocid }}
+          TF_VAR_fingerprint: ${{ env.TF_VAR_fingerprint }}
+          TF_VAR_oci_region: ${{ env.TF_VAR_oci_region }}
+          TF_VAR_private_key: ${{ env.TF_VAR_private_key }}
+          TF_VAR_ssh_public_key: ${{ env.TF_VAR_ssh_public_key }}
+          TF_VAR_tenancy_ocid: ${{ env.TF_VAR_tenancy_ocid }}
+          TF_VAR_user_ocid: ${{ env.TF_VAR_user_ocid }}
+          TF_VAR_cloudflare_root_domain: ${{ env.CLOUDFLARE_ROOT_DOMAIN || env.PRESS_ROOT_DOMAIN }}
+          TF_VAR_contabo_public_ip: ${{ env.CONTABO_PUBLIC_IP }}
+          TF_VAR_ocpus: "2"
+          TF_VAR_memory_in_gbs: "12"
+        run: |
+          terraform -chdir=terraform plan -input=false -out="$RUNNER_TEMP/rms.tfplan"
+          terraform -chdir=terraform show -json "$RUNNER_TEMP/rms.tfplan" \
+            | jq -e '[.resource_changes[] | select(.type == "oci_core_instance" or .type == "oci_core_vcn" or .type == "oci_core_subnet") | select(.change.actions | index("delete"))] | length == 0' >/dev/null
+          terraform -chdir=terraform apply -input=false -auto-approve "$RUNNER_TEMP/rms.tfplan"
+
+      - name: Prepare SSH keys
+        run: |
+          umask 077
+          printf '%s\n' "$SSH_PRIVATE_KEY" | perl -pe 's/\\\\n/\n/g; s/\r//g' > "$RUNNER_TEMP/oci_key"
+          printf '%s\n' "$CONTABO_SSH_PRIVATE_KEY" | perl -pe 's/\\\\n/\n/g; s/\r//g' > "$RUNNER_TEMP/contabo_key"
+          chmod 600 "$RUNNER_TEMP/oci_key" "$RUNNER_TEMP/contabo_key"
+          ssh-keygen -y -f "$RUNNER_TEMP/oci_key" >/dev/null
+          ssh-keygen -y -f "$RUNNER_TEMP/contabo_key" >/dev/null
+
+      - name: Bootstrap Supabase on Contabo
+        env:
+          SUPABASE_DB_PASSWORD: ${{ env.SUPABASE_DB_PASSWORD }}
+          SUPABASE_DASHBOARD_PASSWORD: ${{ env.SUPABASE_DASHBOARD_PASSWORD }}
+        run: |
+          target="${CONTABO_SSH_USER:-ubuntu}@$CONTABO_PUBLIC_IP"
+          scripts/prepare-pos-migrations.sh apps/pos/supabase/migrations "$RUNNER_TEMP/rms-migrations"
+          scp -i "$RUNNER_TEMP/contabo_key" -o StrictHostKeyChecking=accept-new \
+            scripts/bootstrap-supabase-contabo.sh scripts/migrate-pos-db.sh \
+            scripts/activate-supabase-contabo.sh deploy/supabase-compose.yml \
+            deploy/Caddyfile.contabo "$target:/tmp/"
+          ssh -i "$RUNNER_TEMP/contabo_key" -o StrictHostKeyChecking=accept-new "$target" \
+            'mkdir -p /tmp/rms-pos-supabase /tmp/rms-custom-functions'
+          scp -i "$RUNNER_TEMP/contabo_key" -o StrictHostKeyChecking=accept-new -r \
+            "$RUNNER_TEMP/rms-migrations" apps/pos/supabase/functions "$target:/tmp/rms-pos-supabase/"
+          scp -i "$RUNNER_TEMP/contabo_key" -o StrictHostKeyChecking=accept-new -r \
+            deploy/functions/. "$target:/tmp/rms-custom-functions/"
+          { printf 'SUPABASE_DB_PASSWORD=%q\n' "$SUPABASE_DB_PASSWORD"; \
+            printf 'SUPABASE_DASHBOARD_PASSWORD=%q\n' "$SUPABASE_DASHBOARD_PASSWORD"; \
+            printf 'DESK_AI_WORKER_URL=%q\n' "${DESK_AI_WORKER_URL:-}"; } \
+            > "$RUNNER_TEMP/contabo.env"
+          scp -i "$RUNNER_TEMP/contabo_key" -o StrictHostKeyChecking=accept-new \
+            "$RUNNER_TEMP/contabo.env" "$target:/tmp/rms.env"
+          ssh -i "$RUNNER_TEMP/contabo_key" -o StrictHostKeyChecking=accept-new "$target" \
+            'sudo bash -lc "chmod 600 /tmp/rms.env; set -a; source /tmp/rms.env; set +a; install -m 0644 /tmp/supabase-compose.yml /tmp/rms-supabase-compose.yml; install -m 0644 /tmp/Caddyfile.contabo /tmp/rms-Caddyfile; bash /tmp/bootstrap-supabase-contabo.sh; mkdir -p /tmp/rms-migrations /tmp/rms-functions; cp -a /tmp/rms-pos-supabase/rms-migrations/. /tmp/rms-migrations/; cp -a /tmp/rms-pos-supabase/functions/. /tmp/rms-functions/; MIGRATIONS_DIR=/tmp/rms-migrations bash /tmp/migrate-pos-db.sh; bash /tmp/activate-supabase-contabo.sh"'
+
+      - name: Read the public Supabase publishable key
+        id: supabase
+        run: |
+          key="$(ssh -i "$RUNNER_TEMP/contabo_key" -o StrictHostKeyChecking=accept-new \
+            "${CONTABO_SSH_USER:-ubuntu}@$CONTABO_PUBLIC_IP" \
+            "sudo grep '^SUPABASE_PUBLISHABLE_KEY=' /opt/rms/supabase/.env | cut -d= -f2-")"
+          test -n "$key"
+          echo "publishable_key=$key" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/pos/package-lock.json
+
+      - name: Build POS with the self-hosted Supabase endpoint
+        working-directory: apps/pos
+        env:
+          VITE_SUPABASE_URL: https://api.pos.rekov.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ steps.supabase.outputs.publishable_key }}
+        run: npm ci && npm run build
+
+      - name: Deploy POS to OCI and cut over after local health check
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ env.TF_VAR_cloudflare_api_token }}
+        run: |
+          tar -czf "$RUNNER_TEMP/rms-pos-dist.tgz" -C apps/pos/dist .
+          printf 'CLOUDFLARE_API_TOKEN=%s\n' "$CLOUDFLARE_API_TOKEN" > "$RUNNER_TEMP/oci.env"
+          scp -i "$RUNNER_TEMP/oci_key" -o StrictHostKeyChecking=accept-new \
+            "$RUNNER_TEMP/rms-pos-dist.tgz" scripts/deploy-pos-oci.sh \
+            deploy/oci-compose.yml deploy/Caddyfile.oci deploy/nginx-pos.conf \
+            deploy/caddy-cloudflare.Dockerfile "$RUNNER_TEMP/oci.env" \
+            "ubuntu@$OCI_POS_IP:/tmp/"
+          ssh -i "$RUNNER_TEMP/oci_key" -o StrictHostKeyChecking=accept-new \
+            "ubuntu@$OCI_POS_IP" 'sudo bash /tmp/deploy-pos-oci.sh'
+
+      - name: Verify public Supabase and POS
+        env:
+          SUPABASE_PUBLISHABLE_KEY: ${{ steps.supabase.outputs.publishable_key }}
+        run: |
+          curl --retry 30 --retry-delay 3 --retry-connrefused -fsS \
+            https://api.pos.rekov.co/auth/v1/health >/dev/null
+          curl --retry 30 --retry-delay 3 --retry-connrefused -fsS \
+            -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+            'https://api.pos.rekov.co/rest/v1/tenants?select=id&limit=1' >/dev/null
+          curl --retry 30 --retry-delay 3 --retry-connrefused -fsS \
+            https://pos.rekov.co/health
+          echo "RMS deployed. Encrypted previous state: recovery/rms/$GITHUB_RUN_ID/"
+
+      - name: Retire the backed-up Pilot and ERPNext installations
+        run: |
+          scp -i "$RUNNER_TEMP/oci_key" -o StrictHostKeyChecking=accept-new \
+            scripts/retire-legacy-vps.sh "ubuntu@$OCI_POS_IP:/tmp/"
+          scp -i "$RUNNER_TEMP/contabo_key" -o StrictHostKeyChecking=accept-new \
+            scripts/retire-legacy-vps.sh "${CONTABO_SSH_USER:-ubuntu}@$CONTABO_PUBLIC_IP:/tmp/"
+          ssh -i "$RUNNER_TEMP/oci_key" -o StrictHostKeyChecking=accept-new \
+            "ubuntu@$OCI_POS_IP" 'sudo bash /tmp/retire-legacy-vps.sh'
+          ssh -i "$RUNNER_TEMP/contabo_key" -o StrictHostKeyChecking=accept-new \
+            "${CONTABO_SSH_USER:-ubuntu}@$CONTABO_PUBLIC_IP" 'sudo bash /tmp/retire-legacy-vps.sh'

@@ -1,0 +1,32 @@
+name: Sync POS upstream
+
+on:
+  schedule:
+    - cron: "17 8 * * 2"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Merge upstream subtree
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add pos-upstream https://github.com/mateopiza/ai-point-of-sale.git
+          git fetch pos-upstream main
+          git subtree pull --prefix=apps/pos pos-upstream main --squash
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          branch: automation/pos-upstream-sync
+          delete-branch: true
+          title: "chore: sync POS upstream"
+          commit-message: "chore: sync POS upstream"
+          body: "Automated upstream subtree update from mateopiza/ai-point-of-sale. Review schema/functions, then merge to deploy."

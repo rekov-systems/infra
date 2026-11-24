@@ -1,0 +1,15 @@
+node_modules/
+**/node_modules/
+apps/pos/dist/
+apps/pos/dist-electron/
+.env
+.env.*
+!.env.example
+terraform/.terraform/
+terraform/*.tfstate*
+terraform/*.tfvars
+terraform/backend.hcl
+.local/
+recovery/
+__pycache__/
+*.py[cod]

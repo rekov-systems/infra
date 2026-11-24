@@ -1,0 +1,25 @@
+services:
+  pos-web:
+    image: nginx:1.27-alpine
+    container_name: rms-pos-web
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:80"
+    volumes:
+      - /opt/rms/pos:/usr/share/nginx/html:ro
+      - /opt/rms/nginx-pos.conf:/etc/nginx/conf.d/default.conf:ro
+
+  rms-caddy:
+    build:
+      context: /opt/rms/caddy
+      dockerfile: Dockerfile
+    image: rekov/caddy-cloudflare:2
+    container_name: rms-caddy
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:?Set CLOUDFLARE_API_TOKEN}
+    volumes:
+      - /opt/rms/Caddyfile:/etc/caddy/Caddyfile:ro
+      - /opt/rms/caddy-data:/data
+      - /opt/rms/caddy-config:/config

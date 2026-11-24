@@ -1,0 +1,60 @@
+name: Back up RMS data
+
+on:
+  schedule:
+    - cron: "31 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: rekov-rms-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Load production secrets from Infisical
+        uses: Infisical/secrets-action@v1.0.18
+        with:
+          method: oidc
+          identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
+          project-slug: ${{ vars.INFISICAL_PROJECT_SLUG }}
+          env-slug: ${{ vars.INFISICAL_ENV_SLUG }}
+      - name: Create and verify encrypted Postgres and Storage backups
+        env:
+          RECOVERY_PASSPHRASE: ${{ env.RECOVERY_PASSPHRASE }}
+          AWS_ACCESS_KEY_ID: ${{ env.R2_STORAGE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.R2_STORAGE_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ env.R2_STORAGE_REGION }}
+        run: |
+          umask 077
+          printf '%s\n' "$CONTABO_SSH_PRIVATE_KEY" | perl -pe 's/\\\\n/\n/g; s/\r//g' > "$RUNNER_TEMP/contabo_key"
+          chmod 600 "$RUNNER_TEMP/contabo_key"
+          ssh-keygen -y -f "$RUNNER_TEMP/contabo_key" >/dev/null
+          mkdir -p "$RUNNER_TEMP/rms-backup"
+          target="${CONTABO_SSH_USER:-ubuntu}@$CONTABO_PUBLIC_IP"
+          ssh -i "$RUNNER_TEMP/contabo_key" -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$target" \
+            'cd /opt/rms/supabase && docker compose -f docker-compose.yml -f docker-compose.rms.yml exec -T db pg_dump -U postgres -d postgres -Fc' \
+            | openssl enc -aes-256-cbc -pbkdf2 -salt -pass env:RECOVERY_PASSPHRASE \
+                > "$RUNNER_TEMP/rms-backup/postgres.dump.enc"
+          ssh -i "$RUNNER_TEMP/contabo_key" -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$target" \
+            'sudo tar -C /opt/rms -czf - supabase/.env supabase/volumes/storage Caddyfile caddy-data caddy-config' \
+            | openssl enc -aes-256-cbc -pbkdf2 -salt -pass env:RECOVERY_PASSPHRASE \
+                > "$RUNNER_TEMP/rms-backup/config-storage.tar.gz.enc"
+          openssl enc -d -aes-256-cbc -pbkdf2 -salt -pass env:RECOVERY_PASSPHRASE \
+            -in "$RUNNER_TEMP/rms-backup/postgres.dump.enc" \
+            | docker run --rm -i postgres:17 pg_restore --list - >/dev/null
+          openssl enc -d -aes-256-cbc -pbkdf2 -salt -pass env:RECOVERY_PASSPHRASE \
+            -in "$RUNNER_TEMP/rms-backup/config-storage.tar.gz.enc" \
+            | tar -tzf - >/dev/null
+          (cd "$RUNNER_TEMP/rms-backup" && sha256sum * > SHA256SUMS)
+          aws s3 sync "$RUNNER_TEMP/rms-backup" \
+            "s3://$R2_STORAGE_BUCKET/recovery/rms/daily/$GITHUB_RUN_ID/" \
+            --endpoint-url "$R2_STORAGE_ENDPOINT" --only-show-errors

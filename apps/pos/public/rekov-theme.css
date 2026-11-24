@@ -1,0 +1,11 @@
+/* Paleta Desk aplicada como overlay; conserva el diseño claro y el layout POS. */
+:root {
+  --primary: 18 100% 56% !important; /* #ff5a1f */
+  --primary-glow: 26 100% 64% !important; /* #ff8a45 */
+  --ring: 18 100% 56% !important;
+  --sidebar-primary: 18 100% 62% !important;
+  --sidebar-ring: 18 100% 62% !important;
+  --gradient-primary: linear-gradient(135deg, #ff5a1f, #ff8a45) !important;
+  --accent: 22 100% 96% !important;
+  --accent-foreground: 16 80% 24% !important;
+}

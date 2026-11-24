@@ -1,0 +1,35 @@
+name: Validate RMS infrastructure
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/pos/package-lock.json
+      - name: Validate Terraform and deployment scripts
+        run: |
+          terraform -chdir=terraform fmt -check -recursive
+          terraform -chdir=terraform init -backend=false -input=false
+          terraform -chdir=terraform validate
+          bash -n scripts/*.sh
+      - name: Build the upstream POS bundle
+        working-directory: apps/pos
+        env:
+          VITE_SUPABASE_URL: https://api.pos.rekov.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_build_placeholder
+        run: npm ci && npm run build

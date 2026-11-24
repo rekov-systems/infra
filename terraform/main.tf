@@ -1,0 +1,159 @@
+data "oci_identity_availability_domains" "this" {
+  compartment_id = var.tenancy_ocid
+}
+
+data "oci_core_images" "ubuntu" {
+  compartment_id           = var.compartment_ocid
+  operating_system         = var.os_name
+  operating_system_version = var.os_version
+  shape                    = var.instance_shape
+  sort_by                  = "TIMECREATED"
+  sort_order               = "DESC"
+}
+
+data "cloudflare_zone" "this" {
+  zone_id = var.cloudflare_zone_id
+}
+
+locals {
+  name = "rekov"
+}
+
+resource "terraform_data" "names" {
+  input = var.cloudflare_root_domain
+  lifecycle {
+    precondition {
+      condition     = data.cloudflare_zone.this.name == var.cloudflare_root_domain
+      error_message = "CLOUDFLARE_ROOT_DOMAIN must match the Cloudflare zone."
+    }
+    precondition {
+      condition     = can(cidrhost("${var.contabo_public_ip}/32", 0))
+      error_message = "CONTABO_PUBLIC_IP must be an IPv4 address."
+    }
+  }
+}
+
+resource "oci_core_vcn" "this" {
+  compartment_id = var.compartment_ocid
+  cidr_blocks    = ["10.0.0.0/16"]
+  display_name   = "${local.name}-vcn"
+  dns_label      = "rekvcn"
+}
+
+resource "oci_core_internet_gateway" "this" {
+  compartment_id = var.compartment_ocid
+  vcn_id         = oci_core_vcn.this.id
+  display_name   = "${local.name}-igw"
+  enabled        = true
+}
+
+resource "oci_core_route_table" "public" {
+  compartment_id = var.compartment_ocid
+  vcn_id         = oci_core_vcn.this.id
+  display_name   = "${local.name}-rt"
+  route_rules {
+    destination       = "0.0.0.0/0"
+    network_entity_id = oci_core_internet_gateway.this.id
+  }
+}
+
+resource "oci_core_security_list" "this" {
+  compartment_id = var.compartment_ocid
+  vcn_id         = oci_core_vcn.this.id
+  display_name   = "${local.name}-sl"
+  egress_security_rules {
+    destination = "0.0.0.0/0"
+    protocol    = "all"
+  }
+  dynamic "ingress_security_rules" {
+    for_each = ["22", "80", "443"]
+    content {
+      protocol = "6"
+      source   = "0.0.0.0/0"
+      tcp_options {
+        min = tonumber(ingress_security_rules.value)
+        max = tonumber(ingress_security_rules.value)
+      }
+    }
+  }
+}
+
+resource "oci_core_subnet" "this" {
+  compartment_id             = var.compartment_ocid
+  vcn_id                     = oci_core_vcn.this.id
+  cidr_block                 = "10.0.1.0/24"
+  route_table_id             = oci_core_route_table.public.id
+  security_list_ids          = [oci_core_security_list.this.id]
+  display_name               = "${local.name}-subnet"
+  dns_label                  = "reksub"
+  prohibit_public_ip_on_vnic = false
+}
+
+# Retains the existing OCI VM and network resources in the existing Terraform state.
+resource "oci_core_instance" "control" {
+  availability_domain = data.oci_identity_availability_domains.this.availability_domains[var.availability_domain_index].name
+  compartment_id      = var.compartment_ocid
+  display_name        = "${local.name}-control"
+  shape               = var.instance_shape
+  shape_config {
+    ocpus         = var.ocpus
+    memory_in_gbs = var.memory_in_gbs
+  }
+  source_details {
+    source_id   = data.oci_core_images.ubuntu.images[0].id
+    source_type = "image"
+  }
+  create_vnic_details {
+    subnet_id        = oci_core_subnet.this.id
+    assign_public_ip = true
+  }
+  metadata = {
+    ssh_authorized_keys = var.ssh_public_key
+    user_data           = base64encode(templatefile("${path.module}/cloud-init-rms.yaml.tftpl", { ssh_public_key = var.ssh_public_key }))
+  }
+  agent_config {
+    are_all_plugins_disabled = false
+    is_management_disabled   = false
+    plugins_config {
+      name          = "Compute Instance Run Command"
+      desired_state = "ENABLED"
+    }
+  }
+  lifecycle { ignore_changes = [source_details] }
+}
+
+resource "cloudflare_dns_record" "admin" {
+  zone_id = var.cloudflare_zone_id
+  name    = "pos"
+  type    = "A"
+  content = oci_core_instance.control.public_ip
+  ttl     = 1
+  proxied = false
+}
+
+resource "cloudflare_dns_record" "tenants" {
+  zone_id = var.cloudflare_zone_id
+  name    = "*"
+  type    = "A"
+  content = oci_core_instance.control.public_ip
+  ttl     = 1
+  proxied = true
+}
+
+resource "cloudflare_dns_record" "supabase_api" {
+  zone_id = var.cloudflare_zone_id
+  name    = "api.pos"
+  type    = "A"
+  content = var.contabo_public_ip
+  ttl     = 1
+  proxied = false
+}
+
+resource "cloudflare_dns_record" "supabase_studio" {
+  zone_id = var.cloudflare_zone_id
+  name    = "studio.pos"
+  type    = "A"
+  content = var.contabo_public_ip
+  ttl     = 1
+  proxied = false
+}
