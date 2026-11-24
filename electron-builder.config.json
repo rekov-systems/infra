@@ -1,0 +1,51 @@
+{
+  "appId": "com.soluciones360.poss360t",
+  "productName": "POS S360T",
+  "copyright": "Copyright © 2026 POS S360T Contributors",
+  "asar": true,
+
+  "directories": {
+    "output": "release",
+    "buildResources": "public"
+  },
+
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*"
+  ],
+
+  "extraResources": [],
+
+  "linux": {
+    "target": [
+      { "target": "AppImage", "arch": ["x64"] },
+      { "target": "deb",      "arch": ["x64"] }
+    ],
+    "category": "Office",
+    "icon": "public/icon.png",
+    "maintainer": "POS S360T Contributors",
+    "vendor": "POS S360T"
+  },
+
+  "win": {
+    "target": [
+      { "target": "nsis", "arch": ["x64"] }
+    ],
+    "icon": "public/icon.ico",
+    "signAndEditExecutable": false
+  },
+
+  "mac": {
+    "target": ["dmg"],
+    "icon": "public/icon.icns",
+    "category": "public.app-category.finance"
+  },
+
+  "nsis": {
+    "oneClick": true,
+    "perMachine": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "POS S360T"
+  }
+}

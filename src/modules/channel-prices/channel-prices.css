@@ -1,0 +1,3 @@
+.g-channel-grid {
+  grid-template-columns: 1fr 140px repeat(7, 160px);
+}

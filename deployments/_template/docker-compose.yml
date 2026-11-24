@@ -1,0 +1,25 @@
+services:
+  pos:
+    build:
+      # Contexto = raíz del repo (donde vive el Dockerfile).
+      # Dokploy clona el repo y corre compose desde la raíz,
+      # así que ../../ sube desde deployments/_template/ hasta la raíz.
+      context: ../../
+      dockerfile: Dockerfile
+      args:
+        # Las variables VITE_* se hornean en el JS en build-time.
+        # Provienen de Dokploy UI (producción) o del .env local (desarrollo).
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY}
+    # Cambiar CLIENTE por el nombre real de la instancia
+    image: pos-s360t-CLIENTE:latest
+    container_name: pos-CLIENTE
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3000}:80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s

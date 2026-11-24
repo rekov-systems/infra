@@ -1,0 +1,51 @@
+.mp-sync-row { display: flex; align-items: center; gap: 6px; color: #10B981; }
+.mp-sync-text { font-size: 9px; letter-spacing: .18em; }
+.mp-wifi-row { display: flex; gap: 6px; align-items: center; }
+.mp-brand-title-wrap { line-height: 1.05; }
+.mp-brand-title { font-family: var(--font-display); font-weight: 700; font-size: 17px; }
+.mp-brand-360 { color: #007BFF; }
+.mp-brand-t { color: #10B981; }
+.mp-brand-subtitle { font-size: 8px; }
+.mp-flex-1 { flex: 1; }
+.mp-bell-btn { width: 38px; height: 38px; padding: 0; border-radius: 12px; }
+.mp-greeting-card { padding: 14px; position: relative; overflow: hidden; }
+.mp-greeting-title { margin-top: 4px; font-family: var(--font-display); font-weight: 700; font-size: 18px; }
+.mp-stats-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 12px; }
+.mp-stat-label { font-size: 8px; }
+.mp-stat-val-plain { font-size: 24px; margin-top: 2px; }
+.mp-stat-val { font-size: 18px; margin-top: 4px; }
+.mp-stat-val-green { font-family: var(--font-display); font-weight: 700; font-size: 18px; color: #10B981; margin-top: 4px; }
+.mp-action-btn { padding: 10px 6px; text-align: center; border: 0; color: #fff; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
+.mp-action-icon-wrap { width: 38px; height: 38px; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
+.mp-action-icon-wrap.is-blue { background: #007BFF22; border: 1px solid #007BFF66; color: #007BFF; }
+.mp-action-icon-wrap.is-green { background: #10B98122; border: 1px solid #10B98166; color: #10B981; }
+.mp-action-icon-wrap.is-purple { background: #7C3AED22; border: 1px solid #7C3AED66; color: #7C3AED; }
+.mp-action-icon-wrap.is-amber { background: #F59E0B22; border: 1px solid #F59E0B66; color: #F59E0B; }
+.mp-action-label { font-size: 10px; font-weight: 600; letter-spacing: .04em; }
+.mp-tab-btn { flex: 1; justify-content: center; }
+.mp-tab-badge { padding: 2px 6px; border-radius: 9999px; font-size: 9px; background: hsl(215 45% 24%); }
+.mp-tab-btn.is-active .mp-tab-badge { background: rgba(255,255,255,.25); }
+.mp-tables-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.mp-tables-status { display: flex; gap: 8px; font-size: 10px; color: #94a3b8; }
+.mp-tcard-inner { padding: 12px; }
+.mp-tcard-top { display: flex; justify-content: space-between; align-items: flex-start; }
+.mp-tcard-label { font-size: 8px; }
+.mp-tcard-time { font-size: 9px; color: #6EE7B7; font-family: var(--font-mono); }
+.mp-tcard-id { font-family: var(--font-display); font-weight: 700; font-size: 28px; line-height: 1; margin-top: 2px; }
+.mp-tcard-empty { margin-top: 8px; font-size: 10px; color: #64748b; letter-spacing: .06em; text-transform: uppercase; }
+.mp-tcard-guests { margin-top: 6px; display: flex; align-items: center; gap: 4px; font-size: 10px; color: #94a3b8; }
+.mp-tcard-total { margin-top: 6px; font-family: var(--font-display); font-weight: 700; font-size: 14px; color: #fff; }
+.tcard.is-attention .mp-tcard-total { color: #FCD34D; }
+.mp-tcard-note { margin-top: 4px; font-size: 9px; color: #FCD34D; letter-spacing: .08em; text-transform: uppercase; }
+.mp-nav-btn { background: transparent; border: 0; cursor: pointer; }
+.mp-drawer-handle { width: 44px; height: 4px; background: hsl(215 45% 30%); border-radius: 9999px; margin: 0 auto 12px; }
+.mp-drawer-header { display: flex; align-items: center; justify-content: space-between; }
+.mp-drawer-title { font-family: var(--font-display); font-weight: 700; font-size: 28px; }
+.mp-drawer-subtitle { font-size: 11px; color: #94a3b8; }
+.mp-drawer-items { margin-top: 14px; padding: 12px; border-radius: 12px; background: hsl(216 60% 12%); border: 1px solid hsl(215 45% 22%); }
+.mp-drawer-item { display: flex; justify-content: space-between; padding: 6px 0; font-size: 12px; }
+.mp-drawer-item-qty { color: #10B981; font-family: var(--font-mono); }
+.mp-drawer-item-price { font-family: var(--font-display); font-weight: 700; }
+.mp-drawer-total-row { display: flex; justify-content: space-between; margin-top: 8px; }
+.mp-drawer-total-val { font-size: 26px; }
+.mp-drawer-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
