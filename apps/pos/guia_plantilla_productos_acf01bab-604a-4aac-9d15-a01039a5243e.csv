@@ -1,0 +1,5 @@
+name,category_name,sku,barcode,price,cost,product_type,status
+"Coca Cola 600ml","Bebidas","BEB-001","123456789012","2.50","1.00","standard","active"
+"Carne de Hamburguesa (Caja 10kg)","Insumos","INS-001","","0","50.00","raw_material","active"
+"Hamburguesa Sencilla","Platos Principales","PLA-001","","8.50","3.20","manufactured","active"
+"Combo Hamburguesa + Gaseosa","Combos","CMB-001","","10.00","4.20","combo","active"

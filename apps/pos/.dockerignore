@@ -1,0 +1,11 @@
+node_modules
+dist
+dist-electron
+.git
+.github
+*.md
+*.log
+.env
+.env.*
+electron
+supabase

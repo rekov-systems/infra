@@ -1,0 +1,31 @@
+project_id = "your-project-ref"
+
+[functions.rappi-webhook]
+verify_jwt = false
+
+[functions.evolution-webhook]
+verify_jwt = false
+
+[functions.ai-order-agent]
+verify_jwt = true
+
+[functions.create-user]
+verify_jwt = true
+
+[functions.process-email-queue]
+verify_jwt = true
+
+[functions.process-invoice]
+verify_jwt = true
+
+[functions.rappi-order-action]
+verify_jwt = true
+
+[functions.rappi-sync-menu]
+verify_jwt = true
+
+[functions.rappi-test-connection]
+verify_jwt = true
+
+[functions.send-whatsapp-message]
+verify_jwt = true
