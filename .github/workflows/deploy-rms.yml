@@ -3,6 +3,11 @@ name: Deploy RMS
 on:
   workflow_dispatch:
     inputs:
+      backup_before_cutover:
+        description: Create a new encrypted backup of both existing VPS before deployment
+        required: true
+        default: true
+        type: boolean
       reinstall_contabo:
         description: Reinstall the existing Contabo VPS from standard Ubuntu 24.04
         required: true
@@ -124,6 +129,7 @@ jobs:
           echo "OCI_POS_IP=$(terraform -chdir=terraform output -raw oci_pos_public_ip)" >> "$GITHUB_ENV"
 
       - name: Back up both VPS before cutover
+        if: ${{ inputs.backup_before_cutover }}
         env:
           RECOVERY_DIR: ${{ runner.temp }}/rms-recovery
           RECOVERY_PASSPHRASE: ${{ env.RECOVERY_PASSPHRASE }}
