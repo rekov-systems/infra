@@ -7,13 +7,13 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 mkdir -p "$root/pos"
 tar -xzf /tmp/rms-pos-dist.tgz -C "$root/pos"
-install -m 0644 /tmp/rms-nginx-pos.conf "$root/nginx-pos.conf"
-install -m 0644 /tmp/rms-oci-compose.yml "$root/docker-compose.yml"
-install -m 0644 /tmp/rms-Caddyfile "$root/Caddyfile"
+install -m 0644 /tmp/nginx-pos.conf "$root/nginx-pos.conf"
+install -m 0644 /tmp/oci-compose.yml "$root/docker-compose.yml"
+install -m 0644 /tmp/Caddyfile.oci "$root/Caddyfile"
 install -d -m 0750 "$root/caddy"
-install -m 0644 /tmp/rms-caddy-cloudflare.Dockerfile "$root/caddy/Dockerfile"
-if [[ -f /tmp/rms-oci.env ]]; then
-  install -m 0600 /tmp/rms-oci.env "$root/.env"
+install -m 0644 /tmp/caddy-cloudflare.Dockerfile "$root/caddy/Dockerfile"
+if [[ -f /tmp/oci.env ]]; then
+  install -m 0600 /tmp/oci.env "$root/.env"
 fi
 install -d -m 0750 "$root/caddy-data" "$root/caddy-config"
 docker compose -f "$root/docker-compose.yml" up -d --wait pos-web
