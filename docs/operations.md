@@ -10,8 +10,8 @@ por OIDC):
   `R2_STORAGE_STATE_KEY`;
 - `RECOVERY_PASSPHRASE` para cifrar el respaldo de ambos VPS;
 - credenciales OCI y token/zone ID de Cloudflare para Terraform;
-- `SSH_PRIVATE_KEY` para el SSH de OCI y `TF_VAR_ssh_public_key` para la llave
-  pública que Terraform configura en OCI;
+- `OCI_NEXT_SSH_PRIVATE_KEY` para el SSH de OCI y
+  `OCI_NEXT_SSH_PUBLIC_KEY` para la llave pública que Terraform configura en OCI;
 - `TF_VAR_tenancy_ocid`, `TF_VAR_user_ocid`, `TF_VAR_fingerprint`,
   `TF_VAR_private_key`, `TF_VAR_oci_region`, `TF_VAR_compartment_ocid`,
   `TF_VAR_cloudflare_api_token` y `TF_VAR_cloudflare_zone_id` para los
@@ -41,13 +41,10 @@ ambas a la VPS existente con `resetPassword` y borra los secretos temporales de
 la API al terminar. No aprovisiona otra VPS. La conexión SSH solo podrá
 completarse cuando la regla de bloqueo de puerto 22 de Contabo esté desactivada.
 
-OCI usa su par de llave, `SSH_PRIVATE_KEY` junto con `TF_VAR_ssh_public_key`. Para
-rotarla sin perder acceso, genera el nuevo par y agrégalo temporalmente a
-Infisical como `OCI_NEXT_SSH_PRIVATE_KEY` y `OCI_NEXT_SSH_PUBLIC_KEY`. Ejecuta
-el workflow `Rotate OCI SSH key`; este instala la pública en la VM existente y
-verifica el acceso con la privada nueva. Solo después de que termine bien,
-reemplaza `SSH_PRIVATE_KEY` y `TF_VAR_ssh_public_key` por el nuevo par y elimina
-los dos secretos temporales. OCI no requiere contraseña root para este flujo.
+OCI usa `OCI_NEXT_SSH_PRIVATE_KEY` y `OCI_NEXT_SSH_PUBLIC_KEY` como su par
+permanente. El workflow `Rotate OCI SSH key` valida el par, lo instala en la VM
+existente, comprueba el acceso y quita la llave pública anterior. OCI no requiere
+contraseña root para este flujo.
 
 Las claves restantes de Supabase se generan una sola vez en Contabo y se
 conservan en `/opt/rms/supabase/.env` (permisos 0600). Las regeneraciones no

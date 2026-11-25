@@ -42,8 +42,8 @@ jobs:
           : "${CONTABO_SSH_PUBLIC_KEY:?Add CONTABO_SSH_PUBLIC_KEY to Infisical}"
           : "${SUPABASE_DB_PASSWORD:?Add SUPABASE_DB_PASSWORD to Infisical}"
           : "${SUPABASE_DASHBOARD_PASSWORD:?Add SUPABASE_DASHBOARD_PASSWORD to Infisical}"
-          : "${SSH_PRIVATE_KEY:?Add SSH_PRIVATE_KEY for OCI to Infisical}"
-          : "${TF_VAR_ssh_public_key:?Add TF_VAR_ssh_public_key for OCI to Infisical}"
+          : "${OCI_NEXT_SSH_PRIVATE_KEY:?Add OCI_NEXT_SSH_PRIVATE_KEY for OCI to Infisical}"
+          : "${OCI_NEXT_SSH_PUBLIC_KEY:?Add OCI_NEXT_SSH_PUBLIC_KEY for OCI to Infisical}"
           : "${TF_VAR_private_key:?Add TF_VAR_private_key for OCI API signing to Infisical}"
           : "${TF_VAR_tenancy_ocid:?Add TF_VAR_tenancy_ocid to Infisical}"
           : "${TF_VAR_user_ocid:?Add TF_VAR_user_ocid to Infisical}"
@@ -89,7 +89,7 @@ jobs:
           TF_VAR_fingerprint: ${{ env.TF_VAR_fingerprint }}
           TF_VAR_oci_region: ${{ env.TF_VAR_oci_region }}
           TF_VAR_private_key: ${{ env.TF_VAR_private_key }}
-          TF_VAR_ssh_public_key: ${{ env.TF_VAR_ssh_public_key }}
+          TF_VAR_ssh_public_key: ${{ env.OCI_NEXT_SSH_PUBLIC_KEY }}
           TF_VAR_tenancy_ocid: ${{ env.TF_VAR_tenancy_ocid }}
           TF_VAR_user_ocid: ${{ env.TF_VAR_user_ocid }}
           TF_VAR_cloudflare_root_domain: ${{ env.CLOUDFLARE_ROOT_DOMAIN || env.PRESS_ROOT_DOMAIN }}
@@ -123,10 +123,10 @@ jobs:
           : "${CONTABO_PUBLIC_IP:?Contabo public IP was not resolved from the Contabo API}"
           : "${CONTABO_SSH_USER:?Contabo SSH user was not resolved from the Contabo API}"
           mkdir -p "$RECOVERY_DIR"
-          printf '%s\n' "$SSH_PRIVATE_KEY" > "$RUNNER_TEMP/oci_key"
+          printf '%s\n' "$OCI_NEXT_SSH_PRIVATE_KEY" > "$RUNNER_TEMP/oci_key"
           chmod 600 "$RUNNER_TEMP/oci_key" "$RUNNER_TEMP/contabo_key"
           BACKUP_HOST="$OCI_POS_IP" BACKUP_USER=ubuntu BACKUP_LABEL=oci \
-            BACKUP_SSH_KEY="$SSH_PRIVATE_KEY" bash scripts/backup-vps.sh
+            BACKUP_SSH_KEY="$OCI_NEXT_SSH_PRIVATE_KEY" bash scripts/backup-vps.sh
           BACKUP_HOST="$CONTABO_PUBLIC_IP" BACKUP_USER="$CONTABO_SSH_USER" \
             BACKUP_LABEL=contabo BACKUP_SSH_KEY="$(cat "$RUNNER_TEMP/contabo_key")" \
             bash scripts/backup-vps.sh
@@ -146,7 +146,7 @@ jobs:
           TF_VAR_fingerprint: ${{ env.TF_VAR_fingerprint }}
           TF_VAR_oci_region: ${{ env.TF_VAR_oci_region }}
           TF_VAR_private_key: ${{ env.TF_VAR_private_key }}
-          TF_VAR_ssh_public_key: ${{ env.TF_VAR_ssh_public_key }}
+          TF_VAR_ssh_public_key: ${{ env.OCI_NEXT_SSH_PUBLIC_KEY }}
           TF_VAR_tenancy_ocid: ${{ env.TF_VAR_tenancy_ocid }}
           TF_VAR_user_ocid: ${{ env.TF_VAR_user_ocid }}
           TF_VAR_cloudflare_root_domain: ${{ env.CLOUDFLARE_ROOT_DOMAIN || env.PRESS_ROOT_DOMAIN }}
@@ -162,7 +162,7 @@ jobs:
       - name: Prepare SSH keys
         run: |
           umask 077
-          printf '%s\n' "$SSH_PRIVATE_KEY" | perl -pe 's/\\\\n/\n/g; s/\r//g' > "$RUNNER_TEMP/oci_key"
+          printf '%s\n' "$OCI_NEXT_SSH_PRIVATE_KEY" | perl -pe 's/\\\\n/\n/g; s/\r//g' > "$RUNNER_TEMP/oci_key"
           chmod 600 "$RUNNER_TEMP/oci_key"
           ssh-keygen -y -f "$RUNNER_TEMP/oci_key" >/dev/null
 
