@@ -10,6 +10,9 @@ for service in nginx; do
 done
 trap 'status=$?; docker compose -f docker-compose.yml -f docker-compose.rms.yml stop rms-caddy >/dev/null 2>&1 || true; systemctl enable --now nginx >/dev/null 2>&1 || true; exit "$status"' ERR
 "${compose[@]}" up -d --wait rms-caddy
-curl --retry 30 --retry-delay 3 --retry-connrefused -fsS \
-  https://api.pos.rekov.co/auth/v1/health >/dev/null
+if ! curl --retry 30 --retry-delay 3 --retry-connrefused -fsS \
+  https://api.pos.rekov.co/auth/v1/health >/dev/null; then
+  docker logs --tail=100 rms-caddy >&2 || true
+  exit 1
+fi
 trap - ERR
