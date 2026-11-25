@@ -135,6 +135,18 @@ jobs:
           aws s3 sync "$RECOVERY_DIR" "s3://$R2_STORAGE_BUCKET/recovery/rms/$GITHUB_RUN_ID/" \
             --endpoint-url "$R2_STORAGE_ENDPOINT" --only-show-errors
 
+      - name: Reinstall the existing Contabo VPS from a clean image after backup
+        env:
+          CONTABO_API_USER: ${{ env.CONTABO_API_USER }}
+          CONTABO_API_PASSWORD: ${{ env.CONTABO_API_PASSWORD }}
+          CONTABO_CLIENT_ID: ${{ env.CONTABO_CLIENT_ID }}
+          CONTABO_CLIENT_SECRET: ${{ env.CONTABO_CLIENT_SECRET }}
+          CONTABO_PRODUCT_ID: ${{ env.CONTABO_PRODUCT_ID }}
+          CONTABO_REGION: ${{ env.CONTABO_REGION }}
+          CONTABO_ROOT_PASSWORD: ${{ env.CONTABO_ROOT_PASSWORD }}
+          CONTABO_SSH_PUBLIC_KEY: ${{ env.CONTABO_SSH_PUBLIC_KEY }}
+        run: scripts/reinstall-contabo-vps.sh
+
       - name: Reconcile DNS while retaining both hosts
         env:
           AWS_ACCESS_KEY_ID: ${{ env.R2_STORAGE_ACCESS_KEY_ID }}

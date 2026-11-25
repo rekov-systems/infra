@@ -40,6 +40,9 @@ clave pública y la contraseña en el gestor de secretos de Contabo, aplica
 ambas a la VPS existente con `resetPassword` y borra los secretos temporales de
 la API al terminar. No aprovisiona otra VPS. La conexión SSH solo podrá
 completarse cuando la regla de bloqueo de puerto 22 de Contabo esté desactivada.
+Después del respaldo cifrado en R2, el despliegue reinstala la misma VPS con la
+imagen estándar Ubuntu 24.04. La acción de reinstall opera sobre el `instanceId`
+existente; no crea otro servidor.
 
 OCI usa `OCI_NEXT_SSH_PRIVATE_KEY` y `OCI_NEXT_SSH_PUBLIC_KEY` como su par
 permanente. El workflow `Verify OCI SSH access` comprueba el par y el acceso a

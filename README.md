@@ -33,8 +33,8 @@ Sincronización manual: `scripts/sync-pos-upstream.sh`.
    `production` de GitHub Actions/Infisical.
 2. Ejecutar `Deploy RMS`. OCI se resuelve desde el estado Terraform y Contabo
    desde la API, filtrando la instancia existente por producto y región.
-3. El flujo crea un respaldo cifrado de
-   ambos hosts en R2, inicia Supabase en Contabo, despliega el POS en OCI,
+3. El flujo respalda ambos hosts en R2, reinstala la VPS Contabo existente con
+   una imagen limpia de Ubuntu, inicia Supabase allí, despliega el POS en OCI,
    comprueba endpoints y, solo después, retira Pilot/Frappe/ERPNext de ambas VPS. No
    formatea discos ni elimina volúmenes fuera de la instalación anterior.
 4. Verificar login, aislamiento tenant/sucursal y venta offline antes de
