@@ -115,7 +115,7 @@ jobs:
             -backend-config="skip_s3_checksum=true" \
             -backend-config="use_path_style=true"
           terraform -chdir=terraform state pull > "$RUNNER_TEMP/terraform-state.json"
-          echo "OCI_POS_IP=$(terraform -chdir=terraform output -raw control_public_ip)" >> "$GITHUB_ENV"
+          echo "OCI_POS_IP=$(terraform -chdir=terraform output -raw oci_pos_public_ip)" >> "$GITHUB_ENV"
 
       - name: Back up both VPS before cutover
         env:
