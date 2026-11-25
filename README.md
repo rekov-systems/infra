@@ -31,9 +31,9 @@ Sincronización manual: `scripts/sync-pos-upstream.sh`.
 
 1. Cargar los secretos listados en `docs/operations.md` en el environment
    `production` de GitHub Actions/Infisical.
-2. Confirmar la IP pública actual de Contabo y añadirla como
-   `CONTABO_PUBLIC_IP` en Infisical. OCI se resuelve desde el estado Terraform.
-3. Ejecutar `Deploy RMS` desde Actions. El flujo crea un respaldo cifrado de
+2. Ejecutar `Deploy RMS`. OCI se resuelve desde el estado Terraform y Contabo
+   desde la API, filtrando la instancia existente por producto y región.
+3. El flujo crea un respaldo cifrado de
    ambos hosts en R2, inicia Supabase en Contabo, despliega el POS en OCI,
    comprueba endpoints y, solo después, retira Pilot/Frappe/ERPNext de ambas VPS. No
    formatea discos ni elimina volúmenes fuera de la instalación anterior.

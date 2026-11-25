@@ -27,7 +27,41 @@ jobs:
           project-slug: ${{ vars.INFISICAL_PROJECT_SLUG }}
           env-slug: ${{ vars.INFISICAL_ENV_SLUG }}
 
-      - name: Resolve Contabo VPS and establish temporary SSH access
+      - name: Validate required Infisical values before changing server access
+        env:
+          ROOT_DOMAIN: ${{ env.CLOUDFLARE_ROOT_DOMAIN || env.PRESS_ROOT_DOMAIN }}
+        run: |
+          : "${CONTABO_API_USER:?Add CONTABO_API_USER to Infisical}"
+          : "${CONTABO_API_PASSWORD:?Add CONTABO_API_PASSWORD to Infisical}"
+          : "${CONTABO_CLIENT_ID:?Add CONTABO_CLIENT_ID to Infisical}"
+          : "${CONTABO_CLIENT_SECRET:?Add CONTABO_CLIENT_SECRET to Infisical}"
+          : "${CONTABO_PRODUCT_ID:?Add CONTABO_PRODUCT_ID to Infisical}"
+          : "${CONTABO_REGION:?Add CONTABO_REGION to Infisical}"
+          : "${CONTABO_ROOT_PASSWORD:?Add CONTABO_ROOT_PASSWORD to Infisical}"
+          : "${CONTABO_SSH_PRIVATE_KEY:?Add CONTABO_SSH_PRIVATE_KEY to Infisical}"
+          : "${CONTABO_SSH_PUBLIC_KEY:?Add CONTABO_SSH_PUBLIC_KEY to Infisical}"
+          : "${SUPABASE_DB_PASSWORD:?Add SUPABASE_DB_PASSWORD to Infisical}"
+          : "${SUPABASE_DASHBOARD_PASSWORD:?Add SUPABASE_DASHBOARD_PASSWORD to Infisical}"
+          : "${SSH_PRIVATE_KEY:?Add SSH_PRIVATE_KEY for OCI to Infisical}"
+          : "${TF_VAR_ssh_public_key:?Add TF_VAR_ssh_public_key for OCI to Infisical}"
+          : "${TF_VAR_private_key:?Add TF_VAR_private_key for OCI API signing to Infisical}"
+          : "${TF_VAR_tenancy_ocid:?Add TF_VAR_tenancy_ocid to Infisical}"
+          : "${TF_VAR_user_ocid:?Add TF_VAR_user_ocid to Infisical}"
+          : "${TF_VAR_fingerprint:?Add TF_VAR_fingerprint to Infisical}"
+          : "${TF_VAR_oci_region:?Add TF_VAR_oci_region to Infisical}"
+          : "${TF_VAR_compartment_ocid:?Add TF_VAR_compartment_ocid to Infisical}"
+          : "${TF_VAR_cloudflare_api_token:?Add TF_VAR_cloudflare_api_token to Infisical}"
+          : "${TF_VAR_cloudflare_zone_id:?Add TF_VAR_cloudflare_zone_id to Infisical}"
+          : "${ROOT_DOMAIN:?Add CLOUDFLARE_ROOT_DOMAIN or retain PRESS_ROOT_DOMAIN in Infisical}"
+          : "${RECOVERY_PASSPHRASE:?Add RECOVERY_PASSPHRASE to Infisical}"
+          : "${R2_STORAGE_ACCESS_KEY_ID:?Add R2_STORAGE_ACCESS_KEY_ID to Infisical}"
+          : "${R2_STORAGE_SECRET_ACCESS_KEY:?Add R2_STORAGE_SECRET_ACCESS_KEY to Infisical}"
+          : "${R2_STORAGE_REGION:?Add R2_STORAGE_REGION to Infisical}"
+          : "${R2_STORAGE_BUCKET:?Add R2_STORAGE_BUCKET to Infisical}"
+          : "${R2_STORAGE_ENDPOINT:?Add R2_STORAGE_ENDPOINT to Infisical}"
+          : "${R2_STORAGE_STATE_KEY:?Add R2_STORAGE_STATE_KEY to Infisical}"
+
+      - name: Resolve existing Contabo VPS and apply credentials through its API
         env:
           CONTABO_API_USER: ${{ env.CONTABO_API_USER }}
           CONTABO_API_PASSWORD: ${{ env.CONTABO_API_PASSWORD }}

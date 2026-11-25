@@ -27,6 +27,16 @@ jobs:
           identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
           project-slug: ${{ vars.INFISICAL_PROJECT_SLUG }}
           env-slug: ${{ vars.INFISICAL_ENV_SLUG }}
+      - name: Resolve the existing Contabo VPS through its API
+        env:
+          CONTABO_API_USER: ${{ env.CONTABO_API_USER }}
+          CONTABO_API_PASSWORD: ${{ env.CONTABO_API_PASSWORD }}
+          CONTABO_CLIENT_ID: ${{ env.CONTABO_CLIENT_ID }}
+          CONTABO_CLIENT_SECRET: ${{ env.CONTABO_CLIENT_SECRET }}
+          CONTABO_PRODUCT_ID: ${{ env.CONTABO_PRODUCT_ID }}
+          CONTABO_REGION: ${{ env.CONTABO_REGION }}
+        run: scripts/discover-contabo-instance.sh
+
       - name: Create and verify encrypted Postgres and Storage backups
         env:
           RECOVERY_PASSPHRASE: ${{ env.RECOVERY_PASSPHRASE }}
