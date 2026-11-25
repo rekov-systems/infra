@@ -2,6 +2,8 @@ services:
   functions:
     environment:
       DESK_AI_WORKER_URL: ${DESK_AI_WORKER_URL:-}
+      RMS_PLATFORM_ADMIN_EMAIL: ${RMS_PLATFORM_ADMIN_EMAIL:-}
+      RMS_PLATFORM_ADMIN_PASSWORD: ${RMS_PLATFORM_ADMIN_PASSWORD:-}
 
   api-gw:
     ports: !override

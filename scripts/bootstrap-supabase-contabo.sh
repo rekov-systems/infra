@@ -2,6 +2,8 @@
 set -Eeuo pipefail
 : "${SUPABASE_DB_PASSWORD:?Set SUPABASE_DB_PASSWORD}"
 : "${SUPABASE_DASHBOARD_PASSWORD:?Set SUPABASE_DASHBOARD_PASSWORD}"
+: "${RMS_PLATFORM_ADMIN_EMAIL:?Set RMS_PLATFORM_ADMIN_EMAIL}"
+: "${RMS_PLATFORM_ADMIN_PASSWORD:?Set RMS_PLATFORM_ADMIN_PASSWORD}"
 
 root=/opt/rms
 src="$root/supabase-source"
@@ -31,7 +33,7 @@ if [[ ! -f "$stack/.env" ]]; then
   (cd "$stack" && sh utils/add-new-auth-keys.sh --update-env)
 fi
 
-python3 - "$stack/.env" "$SUPABASE_DB_PASSWORD" "$SUPABASE_DASHBOARD_PASSWORD" "${DESK_AI_WORKER_URL:-}" <<'PY'
+python3 - "$stack/.env" "$SUPABASE_DB_PASSWORD" "$SUPABASE_DASHBOARD_PASSWORD" "${DESK_AI_WORKER_URL:-}" "$RMS_PLATFORM_ADMIN_EMAIL" "$RMS_PLATFORM_ADMIN_PASSWORD" <<'PY'
 from pathlib import Path
 import sys
 
@@ -44,9 +46,12 @@ values = {
     "API_EXTERNAL_URL": "https://api.pos.rekov.co/auth/v1",
     "SITE_URL": "https://pos.rekov.co",
     "ADDITIONAL_REDIRECT_URLS": "https://pos.rekov.co/**",
+    "DISABLE_SIGNUP": "true",
     "API_GW_HTTP_PORT": "127.0.0.1:8000",
     "FUNCTIONS_VERIFY_JWT": "false",
     "DESK_AI_WORKER_URL": sys.argv[4],
+    "RMS_PLATFORM_ADMIN_EMAIL": sys.argv[5],
+    "RMS_PLATFORM_ADMIN_PASSWORD": sys.argv[6],
     "STUDIO_DEFAULT_ORGANIZATION": "Rekov",
     "STUDIO_DEFAULT_PROJECT": "Retail Management System",
 }
@@ -77,7 +82,7 @@ if [[ -d /tmp/rms-functions ]]; then
     [[ -d "/tmp/rms-functions/$name" ]] && cp -a "/tmp/rms-functions/$name" "$functions/"
   done
   [[ -d /tmp/rms-functions/_shared ]] && cp -a /tmp/rms-functions/_shared "$functions/"
-  for name in ai-order-agent process-invoice embed-knowledge-doc; do
+  for name in ai-order-agent process-invoice embed-knowledge-doc rms-admin; do
     if [[ -d "/tmp/rms-custom-functions/$name" ]]; then
       rm -rf "$functions/$name"
       cp -a "/tmp/rms-custom-functions/$name" "$functions/"

@@ -53,6 +53,8 @@ jobs:
           : "${CONTABO_SSH_PUBLIC_KEY:?Add CONTABO_SSH_PUBLIC_KEY to Infisical}"
           : "${SUPABASE_DB_PASSWORD:?Add SUPABASE_DB_PASSWORD to Infisical}"
           : "${SUPABASE_DASHBOARD_PASSWORD:?Add SUPABASE_DASHBOARD_PASSWORD to Infisical}"
+          : "${RMS_PLATFORM_ADMIN_EMAIL:?Add RMS_PLATFORM_ADMIN_EMAIL to Infisical}"
+          : "${RMS_PLATFORM_ADMIN_PASSWORD:?Add RMS_PLATFORM_ADMIN_PASSWORD to Infisical}"
           : "${OCI_NEXT_SSH_PRIVATE_KEY:?Add OCI_NEXT_SSH_PRIVATE_KEY for OCI to Infisical}"
           : "${OCI_NEXT_SSH_PUBLIC_KEY:?Add OCI_NEXT_SSH_PUBLIC_KEY for OCI to Infisical}"
           : "${TF_VAR_private_key:?Add TF_VAR_private_key for OCI API signing to Infisical}"
@@ -201,9 +203,11 @@ jobs:
         env:
           SUPABASE_DB_PASSWORD: ${{ env.SUPABASE_DB_PASSWORD }}
           SUPABASE_DASHBOARD_PASSWORD: ${{ env.SUPABASE_DASHBOARD_PASSWORD }}
+          RMS_PLATFORM_ADMIN_EMAIL: ${{ env.RMS_PLATFORM_ADMIN_EMAIL }}
+          RMS_PLATFORM_ADMIN_PASSWORD: ${{ env.RMS_PLATFORM_ADMIN_PASSWORD }}
         run: |
           target="${CONTABO_SSH_USER:-ubuntu}@$CONTABO_PUBLIC_IP"
-          scripts/prepare-pos-migrations.sh apps/pos/supabase/migrations "$RUNNER_TEMP/rms-migrations"
+          scripts/prepare-pos-migrations.sh apps/pos/supabase/migrations "$RUNNER_TEMP/rms-migrations" deploy/migrations
           scp -i "$RUNNER_TEMP/contabo_key" -o StrictHostKeyChecking=accept-new \
             scripts/bootstrap-supabase-contabo.sh scripts/migrate-pos-db.sh \
             scripts/activate-supabase-contabo.sh deploy/supabase-compose.yml \
@@ -216,6 +220,8 @@ jobs:
             deploy/functions/. "$target:/tmp/rms-custom-functions/"
           { printf 'SUPABASE_DB_PASSWORD=%q\n' "$SUPABASE_DB_PASSWORD"; \
             printf 'SUPABASE_DASHBOARD_PASSWORD=%q\n' "$SUPABASE_DASHBOARD_PASSWORD"; \
+            printf 'RMS_PLATFORM_ADMIN_EMAIL=%q\n' "$RMS_PLATFORM_ADMIN_EMAIL"; \
+            printf 'RMS_PLATFORM_ADMIN_PASSWORD=%q\n' "$RMS_PLATFORM_ADMIN_PASSWORD"; \
             printf 'DESK_AI_WORKER_URL=%q\n' "${DESK_AI_WORKER_URL:-}"; } \
             > "$RUNNER_TEMP/contabo.env"
           scp -i "$RUNNER_TEMP/contabo_key" -o StrictHostKeyChecking=accept-new \
@@ -244,6 +250,12 @@ jobs:
           VITE_SUPABASE_URL: https://api.pos.rekov.co
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ steps.supabase.outputs.publishable_key }}
         run: npm ci && npm run build
+
+      - name: Add the independent Rekov control panel to the POS bundle
+        env:
+          VITE_SUPABASE_URL: https://api.pos.rekov.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ steps.supabase.outputs.publishable_key }}
+        run: node scripts/build-control.mjs apps/control apps/pos/dist/control
 
       - name: Deploy POS to OCI and cut over after local health check
         env:
