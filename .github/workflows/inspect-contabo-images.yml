@@ -1,0 +1,35 @@
+name: Inspect Contabo Ubuntu images
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Load production secrets from Infisical
+        uses: Infisical/secrets-action@v1.0.18
+        with:
+          method: oidc
+          identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
+          project-slug: ${{ vars.INFISICAL_PROJECT_SLUG }}
+          env-slug: ${{ vars.INFISICAL_ENV_SLUG }}
+      - name: List standard Ubuntu 24.04 image choices
+        run: |
+          token="$(curl -fsS 'https://auth.contabo.com/auth/realms/contabo/protocol/openid-connect/token' \
+            --data-urlencode "client_id=$CONTABO_CLIENT_ID" \
+            --data-urlencode "client_secret=$CONTABO_CLIENT_SECRET" \
+            --data-urlencode "username=$CONTABO_API_USER" \
+            --data-urlencode "password=$CONTABO_API_PASSWORD" \
+            --data-urlencode 'grant_type=password' | jq -er '.access_token')"
+          curl -fsS -G 'https://api.contabo.com/v1/compute/images' \
+            -H "Authorization: Bearer $token" -H "x-request-id: $(cat /proc/sys/kernel/random/uuid)" \
+            --data-urlencode 'page=1' --data-urlencode 'size=100' \
+            --data-urlencode 'standardImage=true' --data-urlencode 'search=Ubuntu' \
+            | jq -r '.data[] | select(.standardImage == true and .osType == "Linux" and ((.name | ascii_downcase | contains("ubuntu")) and ((.name | contains("24.04")) or .version == "24.04"))) | [.imageId,.name,.version,.osType] | @tsv'
