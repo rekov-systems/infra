@@ -42,9 +42,8 @@ la API al terminar. No aprovisiona otra VPS. La conexión SSH solo podrá
 completarse cuando la regla de bloqueo de puerto 22 de Contabo esté desactivada.
 
 OCI usa `OCI_NEXT_SSH_PRIVATE_KEY` y `OCI_NEXT_SSH_PUBLIC_KEY` como su par
-permanente. El workflow `Rotate OCI SSH key` valida el par, lo instala en la VM
-existente, comprueba el acceso y quita la llave pública anterior. OCI no requiere
-contraseña root para este flujo.
+permanente. El workflow `Verify OCI SSH access` comprueba el par y el acceso a
+la VM existente. OCI no requiere contraseña root para este flujo.
 
 Las claves restantes de Supabase se generan una sola vez en Contabo y se
 conservan en `/opt/rms/supabase/.env` (permisos 0600). Las regeneraciones no

@@ -1,0 +1,71 @@
+name: Verify OCI SSH access
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: rekov-rms-production
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Load production secrets from Infisical
+        uses: Infisical/secrets-action@v1.0.18
+        with:
+          method: oidc
+          identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
+          project-slug: ${{ vars.INFISICAL_PROJECT_SLUG }}
+          env-slug: ${{ vars.INFISICAL_ENV_SLUG }}
+
+      - name: Validate the permanent OCI key pair
+        env:
+          OCI_NEXT_SSH_PRIVATE_KEY: ${{ env.OCI_NEXT_SSH_PRIVATE_KEY }}
+          OCI_NEXT_SSH_PUBLIC_KEY: ${{ env.OCI_NEXT_SSH_PUBLIC_KEY }}
+        run: |
+          : "${OCI_NEXT_SSH_PRIVATE_KEY:?Add OCI_NEXT_SSH_PRIVATE_KEY in Infisical}"
+          : "${OCI_NEXT_SSH_PUBLIC_KEY:?Add OCI_NEXT_SSH_PUBLIC_KEY in Infisical}"
+          umask 077
+          printf '%s\n' "$OCI_NEXT_SSH_PRIVATE_KEY" | perl -pe 's/\\\\n/\n/g; s/\r//g' > "$RUNNER_TEMP/oci_key"
+          ssh-keygen -y -f "$RUNNER_TEMP/oci_key" > "$RUNNER_TEMP/oci_derived.pub"
+          configured="$(printf '%s' "$OCI_NEXT_SSH_PUBLIC_KEY" | awk 'NR == 1 {print $1 " " $2}')"
+          derived="$(awk 'NR == 1 {print $1 " " $2}' "$RUNNER_TEMP/oci_derived.pub")"
+          test -n "$configured" && test "$configured" = "$derived"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.9
+
+      - name: Resolve the existing OCI host from Terraform state
+        env:
+          AWS_ACCESS_KEY_ID: ${{ env.R2_STORAGE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.R2_STORAGE_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ env.R2_STORAGE_REGION }}
+        run: |
+          terraform -chdir=terraform init -input=false \
+            -backend-config="bucket=$R2_STORAGE_BUCKET" \
+            -backend-config="key=$R2_STORAGE_STATE_KEY" \
+            -backend-config="region=$R2_STORAGE_REGION" \
+            -backend-config="endpoint=$R2_STORAGE_ENDPOINT" \
+            -backend-config="skip_credentials_validation=true" \
+            -backend-config="skip_metadata_api_check=true" \
+            -backend-config="skip_requesting_account_id=true" \
+            -backend-config="skip_region_validation=true" \
+            -backend-config="skip_s3_checksum=true" \
+            -backend-config="use_path_style=true"
+          echo "OCI_POS_IP=$(terraform -chdir=terraform output -raw control_public_ip)" >> "$GITHUB_ENV"
+
+      - name: Verify SSH access to the existing OCI VM
+        run: |
+          ssh -i "$RUNNER_TEMP/oci_key" -o BatchMode=yes \
+            -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes \
+            "ubuntu@$OCI_POS_IP" true
+          echo "OCI SSH key pair matches and access is verified."
