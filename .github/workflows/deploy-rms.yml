@@ -2,6 +2,12 @@ name: Deploy RMS
 
 on:
   workflow_dispatch:
+    inputs:
+      reinstall_contabo:
+        description: Reinstall the existing Contabo VPS from standard Ubuntu 24.04
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -136,6 +142,7 @@ jobs:
             --endpoint-url "$R2_STORAGE_ENDPOINT" --only-show-errors
 
       - name: Reinstall the existing Contabo VPS from a clean image after backup
+        if: ${{ inputs.reinstall_contabo }}
         env:
           CONTABO_API_USER: ${{ env.CONTABO_API_USER }}
           CONTABO_API_PASSWORD: ${{ env.CONTABO_API_PASSWORD }}

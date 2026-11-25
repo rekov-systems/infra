@@ -119,7 +119,9 @@ resource "oci_core_instance" "control" {
       desired_state = "ENABLED"
     }
   }
-  lifecycle { ignore_changes = [source_details] }
+  # OCI metadata changes force replacement of the VM. The rotated SSH key is
+  # installed in place by the key-rotation workflow, so keep this existing host.
+  lifecycle { ignore_changes = [metadata, source_details] }
 }
 
 resource "cloudflare_dns_record" "admin" {
