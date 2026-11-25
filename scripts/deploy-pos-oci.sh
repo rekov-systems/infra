@@ -27,7 +27,14 @@ for service in nginx; do
     systemctl disable "$service" || true
   fi
 done
-trap 'status=$?; docker compose -f "$root/docker-compose.yml" stop rms-caddy >/dev/null 2>&1 || true; systemctl enable --now nginx >/dev/null 2>&1 || true; exit "$status"' ERR
+restore_web() {
+  status=$?
+  docker logs --tail=100 rms-caddy >&2 || true
+  docker compose -f "$root/docker-compose.yml" stop rms-caddy >/dev/null 2>&1 || true
+  systemctl enable --now nginx >/dev/null 2>&1 || true
+  exit "$status"
+}
+trap restore_web ERR
 docker compose -f "$root/docker-compose.yml" up -d --wait
-curl --retry 30 --retry-delay 2 --retry-connrefused -fsS https://pos.rekov.co/health
+curl --retry 30 --retry-delay 2 --retry-connrefused --retry-all-errors -fsS https://pos.rekov.co/health
 trap - ERR
