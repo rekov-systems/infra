@@ -29,6 +29,14 @@ ambas a la VPS existente con `resetPassword` y borra los secretos temporales de
 la API al terminar. No aprovisiona otra VPS. La conexión SSH solo podrá
 completarse cuando la regla de bloqueo de puerto 22 de Contabo esté desactivada.
 
+OCI usa otra llave, `SSH_PRIVATE_KEY` junto con `TF_VAR_ssh_public_key`. Para
+rotarla sin perder acceso, genera el nuevo par y agrégalo temporalmente a
+Infisical como `OCI_NEXT_SSH_PRIVATE_KEY` y `OCI_NEXT_SSH_PUBLIC_KEY`. Ejecuta
+el workflow `Rotate OCI SSH key`; este instala la pública en la VM existente y
+verifica el acceso con la privada nueva. Solo después de que termine bien,
+reemplaza `SSH_PRIVATE_KEY` y `TF_VAR_ssh_public_key` por el nuevo par y elimina
+los dos secretos temporales. OCI no requiere contraseña root para este flujo.
+
 Las claves restantes de Supabase se generan una sola vez en Contabo y se
 conservan en `/opt/rms/supabase/.env` (permisos 0600). Las regeneraciones no
 reemplazan secretos de una instalación existente.
