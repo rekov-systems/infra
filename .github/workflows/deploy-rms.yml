@@ -35,6 +35,9 @@ jobs:
           CONTABO_CLIENT_SECRET: ${{ env.CONTABO_CLIENT_SECRET }}
           CONTABO_PRODUCT_ID: ${{ env.CONTABO_PRODUCT_ID }}
           CONTABO_REGION: ${{ env.CONTABO_REGION }}
+          CONTABO_ROOT_PASSWORD: ${{ env.CONTABO_ROOT_PASSWORD }}
+          CONTABO_SSH_PRIVATE_KEY: ${{ env.CONTABO_SSH_PRIVATE_KEY }}
+          CONTABO_SSH_PUBLIC_KEY: ${{ env.CONTABO_SSH_PUBLIC_KEY }}
         run: scripts/prepare-contabo-access.sh
 
       - uses: hashicorp/setup-terraform@v3

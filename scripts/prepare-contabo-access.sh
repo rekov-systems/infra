@@ -7,6 +7,9 @@ set -Eeuo pipefail
 : "${CONTABO_CLIENT_SECRET:?Missing Contabo API client secret}"
 : "${CONTABO_PRODUCT_ID:?Missing Contabo product ID}"
 : "${CONTABO_REGION:?Missing Contabo region}"
+: "${CONTABO_ROOT_PASSWORD:?Missing Contabo root password}"
+: "${CONTABO_SSH_PRIVATE_KEY:?Missing persistent Contabo SSH private key}"
+: "${CONTABO_SSH_PUBLIC_KEY:?Missing persistent Contabo SSH public key}"
 : "${RUNNER_TEMP:?Missing RUNNER_TEMP}"
 : "${GITHUB_ENV:?Missing GITHUB_ENV}"
 
@@ -50,9 +53,15 @@ ip="$(jq -er '.ipConfig.v4.ip' <<<"$instance")"
 user="$(jq -er '.defaultUser // "root"' <<<"$instance")"
 
 key="$RUNNER_TEMP/contabo_key"
-ssh-keygen -q -t ed25519 -N '' -C "rms-deploy-${GITHUB_RUN_ID:-manual}" -f "$key"
+printf '%s\n' "$CONTABO_SSH_PRIVATE_KEY" | perl -pe 's/\\\\n/\n/g; s/\r//g' >"$key"
 chmod 600 "$key"
-password="Rms$(openssl rand -hex 12)!5"
+ssh-keygen -y -f "$key" >"$RUNNER_TEMP/contabo_derived.pub"
+configured_public_key="$(printf '%s' "$CONTABO_SSH_PUBLIC_KEY" | awk 'NR == 1 {print $1 " " $2}')"
+derived_public_key="$(awk 'NR == 1 {print $1 " " $2}' "$RUNNER_TEMP/contabo_derived.pub")"
+if [[ "$derived_public_key" != "$configured_public_key" ]]; then
+  echo "CONTABO_SSH_PRIVATE_KEY and CONTABO_SSH_PUBLIC_KEY do not match." >&2
+  exit 1
+fi
 ssh_secret_id=''
 password_secret_id=''
 cleanup() {
@@ -62,10 +71,10 @@ cleanup() {
 trap cleanup EXIT
 
 ssh_secret="$(api_call POST /v1/secrets "$token" \
-  "$(jq -cn --arg name "rms-deploy-${GITHUB_RUN_ID:-manual}-ssh" --rawfile value "$key.pub" '{name:$name,value:($value|rtrimstr("\n")),type:"ssh"}')")"
+  "$(jq -cn --arg name "rms-deploy-${GITHUB_RUN_ID:-manual}-ssh" --arg value "$configured_public_key" '{name:$name,value:$value,type:"ssh"}')")"
 ssh_secret_id="$(jq -er '.data[0].secretId' <<<"$ssh_secret")"
 password_secret="$(api_call POST /v1/secrets "$token" \
-  "$(jq -cn --arg name "rms-deploy-${GITHUB_RUN_ID:-manual}-password" --arg value "$password" '{name:$name,value:$value,type:"password"}')")"
+  "$(jq -cn --arg name "rms-deploy-${GITHUB_RUN_ID:-manual}-password" --arg value "$CONTABO_ROOT_PASSWORD" '{name:$name,value:$value,type:"password"}')")"
 password_secret_id="$(jq -er '.data[0].secretId' <<<"$password_secret")"
 
 body="$(jq -cn --argjson password "$password_secret_id" --argjson ssh "$ssh_secret_id" \
