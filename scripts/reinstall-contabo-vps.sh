@@ -53,12 +53,13 @@ images="$(curl -fsS -G "$api/v1/compute/images" \
   -H "Authorization: Bearer $token" -H "x-request-id: $(request_id)" \
   --data-urlencode 'page=1' --data-urlencode 'size=100' \
   --data-urlencode 'standardImage=true' --data-urlencode 'search=Ubuntu')"
-image_count="$(jq '[.data[] | select(.standardImage == true and .osType == "Linux" and ((.name | ascii_downcase | contains("ubuntu")) and ((.name | contains("24.04")) or .version == "24.04")))] | length' <<<"$images")"
+image_filter='.data[] | select(.standardImage == true and .osType == "Linux" and .name == "ubuntu-24.04" and .version == "24.04")'
+image_count="$(jq "[$image_filter] | length" <<<"$images")"
 if [[ "$image_count" != 1 ]]; then
-  echo "Refusing reinstall: expected one standard Ubuntu 24.04 image, found $image_count." >&2
+  echo "Refusing reinstall: expected the exact standard image ubuntu-24.04, found $image_count." >&2
   exit 1
 fi
-image_id="$(jq -er '.data[] | select(.standardImage == true and .osType == "Linux" and ((.name | ascii_downcase | contains("ubuntu")) and ((.name | contains("24.04")) or .version == "24.04"))) | .imageId' <<<"$images")"
+image_id="$(jq -er "$image_filter | .imageId" <<<"$images")"
 
 ssh_secret_id=''
 password_secret_id=''
