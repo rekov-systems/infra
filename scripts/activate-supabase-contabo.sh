@@ -2,6 +2,8 @@
 set -Eeuo pipefail
 cd /opt/rms/supabase
 compose=(docker compose -f docker-compose.yml -f docker-compose.rms.yml)
+publishable_key="$(sed -n 's/^SUPABASE_PUBLISHABLE_KEY=//p' /opt/rms/supabase/.env | tail -n 1)"
+: "${publishable_key:?SUPABASE_PUBLISHABLE_KEY is missing}"
 for service in nginx; do
   if systemctl is-active --quiet "$service"; then
     systemctl stop "$service"
@@ -11,6 +13,7 @@ done
 trap 'status=$?; docker compose -f docker-compose.yml -f docker-compose.rms.yml stop rms-caddy >/dev/null 2>&1 || true; systemctl enable --now nginx >/dev/null 2>&1 || true; exit "$status"' ERR
 "${compose[@]}" up -d --wait rms-caddy
 if ! curl --retry 30 --retry-delay 3 --retry-connrefused -fsS \
+  -H "apikey: $publishable_key" \
   https://api.pos.rekov.co/auth/v1/health >/dev/null; then
   docker logs --tail=100 rms-caddy >&2 || true
   exit 1

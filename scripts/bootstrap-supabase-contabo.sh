@@ -85,4 +85,7 @@ if [[ -d /tmp/rms-functions ]]; then
   done
   docker compose -f docker-compose.yml -f docker-compose.rms.yml up -d --wait functions
 fi
-curl --retry 30 --retry-delay 2 --retry-connrefused -fsS http://127.0.0.1:8000/auth/v1/health >/dev/null
+publishable_key="$(sed -n 's/^SUPABASE_PUBLISHABLE_KEY=//p' "$stack/.env" | tail -n 1)"
+: "${publishable_key:?SUPABASE_PUBLISHABLE_KEY was not generated}"
+curl --retry 30 --retry-delay 2 --retry-connrefused -fsS \
+  -H "apikey: $publishable_key" http://127.0.0.1:8000/auth/v1/health >/dev/null

@@ -252,6 +252,7 @@ jobs:
           SUPABASE_PUBLISHABLE_KEY: ${{ steps.supabase.outputs.publishable_key }}
         run: |
           curl --retry 30 --retry-delay 3 --retry-connrefused -fsS \
+            -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
             https://api.pos.rekov.co/auth/v1/health >/dev/null
           curl --retry 30 --retry-delay 3 --retry-connrefused -fsS \
             -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
