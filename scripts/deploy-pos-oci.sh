@@ -45,7 +45,7 @@ grep -qi 'desk' /tmp/desk-index.html
 echo "Checking Desk login document"
 curl --retry 10 --retry-delay 1 --retry-connrefused -fsS \
   -H 'Host: desk.rekov.co' http://127.0.0.1:8080/login -o /tmp/desk-login.html
-grep -qi 'iniciar sesión' /tmp/desk-login.html
+grep -q 'app/login/page-' /tmp/desk-login.html
 echo "Checking RMS interior document"
 curl --retry 10 --retry-delay 1 --retry-connrefused -fsS \
   -H 'Host: desk.rekov.co' http://127.0.0.1:8080/rms/ -o /tmp/rms-index.html

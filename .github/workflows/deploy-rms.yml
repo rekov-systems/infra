@@ -391,7 +391,7 @@ jobs:
           grep -qi 'desk' "$RUNNER_TEMP/desk-index.html"
           curl --retry 30 --retry-delay 3 --retry-connrefused --retry-all-errors -fsS \
             https://desk.rekov.co/login -o "$RUNNER_TEMP/desk-login.html"
-          grep -qi 'iniciar sesión' "$RUNNER_TEMP/desk-login.html"
+          grep -q 'app/login/page-' "$RUNNER_TEMP/desk-login.html"
           curl --retry 30 --retry-delay 3 --retry-connrefused --retry-all-errors -fsS \
             https://desk.rekov.co/rms/ -o "$RUNNER_TEMP/rms-index.html"
           grep -q '<div id="root">' "$RUNNER_TEMP/rms-index.html"
