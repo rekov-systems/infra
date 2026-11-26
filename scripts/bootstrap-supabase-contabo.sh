@@ -75,34 +75,33 @@ cd "$stack"
 docker compose -f docker-compose.yml -f docker-compose.rms.yml pull
 mapfile -t services < <(docker compose -f docker-compose.yml -f docker-compose.rms.yml config --services | grep -v '^rms-caddy$')
 docker compose -f docker-compose.yml -f docker-compose.rms.yml up -d --wait "${services[@]}"
-if [[ -d /tmp/rms-functions ]]; then
-  functions="$stack/volumes/functions"
-  find "$functions" -mindepth 1 -maxdepth 1 -type d ! -name main -exec rm -rf {} +
-  for name in create-user rappi-order-action rappi-sync-menu rappi-test-connection rappi-webhook; do
-    [[ -d "/tmp/rms-functions/$name" ]] && cp -a "/tmp/rms-functions/$name" "$functions/"
-  done
-  [[ -d /tmp/rms-functions/_shared ]] && cp -a /tmp/rms-functions/_shared "$functions/"
-  for name in ai-order-agent process-invoice embed-knowledge-doc rms-admin; do
-    source_dir="/tmp/rms-custom-functions/$name"
-    if [[ ! -s "$source_dir/index.ts" ]]; then
-      echo "Missing custom Supabase function entrypoint: $source_dir/index.ts" >&2
-      exit 1
-    fi
-    rm -rf "$functions/$name"
-    cp -a "$source_dir" "$functions/"
-    [[ -s "$functions/$name/index.ts" ]]
-  done
-  docker compose -f docker-compose.yml -f docker-compose.rms.yml up -d --wait functions
-
-  cors_headers="$(curl --retry 10 --retry-delay 2 --retry-connrefused --retry-all-errors \
-    -fsS -D - -o /dev/null -X OPTIONS http://127.0.0.1:8000/functions/v1/rms-admin \
-    -H 'Origin: https://pos.rekov.co' \
-    -H 'Access-Control-Request-Method: POST' \
-    -H 'Access-Control-Request-Headers: authorization, apikey, content-type')"
-  if ! grep -qi '^access-control-allow-origin: \*' <<<"$cors_headers"; then
-    echo "rms-admin is reachable but its CORS preflight headers are missing" >&2
+[[ -d /tmp/rms-functions ]] || { echo "Missing staged POS Supabase functions" >&2; exit 1; }
+functions="$stack/volumes/functions"
+find "$functions" -mindepth 1 -maxdepth 1 -type d ! -name main -exec rm -rf {} +
+for name in create-user rappi-order-action rappi-sync-menu rappi-test-connection rappi-webhook; do
+  [[ -d "/tmp/rms-functions/$name" ]] && cp -a "/tmp/rms-functions/$name" "$functions/"
+done
+[[ -d /tmp/rms-functions/_shared ]] && cp -a /tmp/rms-functions/_shared "$functions/"
+for name in ai-order-agent process-invoice embed-knowledge-doc rms-admin; do
+  source_dir="/tmp/rms-custom-functions/$name"
+  if [[ ! -s "$source_dir/index.ts" ]]; then
+    echo "Missing custom Supabase function entrypoint: $source_dir/index.ts" >&2
     exit 1
   fi
+  rm -rf "$functions/$name"
+  cp -a "$source_dir" "$functions/"
+  [[ -s "$functions/$name/index.ts" ]]
+done
+docker compose -f docker-compose.yml -f docker-compose.rms.yml up -d --wait functions
+
+cors_headers="$(curl --retry 10 --retry-delay 2 --retry-connrefused --retry-all-errors \
+  -fsS -D - -o /dev/null -X OPTIONS http://127.0.0.1:8000/functions/v1/rms-admin \
+  -H 'Origin: https://pos.rekov.co' \
+  -H 'Access-Control-Request-Method: POST' \
+  -H 'Access-Control-Request-Headers: authorization, apikey, content-type')"
+if ! grep -qi '^access-control-allow-origin: \*' <<<"$cors_headers"; then
+  echo "rms-admin is reachable but its CORS preflight headers are missing" >&2
+  exit 1
 fi
 publishable_key="$(sed -n 's/^SUPABASE_PUBLISHABLE_KEY=//p' "$stack/.env" | tail -n 1)"
 : "${publishable_key:?SUPABASE_PUBLISHABLE_KEY was not generated}"
