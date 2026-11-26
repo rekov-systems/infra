@@ -59,7 +59,7 @@ for queue_id in "${queue_ids[@]}"; do
     exit 1
   }
   mapfile -t queue_consumers < <(jq -r --argjson workers "$(printf '%s\n' "${workers[@]}" | jq -R . | jq -s .)" \
-    '.result.consumers[]? | select(.type == "worker" and (.script_name as $s | $workers | index($s))) | [.consumer_id,.script_name] | @tsv' \
+    '.result.consumers[]? | select(.script_name as $s | $workers | index($s)) | [.consumer_id,.script_name] | @tsv' \
     <<<"$queue_response")
   for consumer in "${queue_consumers[@]}"; do
     consumer_id="${consumer%%$'\t'*}"
