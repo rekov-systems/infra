@@ -1,4 +1,4 @@
-control.rekov.co {
+control.pos.rekov.co {
 	encode zstd gzip
 	tls {
 		dns cloudflare {env.CLOUDFLARE_API_TOKEN}

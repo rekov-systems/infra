@@ -133,6 +133,15 @@ resource "cloudflare_dns_record" "admin" {
   proxied = false
 }
 
+resource "cloudflare_dns_record" "control_panel" {
+  zone_id = var.cloudflare_zone_id
+  name    = "control.pos"
+  type    = "A"
+  content = oci_core_instance.control.public_ip
+  ttl     = 1
+  proxied = false
+}
+
 resource "cloudflare_dns_record" "tenants" {
   zone_id = var.cloudflare_zone_id
   name    = "*"

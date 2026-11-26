@@ -26,10 +26,10 @@ curl --retry 20 --retry-delay 1 --retry-connrefused -fsS http://127.0.0.1:8080/h
 curl --retry 20 --retry-delay 1 --retry-connrefused -fsS http://127.0.0.1:8080/ | grep -q '<div id="root">'
 echo "Checking the control panel document on the isolated hostname"
 curl --retry 10 --retry-delay 1 --retry-connrefused -fsS \
-  -H 'Host: control.rekov.co' http://127.0.0.1:8080/ | grep -q '<div id="app">'
+  -H 'Host: control.pos.rekov.co' http://127.0.0.1:8080/ | grep -q '<div id="app">'
 echo "Checking the control panel application bundle"
 curl --retry 10 --retry-delay 1 --retry-connrefused -fsS \
-  -H 'Host: control.rekov.co' http://127.0.0.1:8080/app.js | grep -q 'PANEL DE PLATAFORMA'
+  -H 'Host: control.pos.rekov.co' http://127.0.0.1:8080/app.js | grep -q 'PANEL DE PLATAFORMA'
 
 # Switch the public web server only after the new POS is healthy on localhost.
 for service in nginx; do
