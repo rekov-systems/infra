@@ -11,7 +11,8 @@ if [[ "$mode" != all && "$mode" != detach && "$mode" != delete ]]; then
   exit 2
 fi
 
-api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers"
+account_api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}"
+api="${account_api}/workers"
 # Delete test services first: they may still hold service bindings to production
 # services, and Cloudflare refuses to remove a referenced service.
 workers=(desk-ops-dashboard-test desk-api-test desk-dashboard-test desk-ops-dashboard desk-api desk-dashboard)
@@ -42,7 +43,7 @@ fi
 [[ "$mode" == detach ]] && exit 0
 
 queues_response="$(curl --fail-with-body --silent --show-error \
-  -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "${api}/queues?per_page=100")"
+  -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "${account_api}/queues?per_page=100")"
 jq -e '.success == true' >/dev/null <<<"$queues_response" || {
   echo "Could not list Cloudflare Queues before removing Desk consumers." >&2
   jq -c '{success, errors, messages}' <<<"$queues_response" >&2
@@ -51,7 +52,7 @@ jq -e '.success == true' >/dev/null <<<"$queues_response" || {
 mapfile -t queue_ids < <(jq -r '.result[]?.queue_id // empty' <<<"$queues_response")
 for queue_id in "${queue_ids[@]}"; do
   queue_response="$(curl --fail-with-body --silent --show-error \
-    -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "${api}/queues/${queue_id}")"
+    -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "${account_api}/queues/${queue_id}")"
   jq -e '.success == true' >/dev/null <<<"$queue_response" || {
     echo "Could not inspect a Cloudflare Queue before removing Desk consumers." >&2
     jq -c '{success, errors, messages}' <<<"$queue_response" >&2
@@ -65,7 +66,7 @@ for queue_id in "${queue_ids[@]}"; do
     consumer_worker="${consumer#*$'\t'}"
     consumer_response="$(curl --fail-with-body --silent --show-error -X DELETE \
       -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-      "${api}/queues/${queue_id}/consumers/${consumer_id}")"
+      "${account_api}/queues/${queue_id}/consumers/${consumer_id}")"
     jq -e '.success == true' >/dev/null <<<"$consumer_response" || {
       echo "Could not remove Desk Worker ${consumer_worker} from its Queue consumer." >&2
       jq -c '{success, errors, messages}' <<<"$consumer_response" >&2
