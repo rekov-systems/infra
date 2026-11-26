@@ -22,7 +22,8 @@ for item in "${old_domains[@]}"; do
   detached="$(curl --fail-with-body --silent --show-error -X DELETE \
     -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "${api}/domains/${id}")"
   jq -e '.success == true' >/dev/null <<<"$detached" || {
-    echo "Could not detach ${host}; token needs Workers Scripts Write or Workers Admin." >&2
+    echo "Could not detach ${host}; Cloudflare response:" >&2
+    jq -r '(.errors // [])[] | "code=\(.code // "unknown") message=\(.message // "unknown")"' <<<"$detached" >&2
     exit 1
   }
   echo "Detached ${host} from its Desk Worker."
