@@ -168,6 +168,13 @@ jobs:
           aws s3 sync "$RECOVERY_DIR" "s3://$R2_STORAGE_BUCKET/recovery/rms/$GITHUB_RUN_ID/" \
             --endpoint-url "$R2_STORAGE_ENDPOINT" --only-show-errors
 
+      - name: Release the Desk hostname from its previous Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ env.TF_VAR_cloudflare_api_token }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ env.TF_VAR_cloudflare_account_id }}
+          DESK_HOSTNAME: desk.${{ env.CLOUDFLARE_ROOT_DOMAIN || env.PRESS_ROOT_DOMAIN }}
+        run: scripts/detach-cloudflare-worker-domain.sh
+
       - name: Reinstall the existing Contabo VPS from a clean image after backup
         if: ${{ inputs.reinstall_contabo }}
         env:
