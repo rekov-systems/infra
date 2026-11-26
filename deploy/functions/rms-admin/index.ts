@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
       if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length < 3 || slug.length > 48) {
         return json({ error: "Usa un identificador de 3 a 48 caracteres: letras, números y guiones" }, 400);
       }
-      if (["pos", "api", "studio", "admin", "www", "rekov-platform"].includes(slug)) {
+      if (["pos", "api", "studio", "admin", "control", "www", "rekov-platform"].includes(slug)) {
         return json({ error: "Ese nombre está reservado por la plataforma" }, 400);
       }
 
