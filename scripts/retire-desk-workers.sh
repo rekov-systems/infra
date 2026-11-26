@@ -41,6 +41,40 @@ fi
 
 [[ "$mode" == detach ]] && exit 0
 
+queues_response="$(curl --fail-with-body --silent --show-error \
+  -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "${api}/queues?per_page=100")"
+jq -e '.success == true' >/dev/null <<<"$queues_response" || {
+  echo "Could not list Cloudflare Queues before removing Desk consumers." >&2
+  jq -c '{success, errors, messages}' <<<"$queues_response" >&2
+  exit 1
+}
+mapfile -t queue_ids < <(jq -r '.result[]?.queue_id // empty' <<<"$queues_response")
+for queue_id in "${queue_ids[@]}"; do
+  queue_response="$(curl --fail-with-body --silent --show-error \
+    -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "${api}/queues/${queue_id}")"
+  jq -e '.success == true' >/dev/null <<<"$queue_response" || {
+    echo "Could not inspect a Cloudflare Queue before removing Desk consumers." >&2
+    jq -c '{success, errors, messages}' <<<"$queue_response" >&2
+    exit 1
+  }
+  mapfile -t queue_consumers < <(jq -r --argjson workers "$(printf '%s\n' "${workers[@]}" | jq -R . | jq -s .)" \
+    '.result.consumers[]? | select(.type == "worker" and (.script_name as $s | $workers | index($s))) | [.consumer_id,.script_name] | @tsv' \
+    <<<"$queue_response")
+  for consumer in "${queue_consumers[@]}"; do
+    consumer_id="${consumer%%$'\t'*}"
+    consumer_worker="${consumer#*$'\t'}"
+    consumer_response="$(curl --fail-with-body --silent --show-error -X DELETE \
+      -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+      "${api}/queues/${queue_id}/consumers/${consumer_id}")"
+    jq -e '.success == true' >/dev/null <<<"$consumer_response" || {
+      echo "Could not remove Desk Worker ${consumer_worker} from its Queue consumer." >&2
+      jq -c '{success, errors, messages}' <<<"$consumer_response" >&2
+      exit 1
+    }
+    echo "Removed Desk Worker ${consumer_worker} from its Queue consumer."
+  done
+done
+
 for worker in "${workers[@]}"; do
   response_file="$(mktemp)"
   status="$(curl --silent --show-error -o "$response_file" -w '%{http_code}' \
