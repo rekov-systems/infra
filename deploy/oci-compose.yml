@@ -1,4 +1,16 @@
 services:
+  desk-web:
+    image: node:22-alpine
+    container_name: desk-web
+    restart: unless-stopped
+    working_dir: /app/packages/dashboard
+    command: ["node", "server.js"]
+    environment:
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+    volumes:
+      - /opt/rms/desk-runtime:/app:ro
+
   pos-web:
     image: nginx:1.27-alpine
     container_name: rms-pos-web

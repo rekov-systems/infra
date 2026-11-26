@@ -1,0 +1,120 @@
+diff --git a/packages/dashboard/next.config.ts b/packages/dashboard/next.config.ts
+index 2a2c104..76d84d8 100644
+--- a/packages/dashboard/next.config.ts
++++ b/packages/dashboard/next.config.ts
+@@ -1,11 +1,20 @@
+ import type { NextConfig } from "next";
+ 
+ const nextConfig: NextConfig = {
++  output: "standalone",
+   reactStrictMode: true,
+   env: {
+     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL ?? "",
+     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL ?? "",
+   },
++  async redirects() {
++    return [
++      { source: "/dashboard", destination: "/rms/dashboard", permanent: false },
++      { source: "/dashboard/:path*", destination: "/rms/dashboard", permanent: false },
++      { source: "/onboarding/plan", destination: "/rms/onboarding", permanent: false },
++      { source: "/register", destination: "/login", permanent: false },
++    ];
++  },
+ };
+ 
+ export default nextConfig;
+diff --git a/packages/dashboard/src/app/login/page.tsx b/packages/dashboard/src/app/login/page.tsx
+index fba9e2b..4bc82f6 100644
+--- a/packages/dashboard/src/app/login/page.tsx
++++ b/packages/dashboard/src/app/login/page.tsx
+@@ -15,6 +15,28 @@ const MAGIC_SENT =
+ 
+ type OrgPick = { id: string; name: string; role: string };
+ 
++type SupabaseLogin = { access_token: string; refresh_token: string };
++
++function finishWithSupabaseSession(
++  searchParams: ReturnType<typeof useSearchParams>,
++  session: SupabaseLogin,
++) {
++  const requested = safeNextPath(searchParams.get("next"), "/rms/onboarding");
++  const next = requested.startsWith("/rms/") ? requested : "/rms/onboarding";
++  const fragment = new URLSearchParams({
++    access_token: session.access_token,
++    refresh_token: session.refresh_token,
++    next,
++  });
++  window.location.assign(`/rms/sso#${fragment.toString()}`);
++}
++
++function supabaseAuthHeaders() {
++  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
++  if (!key) throw new Error("Falta la llave pública de autenticación.");
++  return { apikey: key, "Content-Type": "application/json" };
++}
++
+ function finishWithToken(
+   router: ReturnType<typeof useRouter>,
+   searchParams: ReturnType<typeof useSearchParams>,
+@@ -125,28 +147,17 @@ function LoginForm() {
+     setError(null);
+     setBanner(null);
+     try {
+-      const data = await api<{
+-        token?: string;
+-        needOrgPick?: boolean;
+-        orgs?: OrgPick[];
+-        requires_otp?: boolean;
+-        challenge_id?: string;
+-        message?: string;
+-      }>("/v1/admin/auth/login", {
++      const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");
++      if (!url) throw new Error("Falta configurar el servidor de acceso.");
++      const response = await fetch(`${url}/auth/v1/token?grant_type=password`, {
+         method: "POST",
+-        body: JSON.stringify({
+-          email: email.trim().toLowerCase(),
+-          password,
+-          orgId: orgId || undefined,
+-          acceptTerms: true,
+-        }),
++        headers: supabaseAuthHeaders(),
++        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+       });
+-      if (data.requires_otp && data.challenge_id) {
+-        setChallengeId(data.challenge_id);
+-        setBanner(data.message ?? "Revisa tu correo: te enviamos un código.");
+-        return;
+-      }
+-      await applyLoginResult(data);
++      const data = await response.json();
++      if (!response.ok) throw new Error(data.msg ?? data.message ?? "Correo o contraseña incorrectos.");
++      if (!data.access_token || !data.refresh_token) throw new Error("El servidor no devolvió una sesión válida.");
++      finishWithSupabaseSession(searchParams, data);
+     } catch (err) {
+       setError(err instanceof Error ? err.message : "No se pudo iniciar sesión");
+     } finally {
+@@ -201,10 +212,21 @@ function LoginForm() {
+     setLoading(true);
+     setError(null);
+     try {
+-      await api<{ ok: boolean }>("/v1/admin/auth/magic-link", {
++      const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");
++      if (!url) throw new Error("Falta configurar el servidor de acceso.");
++      const requested = safeNextPath(searchParams.get("next"), "/rms/onboarding");
++      const next = requested.startsWith("/rms/") ? requested : "/rms/onboarding";
++      const response = await fetch(`${url}/auth/v1/otp`, {
+         method: "POST",
+-        body: JSON.stringify({ email: email.trim().toLowerCase() }),
++        headers: supabaseAuthHeaders(),
++        body: JSON.stringify({
++          email: email.trim().toLowerCase(),
++          create_user: false,
++          options: { emailRedirectTo: `${window.location.origin}/rms/sso?next=${encodeURIComponent(next)}` },
++        }),
+       });
++      const data = response.status === 204 ? {} : await response.json().catch(() => ({}));
++      if (!response.ok) throw new Error(data.msg ?? data.message ?? "No se pudo enviar el enlace.");
+       setMagicHint(MAGIC_SENT);
+     } catch (err) {
+       setError(err instanceof Error ? err.message : "No se pudo enviar el enlace");

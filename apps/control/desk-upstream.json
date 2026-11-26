@@ -1,0 +1,9 @@
+{
+  "repository": "stiven-pm/desk",
+  "branch": "master",
+  "base_sha": "b4dd902c902e5cb85d9089139067a1feb94805d3",
+  "overlay_paths": [
+    "packages/dashboard/next.config.ts",
+    "packages/dashboard/src/app/login/page.tsx"
+  ]
+}

@@ -36,6 +36,18 @@ jobs:
           scripts/prepare-pos-overlay.sh apps/pos "$POS_ROOT"
           echo "POS_ROOT=$POS_ROOT" >> "$GITHUB_ENV"
 
+      - uses: actions/checkout@v4
+        with:
+          repository: stiven-pm/desk
+          ref: b4dd902c902e5cb85d9089139067a1feb94805d3
+          path: desk-upstream
+      - name: Prepare the unchanged Desk source with the RMS login integration
+        env:
+          DESK_SOURCE: ${{ runner.temp }}/desk-source
+        run: |
+          scripts/prepare-desk-overlay.sh desk-upstream "$DESK_SOURCE"
+          echo "DESK_SOURCE=$DESK_SOURCE" >> "$GITHUB_ENV"
+
       - name: Load production secrets from Infisical
         uses: Infisical/secrets-action@v1.0.18
         with:
@@ -168,13 +180,6 @@ jobs:
           aws s3 sync "$RECOVERY_DIR" "s3://$R2_STORAGE_BUCKET/recovery/rms/$GITHUB_RUN_ID/" \
             --endpoint-url "$R2_STORAGE_ENDPOINT" --only-show-errors
 
-      - name: Release the Desk hostname from its previous Worker
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ env.TF_VAR_cloudflare_api_token }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ env.TF_VAR_cloudflare_account_id }}
-          DESK_HOSTNAME: desk.${{ env.CLOUDFLARE_ROOT_DOMAIN || env.PRESS_ROOT_DOMAIN }}
-        run: scripts/detach-cloudflare-worker-domain.sh
-
       - name: Reinstall the existing Contabo VPS from a clean image after backup
         if: ${{ inputs.reinstall_contabo }}
         env:
@@ -188,7 +193,7 @@ jobs:
           CONTABO_SSH_PUBLIC_KEY: ${{ env.CONTABO_SSH_PUBLIC_KEY }}
         run: scripts/reinstall-contabo-vps.sh
 
-      - name: Reconcile DNS while retaining both hosts
+      - name: Prepare Supabase and control DNS before staging the unified app
         env:
           AWS_ACCESS_KEY_ID: ${{ env.R2_STORAGE_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ env.R2_STORAGE_SECRET_ACCESS_KEY }}
@@ -207,10 +212,14 @@ jobs:
           TF_VAR_ocpus: "2"
           TF_VAR_memory_in_gbs: "12"
         run: |
-          terraform -chdir=terraform plan -input=false -out="$RUNNER_TEMP/rms.tfplan"
-          terraform -chdir=terraform show -json "$RUNNER_TEMP/rms.tfplan" \
+          terraform -chdir=terraform plan -input=false \
+            -target=cloudflare_dns_record.supabase_api \
+            -target=cloudflare_dns_record.supabase_studio \
+            -target=cloudflare_dns_record.control_panel \
+            -out="$RUNNER_TEMP/rms-bootstrap.tfplan"
+          terraform -chdir=terraform show -json "$RUNNER_TEMP/rms-bootstrap.tfplan" \
             | jq -e '[.resource_changes[] | select(.type == "oci_core_instance" or .type == "oci_core_vcn" or .type == "oci_core_subnet") | select(.change.actions | index("delete"))] | length == 0' >/dev/null
-          terraform -chdir=terraform apply -input=false -auto-approve "$RUNNER_TEMP/rms.tfplan"
+          terraform -chdir=terraform apply -input=false -auto-approve "$RUNNER_TEMP/rms-bootstrap.tfplan"
 
       - name: Prepare SSH keys
         run: |
@@ -290,9 +299,23 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: apps/pos/package-lock.json
+          cache-dependency-path: |
+            apps/pos/package-lock.json
+            desk-upstream/package-lock.json
 
-      - name: Build POS with the self-hosted Supabase endpoint
+      - name: Build Desk landing and Supabase login for the existing origin
+        working-directory: ${{ runner.temp }}/desk-source
+        env:
+          NEXT_PUBLIC_APP_URL: https://desk.rekov.co
+          NEXT_PUBLIC_API_URL: https://api.desk.rekov.co
+          NEXT_PUBLIC_SUPABASE_URL: https://api.desk.rekov.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ steps.supabase.outputs.publishable_key }}
+        run: |
+          npm ci
+          npm run build -w @chatbot/dashboard
+          "$GITHUB_WORKSPACE/scripts/package-desk-runtime.sh" "$DESK_SOURCE" "$RUNNER_TEMP/desk-runtime"
+
+      - name: Build the complete RMS interior under /rms
         working-directory: ${{ runner.temp }}/rms-pos
         env:
           VITE_SUPABASE_URL: https://api.desk.rekov.co
@@ -305,19 +328,51 @@ jobs:
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ steps.supabase.outputs.publishable_key }}
         run: node scripts/build-control.mjs apps/control "$RUNNER_TEMP/rms-pos/dist/control"
 
-      - name: Deploy POS to OCI and cut over after local health check
+      - name: Stage Desk and the RMS on OCI and verify the local origin
         env:
           CLOUDFLARE_API_TOKEN: ${{ env.TF_VAR_cloudflare_api_token }}
         run: |
           tar -czf "$RUNNER_TEMP/rms-pos-dist.tgz" -C "$RUNNER_TEMP/rms-pos/dist" .
+          tar -czf "$RUNNER_TEMP/desk-runtime.tgz" -C "$RUNNER_TEMP/desk-runtime" .
           printf 'CLOUDFLARE_API_TOKEN=%s\n' "$CLOUDFLARE_API_TOKEN" > "$RUNNER_TEMP/oci.env"
           scp -i "$RUNNER_TEMP/oci_key" -o StrictHostKeyChecking=accept-new \
-            "$RUNNER_TEMP/rms-pos-dist.tgz" scripts/deploy-pos-oci.sh \
+            "$RUNNER_TEMP/rms-pos-dist.tgz" "$RUNNER_TEMP/desk-runtime.tgz" scripts/deploy-pos-oci.sh \
             deploy/oci-compose.yml deploy/Caddyfile.oci deploy/nginx-pos.conf \
             deploy/caddy-cloudflare.Dockerfile "$RUNNER_TEMP/oci.env" \
             "ubuntu@$OCI_POS_IP:/tmp/"
           ssh -i "$RUNNER_TEMP/oci_key" -o StrictHostKeyChecking=accept-new \
             "ubuntu@$OCI_POS_IP" 'sudo bash /tmp/deploy-pos-oci.sh'
+
+      - name: Retire the old Desk application Workers after local origin validation
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ env.TF_VAR_cloudflare_api_token }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ env.TF_VAR_cloudflare_account_id }}
+          CLOUDFLARE_ROOT_DOMAIN: ${{ env.CLOUDFLARE_ROOT_DOMAIN || env.PRESS_ROOT_DOMAIN }}
+        run: scripts/retire-desk-workers.sh
+
+      - name: Cut over Desk DNS to the existing VPS
+        env:
+          AWS_ACCESS_KEY_ID: ${{ env.R2_STORAGE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.R2_STORAGE_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ env.R2_STORAGE_REGION }}
+          TF_VAR_cloudflare_api_token: ${{ env.TF_VAR_cloudflare_api_token }}
+          TF_VAR_cloudflare_zone_id: ${{ env.TF_VAR_cloudflare_zone_id }}
+          TF_VAR_compartment_ocid: ${{ env.TF_VAR_compartment_ocid }}
+          TF_VAR_fingerprint: ${{ env.TF_VAR_fingerprint }}
+          TF_VAR_oci_region: ${{ env.TF_VAR_oci_region }}
+          TF_VAR_private_key: ${{ env.TF_VAR_private_key }}
+          TF_VAR_ssh_public_key: ${{ env.OCI_NEXT_SSH_PUBLIC_KEY }}
+          TF_VAR_tenancy_ocid: ${{ env.TF_VAR_tenancy_ocid }}
+          TF_VAR_user_ocid: ${{ env.TF_VAR_user_ocid }}
+          TF_VAR_cloudflare_root_domain: ${{ env.CLOUDFLARE_ROOT_DOMAIN || env.PRESS_ROOT_DOMAIN }}
+          TF_VAR_contabo_public_ip: ${{ env.CONTABO_PUBLIC_IP }}
+          TF_VAR_ocpus: "2"
+          TF_VAR_memory_in_gbs: "12"
+        run: |
+          terraform -chdir=terraform plan -input=false -out="$RUNNER_TEMP/rms.tfplan"
+          terraform -chdir=terraform show -json "$RUNNER_TEMP/rms.tfplan" \
+            | jq -e '[.resource_changes[] | select(.type == "oci_core_instance" or .type == "oci_core_vcn" or .type == "oci_core_subnet") | select(.change.actions | index("delete"))] | length == 0' >/dev/null
+          terraform -chdir=terraform apply -input=false -auto-approve "$RUNNER_TEMP/rms.tfplan"
 
       - name: Verify public Supabase and POS
         env:
@@ -332,7 +387,13 @@ jobs:
           curl --retry 30 --retry-delay 3 --retry-connrefused -fsS \
             https://desk.rekov.co/health
           curl --retry 30 --retry-delay 3 --retry-connrefused --retry-all-errors -fsS \
-            https://desk.rekov.co/ -o "$RUNNER_TEMP/rms-index.html"
+            https://desk.rekov.co/ -o "$RUNNER_TEMP/desk-index.html"
+          grep -qi 'desk' "$RUNNER_TEMP/desk-index.html"
+          curl --retry 30 --retry-delay 3 --retry-connrefused --retry-all-errors -fsS \
+            https://desk.rekov.co/login -o "$RUNNER_TEMP/desk-login.html"
+          grep -qi 'iniciar sesión' "$RUNNER_TEMP/desk-login.html"
+          curl --retry 30 --retry-delay 3 --retry-connrefused --retry-all-errors -fsS \
+            https://desk.rekov.co/rms/ -o "$RUNNER_TEMP/rms-index.html"
           grep -q '<div id="root">' "$RUNNER_TEMP/rms-index.html"
           curl --retry 30 --retry-delay 3 --retry-connrefused --retry-all-errors -fsSL \
             https://control.desk.rekov.co/ -o "$RUNNER_TEMP/rms-control-index.html"
