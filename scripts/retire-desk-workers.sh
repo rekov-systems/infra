@@ -23,7 +23,7 @@ for item in "${old_domains[@]}"; do
     -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "${api}/domains/${id}")"
   jq -e '.success == true' >/dev/null <<<"$detached" || {
     echo "Could not detach ${host}; Cloudflare response:" >&2
-    jq -r '(.errors // [])[] | "code=\(.code // "unknown") message=\(.message // "unknown")"' <<<"$detached" >&2
+    jq -c '{success, errors, messages}' <<<"$detached" >&2
     exit 1
   }
   echo "Detached ${host} from its Desk Worker."
