@@ -1,4 +1,4 @@
-control.pos.rekov.co {
+control.desk.rekov.co {
 	encode zstd gzip
 	tls {
 		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
@@ -6,15 +6,7 @@ control.pos.rekov.co {
 	reverse_proxy 127.0.0.1:8080
 }
 
-*.pos.rekov.co {
-	encode zstd gzip
-	tls {
-		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
-	}
-	reverse_proxy 127.0.0.1:8080
-}
-
-*.rekov.co, pos.rekov.co {
+desk.rekov.co {
 	encode zstd gzip
 	tls {
 		dns cloudflare {env.CLOUDFLARE_API_TOKEN}

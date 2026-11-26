@@ -13,6 +13,39 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Prepare upstream POS with Rekov overlay
+        env:
+          POS_ROOT: ${{ runner.temp }}/rms-pos
+        run: |
+          scripts/prepare-pos-overlay.sh apps/pos "$POS_ROOT"
+          echo "POS_ROOT=$POS_ROOT" >> "$GITHUB_ENV"
+      - name: Summarize upstream files that overlap the Rekov overlay
+        if: startsWith(github.head_ref, 'automation/pos-upstream-sync')
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          import subprocess
+          from pathlib import Path
+
+          manifest = json.loads(Path("apps/control/pos-upstream.json").read_text())
+          changed = subprocess.check_output(
+              ["git", "diff", "--name-only", "origin/main...HEAD", "--", "apps/pos"], text=True
+          ).splitlines()
+          changed = {path.removeprefix("apps/pos/") for path in changed}
+          overlay = set(manifest.get("overlay_paths", []))
+          overlap = sorted(changed & overlay)
+          print("## Revisión del upstream POS")
+          print(f"\n- Archivos fuente cambiados: **{len(changed)}**")
+          print(f"- Archivos que también modifica el overlay Rekov: **{len(overlap)}**")
+          if overlap:
+              print("\nRevisar estos archivos. La aplicación exacta del overlay y la compilación se validan en los pasos siguientes:\n")
+              for path in overlap:
+                  print(f"- `{path}`")
+          else:
+              print("\nNo hay coincidencias de ruta con el overlay Rekov.")
+          PY
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.15.9
@@ -28,8 +61,8 @@ jobs:
           terraform -chdir=terraform validate
           bash -n scripts/*.sh
       - name: Build the upstream POS bundle
-        working-directory: apps/pos
+        working-directory: ${{ runner.temp }}/rms-pos
         env:
-          VITE_SUPABASE_URL: https://api.pos.rekov.co
+          VITE_SUPABASE_URL: https://api.desk.rekov.co
           VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_build_placeholder
         run: npm ci && npm run build

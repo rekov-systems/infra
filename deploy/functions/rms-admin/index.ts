@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
       });
       if (userError || !createdUser.user) return json({ error: userError?.message ?? "No se pudo crear el usuario dueño" }, 400);
 
-      const domain = `${slug}.pos.rekov.co`;
+      const domain = null;
       const { data: createdTenant, error: tenantError } = await admin.rpc("rms_create_tenant_with_owner", {
         _name: name,
         _slug: slug,
@@ -155,7 +155,7 @@ Deno.serve(async (req) => {
       }
       const row = Array.isArray(createdTenant) ? createdTenant[0] : createdTenant;
       return json({
-        tenant: { id: row.tenant_id, name, slug, domain, status: "active" },
+        tenant: { id: row.tenant_id, name, slug, domain: "desk.rekov.co", status: "active" },
         owner: { email: ownerEmail, name: ownerName || ownerEmail },
         temporary_password: tempPassword,
         created_by: caller.id,

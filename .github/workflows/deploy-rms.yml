@@ -29,6 +29,12 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare upstream POS with Rekov overlay
+        env:
+          POS_ROOT: ${{ runner.temp }}/rms-pos
+        run: |
+          scripts/prepare-pos-overlay.sh apps/pos "$POS_ROOT"
+          echo "POS_ROOT=$POS_ROOT" >> "$GITHUB_ENV"
 
       - name: Load production secrets from Infisical
         uses: Infisical/secrets-action@v1.0.18
@@ -53,6 +59,12 @@ jobs:
           : "${CONTABO_SSH_PUBLIC_KEY:?Add CONTABO_SSH_PUBLIC_KEY to Infisical}"
           : "${SUPABASE_DB_PASSWORD:?Add SUPABASE_DB_PASSWORD to Infisical}"
           : "${SUPABASE_DASHBOARD_PASSWORD:?Add SUPABASE_DASHBOARD_PASSWORD to Infisical}"
+          : "${TENANT_SECRETS_ENCRYPTION_KEY:?Add TENANT_SECRETS_ENCRYPTION_KEY to Infisical}"
+          : "${META_APP_ID:?Add Desk approved app ID META_APP_ID to Infisical}"
+          : "${META_APP_SECRET:?Add META_APP_SECRET to Infisical}"
+          : "${WHATSAPP_EMBEDDED_CONFIG_ID:?Add Desk approved WhatsApp Embedded Signup config ID to Infisical}"
+          : "${CLOUDFLARE_WORKERS_AI_TOKEN:?Add CLOUDFLARE_WORKERS_AI_TOKEN with Workers AI permissions to Infisical}"
+          : "${META_WEBHOOK_VERIFY_TOKEN:?Add the existing META_WEBHOOK_VERIFY_TOKEN to Infisical}"
           : "${RMS_PLATFORM_ADMIN_EMAIL:?Add RMS_PLATFORM_ADMIN_EMAIL to Infisical}"
           : "${RMS_PLATFORM_ADMIN_PASSWORD:?Add RMS_PLATFORM_ADMIN_PASSWORD to Infisical}"
           : "${OCI_NEXT_SSH_PRIVATE_KEY:?Add OCI_NEXT_SSH_PRIVATE_KEY for OCI to Infisical}"
@@ -63,6 +75,7 @@ jobs:
           : "${TF_VAR_fingerprint:?Add TF_VAR_fingerprint to Infisical}"
           : "${TF_VAR_oci_region:?Add TF_VAR_oci_region to Infisical}"
           : "${TF_VAR_compartment_ocid:?Add TF_VAR_compartment_ocid to Infisical}"
+          : "${TF_VAR_cloudflare_account_id:?Add TF_VAR_cloudflare_account_id to Infisical}"
           : "${TF_VAR_cloudflare_api_token:?Add TF_VAR_cloudflare_api_token to Infisical}"
           : "${TF_VAR_cloudflare_zone_id:?Add TF_VAR_cloudflare_zone_id to Infisical}"
           : "${ROOT_DOMAIN:?Add CLOUDFLARE_ROOT_DOMAIN or retain PRESS_ROOT_DOMAIN in Infisical}"
@@ -205,9 +218,22 @@ jobs:
           SUPABASE_DASHBOARD_PASSWORD: ${{ env.SUPABASE_DASHBOARD_PASSWORD }}
           RMS_PLATFORM_ADMIN_EMAIL: ${{ env.RMS_PLATFORM_ADMIN_EMAIL }}
           RMS_PLATFORM_ADMIN_PASSWORD: ${{ env.RMS_PLATFORM_ADMIN_PASSWORD }}
+          TENANT_SECRETS_ENCRYPTION_KEY: ${{ env.TENANT_SECRETS_ENCRYPTION_KEY }}
+          META_APP_ID: ${{ env.META_APP_ID }}
+          META_APP_SECRET: ${{ env.META_APP_SECRET }}
+          WHATSAPP_EMBEDDED_CONFIG_ID: ${{ env.WHATSAPP_EMBEDDED_CONFIG_ID }}
+          META_GRAPH_VERSION: ${{ env.META_GRAPH_VERSION }}
+          META_WEBHOOK_VERIFY_TOKEN: ${{ env.META_WEBHOOK_VERIFY_TOKEN }}
+          CLOUDFLARE_WORKERS_AI_TOKEN: ${{ env.CLOUDFLARE_WORKERS_AI_TOKEN }}
+          TF_VAR_cloudflare_account_id: ${{ env.TF_VAR_cloudflare_account_id }}
+          RAPPI_API_BASE: ${{ env.RAPPI_API_BASE }}
+          RAPPI_CLIENT_ID: ${{ env.RAPPI_CLIENT_ID }}
+          RAPPI_CLIENT_SECRET: ${{ env.RAPPI_CLIENT_SECRET }}
+          RAPPI_WEBHOOK_SECRET: ${{ env.RAPPI_WEBHOOK_SECRET }}
+          RAPPI_IP_ALLOWLIST: ${{ env.RAPPI_IP_ALLOWLIST }}
         run: |
           target="${CONTABO_SSH_USER:-ubuntu}@$CONTABO_PUBLIC_IP"
-          scripts/prepare-pos-migrations.sh apps/pos/supabase/migrations "$RUNNER_TEMP/rms-migrations" deploy/migrations
+          scripts/prepare-pos-migrations.sh "$POS_ROOT/supabase/migrations" "$RUNNER_TEMP/rms-migrations" deploy/migrations
           scp -i "$RUNNER_TEMP/contabo_key" -o StrictHostKeyChecking=accept-new \
             scripts/bootstrap-supabase-contabo.sh scripts/migrate-pos-db.sh \
             scripts/activate-supabase-contabo.sh deploy/supabase-compose.yml \
@@ -215,14 +241,26 @@ jobs:
           ssh -i "$RUNNER_TEMP/contabo_key" -o StrictHostKeyChecking=accept-new "$target" \
             'mkdir -p /tmp/rms-pos-supabase /tmp/rms-custom-functions'
           scp -i "$RUNNER_TEMP/contabo_key" -o StrictHostKeyChecking=accept-new -r \
-            "$RUNNER_TEMP/rms-migrations" apps/pos/supabase/functions "$target:/tmp/rms-pos-supabase/"
+            "$RUNNER_TEMP/rms-migrations" "$POS_ROOT/supabase/functions" "$target:/tmp/rms-pos-supabase/"
           scp -i "$RUNNER_TEMP/contabo_key" -o StrictHostKeyChecking=accept-new -r \
             deploy/functions/. "$target:/tmp/rms-custom-functions/"
           { printf 'SUPABASE_DB_PASSWORD=%q\n' "$SUPABASE_DB_PASSWORD"; \
             printf 'SUPABASE_DASHBOARD_PASSWORD=%q\n' "$SUPABASE_DASHBOARD_PASSWORD"; \
             printf 'RMS_PLATFORM_ADMIN_EMAIL=%q\n' "$RMS_PLATFORM_ADMIN_EMAIL"; \
             printf 'RMS_PLATFORM_ADMIN_PASSWORD=%q\n' "$RMS_PLATFORM_ADMIN_PASSWORD"; \
-            printf 'DESK_AI_WORKER_URL=%q\n' "${DESK_AI_WORKER_URL:-}"; } \
+            printf 'TENANT_SECRETS_ENCRYPTION_KEY=%q\n' "$TENANT_SECRETS_ENCRYPTION_KEY"; \
+            printf 'META_APP_ID=%q\n' "$META_APP_ID"; \
+            printf 'META_APP_SECRET=%q\n' "$META_APP_SECRET"; \
+            printf 'WHATSAPP_EMBEDDED_CONFIG_ID=%q\n' "$WHATSAPP_EMBEDDED_CONFIG_ID"; \
+            printf 'META_GRAPH_VERSION=%q\n' "${META_GRAPH_VERSION:-v26.0}"; \
+            printf 'META_WEBHOOK_VERIFY_TOKEN=%q\n' "$META_WEBHOOK_VERIFY_TOKEN"; \
+            printf 'CF_ACCOUNT_ID=%q\n' "$TF_VAR_cloudflare_account_id"; \
+            printf 'CLOUDFLARE_WORKERS_AI_TOKEN=%q\n' "$CLOUDFLARE_WORKERS_AI_TOKEN"; \
+            printf 'RAPPI_API_BASE=%q\n' "${RAPPI_API_BASE:-}"; \
+            printf 'RAPPI_CLIENT_ID=%q\n' "${RAPPI_CLIENT_ID:-}"; \
+            printf 'RAPPI_CLIENT_SECRET=%q\n' "${RAPPI_CLIENT_SECRET:-}"; \
+            printf 'RAPPI_WEBHOOK_SECRET=%q\n' "${RAPPI_WEBHOOK_SECRET:-}"; \
+            printf 'RAPPI_IP_ALLOWLIST=%q\n' "${RAPPI_IP_ALLOWLIST:-}"; } \
             > "$RUNNER_TEMP/contabo.env"
           tar -czf "$RUNNER_TEMP/rms-custom-functions.tgz" -C deploy/functions .
           scp -i "$RUNNER_TEMP/contabo_key" -o StrictHostKeyChecking=accept-new \
@@ -248,23 +286,23 @@ jobs:
           cache-dependency-path: apps/pos/package-lock.json
 
       - name: Build POS with the self-hosted Supabase endpoint
-        working-directory: apps/pos
+        working-directory: ${{ runner.temp }}/rms-pos
         env:
-          VITE_SUPABASE_URL: https://api.pos.rekov.co
+          VITE_SUPABASE_URL: https://api.desk.rekov.co
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ steps.supabase.outputs.publishable_key }}
         run: npm ci && npm run build
 
       - name: Add the independent Rekov control panel to the POS bundle
         env:
-          VITE_SUPABASE_URL: https://api.pos.rekov.co
+          VITE_SUPABASE_URL: https://api.desk.rekov.co
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ steps.supabase.outputs.publishable_key }}
-        run: node scripts/build-control.mjs apps/control apps/pos/dist/control
+        run: node scripts/build-control.mjs apps/control "$RUNNER_TEMP/rms-pos/dist/control"
 
       - name: Deploy POS to OCI and cut over after local health check
         env:
           CLOUDFLARE_API_TOKEN: ${{ env.TF_VAR_cloudflare_api_token }}
         run: |
-          tar -czf "$RUNNER_TEMP/rms-pos-dist.tgz" -C apps/pos/dist .
+          tar -czf "$RUNNER_TEMP/rms-pos-dist.tgz" -C "$RUNNER_TEMP/rms-pos/dist" .
           printf 'CLOUDFLARE_API_TOKEN=%s\n' "$CLOUDFLARE_API_TOKEN" > "$RUNNER_TEMP/oci.env"
           scp -i "$RUNNER_TEMP/oci_key" -o StrictHostKeyChecking=accept-new \
             "$RUNNER_TEMP/rms-pos-dist.tgz" scripts/deploy-pos-oci.sh \
@@ -280,20 +318,20 @@ jobs:
         run: |
           curl --retry 30 --retry-delay 3 --retry-connrefused -fsS \
             -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
-            https://api.pos.rekov.co/auth/v1/health >/dev/null
+            https://api.desk.rekov.co/auth/v1/health >/dev/null
           curl --retry 30 --retry-delay 3 --retry-connrefused -fsS \
             -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
-            'https://api.pos.rekov.co/rest/v1/tenants?select=id&limit=1' >/dev/null
+            'https://api.desk.rekov.co/rest/v1/tenants?select=id&limit=1' >/dev/null
           curl --retry 30 --retry-delay 3 --retry-connrefused -fsS \
-            https://pos.rekov.co/health
+            https://desk.rekov.co/health
           curl --retry 30 --retry-delay 3 --retry-connrefused --retry-all-errors -fsS \
-            https://rms-wildcard-check.pos.rekov.co/ -o "$RUNNER_TEMP/rms-tenant-index.html"
-          grep -q '<div id="root">' "$RUNNER_TEMP/rms-tenant-index.html"
+            https://desk.rekov.co/ -o "$RUNNER_TEMP/rms-index.html"
+          grep -q '<div id="root">' "$RUNNER_TEMP/rms-index.html"
           curl --retry 30 --retry-delay 3 --retry-connrefused --retry-all-errors -fsSL \
-            https://control.pos.rekov.co/ -o "$RUNNER_TEMP/rms-control-index.html"
+            https://control.desk.rekov.co/ -o "$RUNNER_TEMP/rms-control-index.html"
           grep -q '<div id="app">' "$RUNNER_TEMP/rms-control-index.html"
           curl --retry 10 --retry-delay 2 --retry-connrefused --retry-all-errors -fsS \
-            https://control.pos.rekov.co/app.js -o "$RUNNER_TEMP/rms-control-app.js"
+            https://control.desk.rekov.co/app.js -o "$RUNNER_TEMP/rms-control-app.js"
           grep -q 'PANEL DE PLATAFORMA' "$RUNNER_TEMP/rms-control-app.js"
           echo "RMS deployed. Encrypted previous state: recovery/rms/$GITHUB_RUN_ID/"
 

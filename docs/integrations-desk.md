@@ -1,30 +1,37 @@
-# Desk Workers: IA y Meta API
+# IA oficial y WhatsApp de Desk en el RMS
 
-Desk sigue siendo el dueño de IA oficial de Cloudflare y de las integraciones
-Meta. Este repositorio no instala OpenRouter, Evolution API, tokens Meta ni
-servicios de IA en Supabase.
+Desk es la marca, la autenticación y la aplicación de cara al cliente. Tras
+iniciar sesión, el usuario elige entre las empresas a las que Rekov le dio
+acceso; todas usan la misma aplicación en `desk.rekov.co`. El RMS mantiene
+ventas, inventario, cajas, sucursales, canales y operación offline.
 
-La UI upstream contiene módulos de AI y mensajería que asumen funciones Deno y
-proveedores propios. Esos módulos no se consideran parte del primer despliegue
-RMS. Se habilitan cuando Desk exponga un endpoint autenticado para el POS. El
-cliente envía su JWT de Supabase; el Worker verifica usuario, tenant y sucursal
-antes de operar. Nunca se envían `service_role`, claves Meta ni credenciales de
-modelo al navegador.
+## WhatsApp
 
-El adaptador de Supabase Functions en `deploy/functions/` conserva los nombres
-`ai-order-agent`, `process-invoice` y `embed-knowledge-doc` que invoca el POS y
-reenvía JWT y payload al Worker de Desk. `DESK_AI_WORKER_URL` es la URL base
-acabada en `/v1/`; el Worker debe exponer esos tres endpoints. Debe validar JWT
-emitido por el Supabase RMS, verificar tenant/sucursal y rol, invocar Workers AI
-mediante el binding oficial y devolver el contrato esperado por el POS.
+Se reutiliza la App Meta de Desk ya aprobada y la API oficial de WhatsApp Cloud.
+Embedded Signup conecta cada cuenta de negocio desde Configuración; los tokens
+resultantes se guardan cifrados en el RMS. La misma App Meta tiene un único
+callback de webhook: `https://api.desk.rekov.co/functions/v1/meta-whatsapp-webhook`.
+No se crea otra App ni se usa Evolution API. `META_APP_ID`,
+`WHATSAPP_EMBEDDED_CONFIG_ID`, `META_APP_SECRET` y
+`META_WEBHOOK_VERIFY_TOKEN` deben corresponder a la configuración aprobada que
+ya usa Desk.
 
-La primera respuesta de esos endpoints todavía requiere su implementación en el
-Worker de Desk, que vive en el otro repositorio. Meta Graph API y sus secretos
-permanecen enteramente en Desk.
+## IA
 
-No desplegar las funciones upstream `ai-order-agent` o `embed-knowledge-doc`, ni
-`evolution-webhook` ni funciones que requieran OpenRouter, Gemini o Evolution.
-En su lugar se despliegan los adaptadores locales de `deploy/functions/`. Las
-funciones Rappi mantienen firma HMAC; las demás validan JWT por sí mismas o lo
-reenvían al Worker, por eso la verificación JWT global del runtime queda
-desactivada.
+El agente que ya trae el RMS conserva sus instrucciones por sucursal, historial,
+RAG y herramientas comerciales: búsqueda de catálogo, cotización, pedidos y
+transferencia humana. Se cambió su proveedor OpenRouter por la API oficial de
+Cloudflare Workers AI, usando el modelo de producción que Desk tiene configurado
+(`@cf/deepseek-ai/deepseek-v4.1-flash-1017`) y BGE-M3 para embeddings. OCR de
+facturas también usa Workers AI. No se crea otro agente ni otro Worker.
+
+La llamada sale de las Edge Functions de Supabase hacia la API OpenAI-compatible
+de Workers AI con un token de solo lectura. Así se conserva el contrato nativo
+de herramientas del RMS sin depender de rutas `/v1/ai-order-agent` que Desk no
+expone. El chat dentro de Desk reutiliza el mismo agente en modo de prueba: busca
+y cotiza, pero nunca crea pedidos ni envía mensajes. El tráfico real de clientes
+llega por el webhook Meta oficial y sí usa el flujo completo de pedidos.
+
+No se requiere una clave de proveedor LLM en el RMS. No enviar `service_role`,
+credenciales Meta o secretos de negocio al navegador. JCFlow captura sus claves
+por negocio/sucursal y las cifra con `TENANT_SECRETS_ENCRYPTION_KEY`.

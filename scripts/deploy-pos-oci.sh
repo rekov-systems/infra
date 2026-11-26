@@ -29,11 +29,11 @@ curl --retry 20 --retry-delay 1 --retry-connrefused -fsS http://127.0.0.1:8080/ 
 grep -q '<div id="root">' /tmp/rms-pos-index.html
 echo "Checking the control panel document on the isolated hostname"
 curl --retry 10 --retry-delay 1 --retry-connrefused -fsS \
-  -H 'Host: control.pos.rekov.co' http://127.0.0.1:8080/ -o /tmp/rms-control-index.html
+  -H 'Host: control.desk.rekov.co' http://127.0.0.1:8080/ -o /tmp/rms-control-index.html
 grep -q '<div id="app">' /tmp/rms-control-index.html
 echo "Checking the control panel application bundle"
 curl --retry 10 --retry-delay 1 --retry-connrefused -fsS \
-  -H 'Host: control.pos.rekov.co' http://127.0.0.1:8080/app.js -o /tmp/rms-control-app.js
+  -H 'Host: control.desk.rekov.co' http://127.0.0.1:8080/app.js -o /tmp/rms-control-app.js
 grep -q 'PANEL DE PLATAFORMA' /tmp/rms-control-app.js
 
 # Switch the public web server only after the new POS is healthy on localhost.
@@ -52,5 +52,5 @@ restore_web() {
 }
 trap restore_web ERR
 docker compose -f "$root/docker-compose.yml" up -d --wait --force-recreate rms-caddy
-curl --retry 30 --retry-delay 2 --retry-connrefused --retry-all-errors -fsS https://pos.rekov.co/health
+curl --retry 30 --retry-delay 2 --retry-connrefused --retry-all-errors -fsS https://desk.rekov.co/health
 trap - ERR

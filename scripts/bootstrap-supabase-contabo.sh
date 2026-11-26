@@ -33,7 +33,7 @@ if [[ ! -f "$stack/.env" ]]; then
   (cd "$stack" && sh utils/add-new-auth-keys.sh --update-env)
 fi
 
-python3 - "$stack/.env" "$SUPABASE_DB_PASSWORD" "$SUPABASE_DASHBOARD_PASSWORD" "${DESK_AI_WORKER_URL:-}" "$RMS_PLATFORM_ADMIN_EMAIL" "$RMS_PLATFORM_ADMIN_PASSWORD" <<'PY'
+python3 - "$stack/.env" "$SUPABASE_DB_PASSWORD" "$SUPABASE_DASHBOARD_PASSWORD" "$RMS_PLATFORM_ADMIN_EMAIL" "$RMS_PLATFORM_ADMIN_PASSWORD" "${TENANT_SECRETS_ENCRYPTION_KEY:-}" "${META_APP_SECRET:-}" "${META_WEBHOOK_VERIFY_TOKEN:-}" "${TF_VAR_cloudflare_account_id:-}" "${CLOUDFLARE_WORKERS_AI_TOKEN:-}" "${RAPPI_API_BASE:-}" "${RAPPI_CLIENT_ID:-}" "${RAPPI_CLIENT_SECRET:-}" "${RAPPI_WEBHOOK_SECRET:-}" "${RAPPI_IP_ALLOWLIST:-}" "${META_APP_ID:-}" "${WHATSAPP_EMBEDDED_CONFIG_ID:-}" "${META_GRAPH_VERSION:-v26.0}" <<'PY'
 from pathlib import Path
 import sys
 
@@ -42,16 +42,31 @@ values = {
     "POSTGRES_PASSWORD": sys.argv[2],
     "DASHBOARD_USERNAME": "supabase",
     "DASHBOARD_PASSWORD": sys.argv[3],
-    "SUPABASE_PUBLIC_URL": "https://api.pos.rekov.co",
-    "API_EXTERNAL_URL": "https://api.pos.rekov.co/auth/v1",
-    "SITE_URL": "https://pos.rekov.co",
-    "ADDITIONAL_REDIRECT_URLS": "https://pos.rekov.co/**,https://*.pos.rekov.co/**",
+    "SUPABASE_PUBLIC_URL": "https://api.desk.rekov.co",
+    "API_EXTERNAL_URL": "https://api.desk.rekov.co/auth/v1",
+    "SITE_URL": "https://desk.rekov.co",
+    "ADDITIONAL_REDIRECT_URLS": "https://desk.rekov.co/**,https://control.desk.rekov.co/**",
     "DISABLE_SIGNUP": "true",
     "API_GW_HTTP_PORT": "127.0.0.1:8000",
     "FUNCTIONS_VERIFY_JWT": "false",
-    "DESK_AI_WORKER_URL": sys.argv[4],
-    "RMS_PLATFORM_ADMIN_EMAIL": sys.argv[5],
-    "RMS_PLATFORM_ADMIN_PASSWORD": sys.argv[6],
+    "RMS_PLATFORM_ADMIN_EMAIL": sys.argv[4],
+    "RMS_PLATFORM_ADMIN_PASSWORD": sys.argv[5],
+    "TENANT_SECRETS_ENCRYPTION_KEY": sys.argv[6],
+    "META_APP_SECRET": sys.argv[7],
+    "META_WEBHOOK_VERIFY_TOKEN": sys.argv[8],
+    "CF_ACCOUNT_ID": sys.argv[9],
+    "CLOUDFLARE_WORKERS_AI_TOKEN": sys.argv[10],
+    "WORKERS_AI_CHAT_MODEL": "@cf/deepseek-ai/deepseek-v4.1-flash-1017",
+    "WORKERS_AI_EMBEDDING_MODEL": "@cf/baai/bge-m3",
+    "WORKERS_AI_VISION_MODEL": "@cf/llava-hf/llava-1.5-7b-hf",
+    "RAPPI_API_BASE": sys.argv[11],
+    "RAPPI_CLIENT_ID": sys.argv[12],
+    "RAPPI_CLIENT_SECRET": sys.argv[13],
+    "RAPPI_WEBHOOK_SECRET": sys.argv[14],
+    "RAPPI_IP_ALLOWLIST": sys.argv[15],
+    "META_APP_ID": sys.argv[16],
+    "WHATSAPP_EMBEDDED_CONFIG_ID": sys.argv[17],
+    "META_GRAPH_VERSION": sys.argv[18],
     "STUDIO_DEFAULT_ORGANIZATION": "Rekov",
     "STUDIO_DEFAULT_PROJECT": "Retail Management System",
 }
@@ -78,11 +93,11 @@ docker compose -f docker-compose.yml -f docker-compose.rms.yml up -d --wait "${s
 [[ -d /tmp/rms-functions ]] || { echo "Missing staged POS Supabase functions" >&2; exit 1; }
 functions="$stack/volumes/functions"
 find "$functions" -mindepth 1 -maxdepth 1 -type d ! -name main -exec rm -rf {} +
-for name in create-user rappi-order-action rappi-sync-menu rappi-test-connection rappi-webhook; do
+for name in ai-order-agent embed-knowledge-doc process-invoice create-user jcflow meta-whatsapp meta-whatsapp-webhook send-whatsapp-message rappi-order-action rappi-sync-menu rappi-test-connection rappi-webhook; do
   [[ -d "/tmp/rms-functions/$name" ]] && cp -a "/tmp/rms-functions/$name" "$functions/"
 done
 [[ -d /tmp/rms-functions/_shared ]] && cp -a /tmp/rms-functions/_shared "$functions/"
-for name in ai-order-agent process-invoice embed-knowledge-doc rms-admin; do
+for name in rms-admin; do
   source_dir="/tmp/rms-custom-functions/$name"
   if [[ ! -s "$source_dir/index.ts" ]]; then
     echo "Missing custom Supabase function entrypoint: $source_dir/index.ts" >&2
@@ -96,7 +111,7 @@ docker compose -f docker-compose.yml -f docker-compose.rms.yml up -d --wait func
 
 cors_headers="$(curl --retry 10 --retry-delay 2 --retry-connrefused --retry-all-errors \
   -fsS -D - -o /dev/null -X OPTIONS http://127.0.0.1:8000/functions/v1/rms-admin \
-  -H 'Origin: https://pos.rekov.co' \
+  -H 'Origin: https://desk.rekov.co' \
   -H 'Access-Control-Request-Method: POST' \
   -H 'Access-Control-Request-Headers: authorization, apikey, content-type')"
 if ! grep -qi '^access-control-allow-origin: \*' <<<"$cors_headers"; then

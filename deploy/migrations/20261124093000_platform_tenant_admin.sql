@@ -56,7 +56,7 @@ BEGIN
   END IF;
 
   INSERT INTO public.tenants (name, slug, domain, currency, tax_rate, status)
-  VALUES (trim(_name), lower(trim(_slug)), lower(trim(_domain)), 'COP', 19, 'active')
+  VALUES (trim(_name), lower(trim(_slug)), NULLIF(lower(trim(_domain)), ''), 'COP', 19, 'active')
   RETURNING id INTO _tenant;
 
   INSERT INTO public.branches (tenant_id, name, status)

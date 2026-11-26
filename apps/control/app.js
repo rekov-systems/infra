@@ -8,6 +8,7 @@ const state = {
   search: "",
   modal: null,
   busy: false,
+  upstream: { loading: false, data: null, error: "" },
 };
 
 const ICONS = {
@@ -25,6 +26,8 @@ const ICONS = {
   external: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5"/></svg>',
   lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 1 1 8 0v3m-4 5v2"/></svg>',
   pulse: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>',
+  branch: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="6" cy="4" r="2"/><circle cx="18" cy="18" r="2"/><circle cx="6" cy="20" r="2"/><path d="M6 6v12M18 16a6 6 0 0 0-6-6H6"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.6 9A7 7 0 0 1 18 6l2 2M4 16l2 2a7 7 0 0 0 12.4-3"/></svg>',
   menu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h16"/></svg>',
 };
 
@@ -149,6 +152,7 @@ function sidebar() {
   const links = [
     ["overview", "Resumen", "grid"],
     ["businesses", "Negocios", "store"],
+    ["upstream", "Cambios del proyecto", "branch"],
   ];
   return `<aside class="sidebar" id="sidebar">
     ${brand()}
@@ -162,13 +166,14 @@ function sidebar() {
 }
 
 function shell(content) {
-  const sectionName = state.page === "businesses" ? "Negocios" : "Resumen";
+  const sectionName = ({ businesses: "Negocios", upstream: "Cambios del proyecto", overview: "Resumen" })[state.page] || "Resumen";
   ROOT.innerHTML = `<div class="app-shell">${sidebar()}<div class="main">
     <header class="topbar"><div class="topbar-left"><button class="menu-toggle" id="menu-toggle" aria-label="Abrir menú">${ICONS.menu}</button><div class="crumb">Rekov RMS <span style="color:#bbb;padding:0 7px">/</span><b>${sectionName}</b></div></div>
       <div class="topbar-right"><div class="online"><i></i> Plataforma activa</div><span class="top-divider"></span><span class="top-user"><strong>Rekov Systems</strong><small>Administración</small></span></div>
     </header>${content}</div>${state.modal ? modal() : ""}</div>`;
   ROOT.querySelectorAll("[data-page]").forEach((el) => el.addEventListener("click", () => {
     state.page = el.dataset.page; state.search = ""; closeSidebar(); render();
+    if (state.page === "upstream") void loadUpstream();
   }));
   ROOT.querySelector("#logout").addEventListener("click", () => logout());
   ROOT.querySelector("#menu-toggle").addEventListener("click", openSidebar);
@@ -185,15 +190,13 @@ function shell(content) {
   if (form) {
     const name = form.elements.name;
     const slug = form.elements.slug;
-    const domainPreview = form.querySelector("#domain-preview");
-    const updateDomain = () => { domainPreview.value = slug.value || "tu-negocio"; };
-    name.addEventListener("input", () => { if (!slug.dataset.edited) slug.value = toSlug(name.value); updateDomain(); });
-    slug.addEventListener("input", () => { slug.dataset.edited = "true"; slug.value = toSlug(slug.value); updateDomain(); });
-    updateDomain();
+    name.addEventListener("input", () => { if (!slug.dataset.edited) slug.value = toSlug(name.value); });
+    slug.addEventListener("input", () => { slug.dataset.edited = "true"; slug.value = toSlug(slug.value); });
     form.addEventListener("submit", createTenant);
   }
   ROOT.querySelectorAll("[data-copy]").forEach((el) => el.addEventListener("click", () => copyText(el.dataset.copy)));
   ROOT.querySelectorAll("[data-open-domain]").forEach((el) => el.addEventListener("click", () => window.open(`https://${el.dataset.openDomain}`, "_blank", "noopener")));
+  ROOT.querySelectorAll("[data-upstream-refresh]").forEach((el) => el.addEventListener("click", () => void loadUpstream()));
 }
 
 function openSidebar() { ROOT.querySelector("#sidebar")?.classList.add("open"); ROOT.querySelector("#backdrop")?.classList.add("show"); }
@@ -204,7 +207,7 @@ function tenantRow(tenant) {
   const owner = tenant.owner || {};
   return `<tr data-tenant-row="${escapeHtml(`${tenant.name} ${tenant.slug} ${tenant.domain} ${owner.email || ""}`.toLowerCase())}">
     <td><div class="business-cell"><span class="business-mark">${escapeHtml(initials(tenant.name))}</span><span class="business-name"><b>${escapeHtml(tenant.name)}</b><small>${escapeHtml(tenant.slug)}</small></span></div></td>
-    <td><a class="domain-link" href="https://${escapeHtml(tenant.domain)}" target="_blank" rel="noreferrer">${escapeHtml(tenant.domain)} ${ICONS.external}</a></td>
+    <td><a class="domain-link" href="https://${escapeHtml(tenant.domain || "desk.rekov.co")}" target="_blank" rel="noreferrer">${escapeHtml(tenant.domain || "desk.rekov.co")} ${ICONS.external}</a></td>
     <td class="owner-email">${escapeHtml(owner.email || "Sin dueño")}</td>
     <td><span class="status ${tenant.status === "active" ? "" : "off"}"><i></i>${tenant.status === "active" ? "Activo" : "Inactivo"}</span></td>
     <td>${escapeHtml(formatDate(tenant.created_at))}</td>
@@ -243,6 +246,59 @@ function businessesPage() {
     <section class="panel"><div class="panel-body" style="padding:0 18px">${tenantTable(matches)}</div></section>
   </main>`;
 }
+
+async function loadUpstream() {
+  state.upstream.loading = true;
+  state.upstream.error = "";
+  render();
+  try {
+    const manifestResponse = await fetch("./pos-upstream.json", { cache: "no-store" });
+    if (!manifestResponse.ok) throw new Error("No está publicado el manifiesto del upstream.");
+    const manifest = await manifestResponse.json();
+    const compareUrl = `https://api.github.com/repos/${manifest.repository}/compare/${manifest.base_sha}...${manifest.branch || "main"}`;
+    const response = await fetch(`${compareUrl}?per_page=100`, {
+      headers: { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+      cache: "no-store",
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.message || `GitHub respondió ${response.status}`);
+    const overlayPaths = new Set(manifest.overlay_paths || []);
+    const files = (result.files || []).map((file) => ({ ...file, overlayConflict: overlayPaths.has(file.filename) }));
+    state.upstream.data = { manifest, result: { ...result, files }, compareUrl };
+  } catch (error) {
+    state.upstream.error = error.message || "No se pudieron consultar los cambios.";
+  } finally {
+    state.upstream.loading = false;
+    if (state.page === "upstream") render();
+  }
+}
+
+function upstreamPage() {
+  const { loading, data, error } = state.upstream;
+  if (loading && !data) return `<main class="content animate-rise"><div class="page-head"><div><div class="eyebrow">UPSTREAM · AI POINT OF SALE</div><h1>Cambios del proyecto original</h1><p class="page-subtitle">Consultando commits y archivos nuevos…</p></div><span class="loader"></span></div></main>`;
+  if (error && !data) return `<main class="content animate-rise"><div class="page-head"><div><div class="eyebrow">UPSTREAM · AI POINT OF SALE</div><h1>Cambios del proyecto original</h1><p class="page-subtitle">${escapeHtml(error)}</p></div><button class="button button-primary" data-upstream-refresh>${ICONS.refresh} Reintentar</button></div><div class="panel panel-body upstream-note">GitHub limita las consultas anónimas. Si alcanzaste el límite, espera o revisa la comparación directamente.</div><a class="button button-quiet" href="https://github.com/mateopiza/ai-point-of-sale/commits/main" target="_blank" rel="noreferrer">Abrir commits del original ${ICONS.external}</a></main>`;
+  const { manifest, result } = data;
+  const commits = result.commits || [];
+  const files = result.files || [];
+  const conflicts = files.filter((file) => file.overlayConflict);
+  const count = Number(result.ahead_by || commits.length || 0);
+  const status = result.status === "identical" ? "Al día" : `${count} commit${count === 1 ? "" : "s"} nuevo${count === 1 ? "" : "s"}`;
+  return `<main class="content animate-rise">
+    <div class="page-head"><div><div class="eyebrow">UPSTREAM · AI POINT OF SALE</div><h1>Cambios del proyecto original</h1><p class="page-subtitle">Revisa las novedades del repositorio fuente y detecta archivos que Rekov también personaliza.</p></div><button class="button button-primary" data-upstream-refresh ${loading ? "disabled" : ""}>${ICONS.refresh} Actualizar</button></div>
+    <section class="stats upstream-stats">
+      ${statCard("Estado upstream", escapeHtml(status), "Comparado con la base integrada", "branch")}
+      ${statCard("Archivos cambiados", files.length, "Desde la última sincronización", "store")}
+      ${statCard("Superposición posible", conflicts.length, "Mismo archivo en upstream y Rekov", "pulse")}
+      ${statCard("Base integrada", escapeHtml(manifest.base_sha.slice(0, 8)), "Commit fuente en esta versión", "check")}
+    </section>
+    <div class="upstream-actions"><a class="button button-quiet" href="${escapeHtml(data.compareUrl)}" target="_blank" rel="noreferrer">Ver comparación en GitHub ${ICONS.external}</a><a class="button button-quiet" href="https://github.com/rekov-systems/infra/actions/workflows/sync-pos-upstream.yml" target="_blank" rel="noreferrer">Ver sincronización y validación ${ICONS.external}</a></div>
+    ${conflicts.length ? `<section class="upstream-warning"><b>Revisión requerida: ${conflicts.length} archivo${conflicts.length === 1 ? "" : "s"} coinciden con el overlay Rekov.</b><span>El panel no aplica cambios. Abre la PR de sincronización y espera el check de compatibilidad antes de integrar.</span></section>` : `<section class="upstream-ok"><b>Sin superposición de archivos detectada.</b><span>El build de la PR sigue siendo la validación final de compatibilidad.</span></section>`}
+    ${error ? `<p class="upstream-inline-error">Falló la actualización; se muestran los últimos datos cargados: ${escapeHtml(error)}</p>` : ""}
+    <section class="panel upstream-panel"><div class="panel-head"><div><h2>Commits nuevos</h2><small>Rama ${escapeHtml(manifest.branch || "main")} · consultado ${escapeHtml(new Date().toLocaleString("es-CO"))}</small></div></div><div class="upstream-commits">${commits.length ? commits.map((commit) => `<article class="upstream-commit"><span class="commit-dot"></span><div><b>${escapeHtml(commit.commit?.message?.split("\n")[0] || "Actualización")}</b><small>${escapeHtml(commit.sha.slice(0, 8))} · ${escapeHtml(new Date(commit.commit?.author?.date || Date.now()).toLocaleDateString("es-CO"))}</small></div><a href="${escapeHtml(commit.html_url)}" target="_blank" rel="noreferrer" aria-label="Abrir commit">${ICONS.external}</a></article>`).join("") : `<div class="empty"><h3>No hay commits nuevos</h3><p>El repositorio original no tiene cambios posteriores a la base integrada.</p></div>`}</div></section>
+    <section class="panel upstream-panel"><div class="panel-head"><div><h2>Archivos cambiados</h2><small>Los marcados en naranja también tienen personalización Rekov.</small></div></div><div class="upstream-files">${files.length ? files.map((file) => `<div class="upstream-file ${file.overlayConflict ? "overlap" : ""}"><code>${escapeHtml(file.filename)}</code><span>${escapeHtml(file.status)}</span><small>+${file.additions} / −${file.deletions}</small></div>`).join("") : `<div class="empty"><p>No hay archivos para revisar.</p></div>`}</div></section>
+  </main>`;
+}
+
 function filteredTenants() {
   const query = state.search.trim().toLowerCase();
   if (!query) return state.tenants;
@@ -268,8 +324,8 @@ function createModal() {
     <form class="modal-form" id="create-tenant-form">
       <div class="form-section"><div class="form-section-title"><span>1</span> Datos del negocio</div><div class="form-grid">
         <div class="field full"><label for="business-name">Nombre comercial</label><input id="business-name" name="name" placeholder="Ej. Mercado La 14" autocomplete="organization" required maxlength="100" /></div>
-        <div class="field"><label for="business-slug">Identificador de acceso</label><input id="business-slug" name="slug" placeholder="mercado-la-14" required minlength="3" maxlength="48" pattern="[a-z0-9]+(-[a-z0-9]+)*" /></div>
-        <div class="field"><label>Dirección del POS</label><div class="domain-input"><input value="" aria-label="Subdominio" id="domain-preview" disabled /><span>.pos.rekov.co</span></div></div>
+        <div class="field"><label for="business-slug">Identificador interno</label><input id="business-slug" name="slug" placeholder="mercado-la-14" required minlength="3" maxlength="48" pattern="[a-z0-9]+(-[a-z0-9]+)*" /></div>
+        <div class="field"><label>Acceso de la empresa</label><div class="domain-input"><input value="desk.rekov.co" aria-label="Dirección de acceso" disabled /></div></div>
         <div class="field full"><label for="branch-name">Sucursal inicial</label><input id="branch-name" name="branch_name" value="Sucursal principal" required maxlength="80" /></div>
       </div></div>
       <div class="form-section"><div class="form-section-title"><span>2</span> Dueño del negocio</div><div class="form-grid">
@@ -286,15 +342,15 @@ function detailsModal(tenant) {
   if (!tenant) return "";
   const owner = tenant.owner || {};
   return `<div class="modal-backdrop" data-close-modal><section class="modal" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
-    <div class="modal-head"><div><h2>${escapeHtml(tenant.name)}</h2><p>Ficha del negocio en Rekov RMS.</p></div><button class="modal-close" data-close-modal>${ICONS.close}</button></div>
+    <div class="modal-head"><div><h2>${escapeHtml(tenant.name)}</h2><p>Ficha del negocio en Desk.</p></div><button class="modal-close" data-close-modal>${ICONS.close}</button></div>
     <div class="detail-grid">
-      <div class="detail-item"><small>URL de acceso</small><a href="https://${escapeHtml(tenant.domain)}" target="_blank" rel="noreferrer">${escapeHtml(tenant.domain)} ↗</a></div>
+      <div class="detail-item"><small>URL de acceso</small><a href="https://desk.rekov.co" target="_blank" rel="noreferrer">${escapeHtml(tenant.domain || "desk.rekov.co")} ↗</a></div>
       <div class="detail-item"><small>Estado</small><strong>${tenant.status === "active" ? "Activo" : "Inactivo"}</strong></div>
       <div class="detail-item"><small>Identificador</small><strong>${escapeHtml(tenant.slug)}</strong></div>
       <div class="detail-item"><small>Creado</small><strong>${escapeHtml(formatDate(tenant.created_at))}</strong></div>
       <div class="detail-item"><small>Dueño</small><strong>${escapeHtml(owner.full_name || "Sin nombre")}</strong></div>
       <div class="detail-item"><small>Correo</small><strong>${escapeHtml(owner.email || "Sin dueño")}</strong></div>
-    </div><div class="modal-actions" style="margin:0 23px 20px"><button class="button button-quiet" data-copy="https://${escapeHtml(tenant.domain)}">${ICONS.copy} Copiar URL</button><button class="button button-primary" data-close-modal>Aceptar</button></div>
+    </div><div class="modal-actions" style="margin:0 23px 20px"><button class="button button-quiet" data-copy="https://${escapeHtml(tenant.domain || "desk.rekov.co")}">${ICONS.copy} Copiar URL</button><button class="button button-primary" data-close-modal>Aceptar</button></div>
   </section></div>`;
 }
 function createdModal(data) {
@@ -302,11 +358,11 @@ function createdModal(data) {
     <div class="modal-head"><div><div class="eyebrow">ALTA COMPLETADA</div></div><button class="modal-close" data-close-modal aria-label="Cerrar">${ICONS.close}</button></div>
     <div class="success-panel"><span class="success-mark">${ICONS.check}</span><h3 id="created-title">${escapeHtml(data.tenant.name)} está listo</h3><p>Entrégale estas credenciales al dueño. La contraseña temporal no volverá a mostrarse.</p>
       <div class="credential-box">
-        <div class="credential-row"><label>POS</label><code>https://${escapeHtml(data.tenant.domain)}</code><button class="copy" data-copy="https://${escapeHtml(data.tenant.domain)}" title="Copiar">${ICONS.copy}</button></div>
+        <div class="credential-row"><label>Desk</label><code>https://desk.rekov.co</code><button class="copy" data-copy="https://desk.rekov.co" title="Copiar">${ICONS.copy}</button></div>
         <div class="credential-row"><label>Correo</label><code>${escapeHtml(data.owner.email)}</code><button class="copy" data-copy="${escapeHtml(data.owner.email)}" title="Copiar">${ICONS.copy}</button></div>
         <div class="credential-row"><label>Contraseña</label><code>${escapeHtml(data.temporary_password)}</code><button class="copy" data-copy="${escapeHtml(data.temporary_password)}" title="Copiar">${ICONS.copy}</button></div>
       </div><p class="password-warning">Guarda o comparte la contraseña antes de cerrar esta ventana.</p>
-      <div class="modal-actions"><button class="button button-quiet" data-copy="${escapeHtml(`Negocio: ${data.tenant.name}\nURL: https://${data.tenant.domain}\nCorreo: ${data.owner.email}\nContraseña temporal: ${data.temporary_password}`)}">${ICONS.copy} Copiar acceso</button><button class="button button-primary" data-close-modal>Listo</button></div>
+      <div class="modal-actions"><button class="button button-quiet" data-copy="${escapeHtml(`Negocio: ${data.tenant.name}\nURL: https://desk.rekov.co\nCorreo: ${data.owner.email}\nContraseña temporal: ${data.temporary_password}`)}">${ICONS.copy} Copiar acceso</button><button class="button button-primary" data-close-modal>Listo</button></div>
     </div>
   </section></div>`;
 }
@@ -355,7 +411,7 @@ function render() {
     return;
   }
   if (!state.session) { renderLogin(); return; }
-  const content = state.page === "businesses" ? businessesPage() : overviewPage();
+  const content = state.page === "businesses" ? businessesPage() : state.page === "upstream" ? upstreamPage() : overviewPage();
   shell(content);
 }
 

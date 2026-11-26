@@ -14,7 +14,7 @@ trap 'status=$?; docker compose -f docker-compose.yml -f docker-compose.rms.yml 
 "${compose[@]}" up -d --wait rms-caddy
 if ! curl --retry 30 --retry-delay 3 --retry-connrefused --retry-all-errors -fsS \
   -H "apikey: $publishable_key" \
-  https://api.pos.rekov.co/auth/v1/health >/dev/null; then
+  https://api.desk.rekov.co/auth/v1/health >/dev/null; then
   docker logs --tail=100 rms-caddy >&2 || true
   exit 1
 fi

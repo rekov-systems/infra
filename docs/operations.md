@@ -23,10 +23,45 @@ por OIDC):
   `CONTABO_CLIENT_SECRET`, `CONTABO_PRODUCT_ID` y `CONTABO_REGION` para localizar
   y configurar esa instancia desde API.
 - `SUPABASE_DASHBOARD_PASSWORD` y `SUPABASE_DB_PASSWORD`.
+- `TENANT_SECRETS_ENCRYPTION_KEY`, valor base64 que decodifique exactamente a
+  32 bytes; cifra las credenciales Meta y JCFlow guardadas por negocio.
+- `META_APP_ID` y `WHATSAPP_EMBEDDED_CONFIG_ID`, identificadores públicos de
+  la App Desk ya aprobada y su configuración Embedded Signup. No son secretos,
+  aunque el despliegue los carga desde Infisical.
+- `META_APP_SECRET`, secreto de la aplicación App Desk ya aprobada, usado para
+  canjear el código de Embedded Signup y validar la firma de webhooks.
+- `META_WEBHOOK_VERIFY_TOKEN`, valor aleatorio que también se configura en
+  Meta Developers al registrar el webhook.
+- `META_GRAPH_VERSION`, variable opcional, por ejemplo `v26.0`;
+- `CLOUDFLARE_WORKERS_AI_TOKEN`, token separado con permiso Workers AI Read;
+  no reutiliza el token Terraform.
 - `CLOUDFLARE_ROOT_DOMAIN` o el nombre legado `PRESS_ROOT_DOMAIN` para la zona
-  Cloudflare;
-- `DESK_AI_WORKER_URL`, URL base del Worker POS de Desk (`https://.../v1/`), es
-  opcional y solo se necesita para las funciones AI/documento/factura.
+  Cloudflare.
+Genera estos valores localmente, sin pegarlos en el chat:
+
+```sh
+openssl rand -base64 32
+openssl rand -hex 32
+```
+
+Guarda el primer resultado como `TENANT_SECRETS_ENCRYPTION_KEY` y el segundo
+como `META_WEBHOOK_VERIFY_TOKEN`. Usa los valores que ya tiene Desk para `META_APP_ID`, `META_APP_SECRET` y
+`WHATSAPP_EMBEDDED_CONFIG_ID`; no crees otra App. Configura el callback de esa
+App como `https://api.desk.rekov.co/functions/v1/meta-whatsapp-webhook` y
+suscribe `messages`. Embedded Signup se inicia desde Configuración en Desk; el
+negocio no debe pegar tokens.
+Las credenciales Meta resultantes y las claves API JCFlow se guardan cifradas
+por sucursal/negocio en RMS; no se guardan en Infisical.
+
+La IA de pedidos conserva el agente y herramientas nativos del RMS, y llama el
+endpoint oficial Workers AI con el mismo modelo de Desk. Requiere
+`CLOUDFLARE_WORKERS_AI_TOKEN` con permiso Workers AI Read; nunca usa el token de
+Terraform ni una clave externa de modelo.
+
+Rappi es opcional. Si Rekov habilita el conector, añade `RAPPI_API_BASE`,
+`RAPPI_CLIENT_ID`, `RAPPI_CLIENT_SECRET` y `RAPPI_WEBHOOK_SECRET`; `RAPPI_IP_ALLOWLIST`
+es opcional. Uber Eats y DiDi Food no se muestran porque no hay conectores
+funcionales para esos canales.
 
 Genera las contraseñas de Supabase como valores hexadecimales (por ejemplo,
 `openssl rand -hex 32`) para evitar interpolación accidental de Compose.
@@ -54,10 +89,11 @@ reemplazan secretos de una instalación existente.
 
 ## Puertos y DNS
 
-Solo se publican 22, 80 y 443. OCI sirve `pos.rekov.co`, el panel
-`control.pos.rekov.co` y los POS por negocio en `<slug>.pos.rekov.co`. Contabo
-sirve `api.pos.rekov.co` y Studio protegido en `studio.pos.rekov.co`. No
-publicar Postgres, Supavisor, Kong ni Studio por puertos directos.
+Solo se publican 22, 80 y 443. Desk vive en `desk.rekov.co`; el panel Rekov
+vive en `control.desk.rekov.co`. Cada usuario accede a los negocios asignados por
+su cuenta, sin subdominios por tenant. Contabo sirve Supabase en
+`api.desk.rekov.co` y Studio protegido en `studio.desk.rekov.co`. No publicar Postgres, Supavisor,
+Kong ni Studio por puertos directos.
 
 Los volúmenes persistentes Supabase viven en `/opt/rms/supabase/volumes`; los
 assets web en `/opt/rms/pos`. Cada ejecución crea un tar cifrado antes del

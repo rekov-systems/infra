@@ -23,10 +23,11 @@ jobs:
           git remote add pos-upstream https://github.com/mateopiza/ai-point-of-sale.git
           git fetch pos-upstream main
           git subtree pull --prefix=apps/pos pos-upstream main --squash
+          scripts/update-pos-upstream-manifest.sh "$(git rev-parse pos-upstream/main)"
       - uses: peter-evans/create-pull-request@v7
         with:
           branch: automation/pos-upstream-sync
           delete-branch: true
           title: "chore: sync POS upstream"
           commit-message: "chore: sync POS upstream"
-          body: "Automated upstream subtree update from mateopiza/ai-point-of-sale. Review schema/functions, then merge to deploy."
+          body: "Automated sync from mateopiza/ai-point-of-sale. The RMS control panel records the new base and lists changed upstream files that overlap Rekov's overlay. Review every highlighted file and require the validate workflow (overlay apply + production build) to pass before merging. No upstream change is deployed automatically."

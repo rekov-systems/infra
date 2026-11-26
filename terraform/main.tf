@@ -126,7 +126,7 @@ resource "oci_core_instance" "control" {
 
 resource "cloudflare_dns_record" "admin" {
   zone_id = var.cloudflare_zone_id
-  name    = "pos"
+  name    = "desk"
   type    = "A"
   content = oci_core_instance.control.public_ip
   ttl     = 1
@@ -135,36 +135,16 @@ resource "cloudflare_dns_record" "admin" {
 
 resource "cloudflare_dns_record" "control_panel" {
   zone_id = var.cloudflare_zone_id
-  name    = "control.pos"
+  name    = "control.desk"
   type    = "A"
   content = oci_core_instance.control.public_ip
   ttl     = 1
-  proxied = false
-}
-
-resource "cloudflare_dns_record" "tenants" {
-  zone_id = var.cloudflare_zone_id
-  name    = "*"
-  type    = "A"
-  content = oci_core_instance.control.public_ip
-  ttl     = 1
-  proxied = true
-}
-
-resource "cloudflare_dns_record" "pos_tenants" {
-  zone_id = var.cloudflare_zone_id
-  name    = "*.pos"
-  type    = "A"
-  content = oci_core_instance.control.public_ip
-  ttl     = 1
-  # Let Caddy terminate TLS with its DNS-validated wildcard certificate for
-  # the nested tenant hosts (Cloudflare Universal SSL only covers one level).
   proxied = false
 }
 
 resource "cloudflare_dns_record" "supabase_api" {
   zone_id = var.cloudflare_zone_id
-  name    = "api.pos"
+  name    = "api.desk"
   type    = "A"
   content = var.contabo_public_ip
   ttl     = 1
@@ -173,7 +153,7 @@ resource "cloudflare_dns_record" "supabase_api" {
 
 resource "cloudflare_dns_record" "supabase_studio" {
   zone_id = var.cloudflare_zone_id
-  name    = "studio.pos"
+  name    = "studio.desk"
   type    = "A"
   content = var.contabo_public_ip
   ttl     = 1

@@ -15,7 +15,7 @@ workflow de despliegue crea además un respaldo previo de ambos VPS.
    `pg_restore --clean --if-exists` sobre una base vacía.
 4. Restaurar el directorio Storage y `.env`, iniciar Supabase y verificar Auth,
    REST, Realtime y acceso a archivos.
-5. Apuntar `api.pos.rekov.co` al host recuperado solo después de validar la
+5. Apuntar `api.desk.rekov.co` al host recuperado solo después de validar la
    restauración.
 
 El dump Postgres no incluye archivos de Storage; se necesitan ambos artefactos.
