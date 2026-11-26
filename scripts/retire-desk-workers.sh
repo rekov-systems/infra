@@ -12,7 +12,9 @@ if [[ "$mode" != all && "$mode" != detach && "$mode" != delete ]]; then
 fi
 
 api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers"
-workers=(desk-dashboard desk-api desk-ops-dashboard desk-dashboard-test desk-api-test desk-ops-dashboard-test)
+# Delete test services first: they may still hold service bindings to production
+# services, and Cloudflare refuses to remove a referenced service.
+workers=(desk-ops-dashboard-test desk-api-test desk-dashboard-test desk-ops-dashboard desk-api desk-dashboard)
 
 response="$(curl --fail-with-body --silent --show-error \
   -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "${api}/domains?per_page=100")"

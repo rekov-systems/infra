@@ -1,0 +1,34 @@
+name: Retire Desk Workers
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: rekov-rms-production
+  cancel-in-progress: false
+
+jobs:
+  retire:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Load Cloudflare credentials from Infisical
+        uses: Infisical/secrets-action@v1.0.18
+        with:
+          method: oidc
+          identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
+          project-slug: ${{ vars.INFISICAL_PROJECT_SLUG }}
+          env-slug: ${{ vars.INFISICAL_ENV_SLUG }}
+
+      - name: Delete detached Desk Workers
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ env.TF_VAR_cloudflare_api_token }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ env.TF_VAR_cloudflare_account_id }}
+          CLOUDFLARE_ROOT_DOMAIN: ${{ env.CLOUDFLARE_ROOT_DOMAIN || env.PRESS_ROOT_DOMAIN }}
+        run: scripts/retire-desk-workers.sh delete
