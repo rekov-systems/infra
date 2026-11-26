@@ -47,11 +47,6 @@ Deno.serve(async (req) => {
     const action = String(body?.action ?? "");
 
     if (action === "bootstrap") {
-      const { data: admins, error: adminError } = await admin.from("user_roles").select("id")
-        .eq("role", "super_admin").limit(1);
-      if (adminError) throw adminError;
-      if ((admins ?? []).length > 0) return json({ ready: true });
-
       const email = Deno.env.get("RMS_PLATFORM_ADMIN_EMAIL")?.trim().toLowerCase();
       const password = Deno.env.get("RMS_PLATFORM_ADMIN_PASSWORD");
       if (!email || !password || password.length < 12) {
@@ -64,15 +59,7 @@ Deno.serve(async (req) => {
       const { data: listed, error: listError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
       if (listError) throw listError;
       let user = listed.users.find((entry) => entry.email?.toLowerCase() === email);
-      if (user) {
-        const { data: updated, error: updateError } = await admin.auth.admin.updateUserById(user.id, {
-          password,
-          email_confirm: true,
-          user_metadata: { ...user.user_metadata, full_name: "Rekov Systems" },
-        });
-        if (updateError) throw updateError;
-        user = updated.user;
-      } else {
+      if (!user) {
         const { data: created, error: createError } = await admin.auth.admin.createUser({
           email,
           password,
@@ -81,10 +68,20 @@ Deno.serve(async (req) => {
         });
         if (createError || !created.user) throw createError ?? new Error("No se pudo crear el administrador de plataforma");
         user = created.user;
+      } else if (!(await isPlatformAdmin(user.id))) {
+        const { data: updated, error: updateError } = await admin.auth.admin.updateUserById(user.id, {
+          password,
+          email_confirm: true,
+          user_metadata: { ...user.user_metadata, full_name: "Rekov Systems" },
+        });
+        if (updateError) throw updateError;
+        user = updated.user;
       }
 
-      const { error: bootstrapError } = await admin.rpc("rms_bootstrap_platform_admin", { _user_id: user.id });
-      if (bootstrapError) throw bootstrapError;
+      if (!(await isPlatformAdmin(user.id))) {
+        const { error: bootstrapError } = await admin.rpc("rms_bootstrap_platform_admin", { _user_id: user.id });
+        if (bootstrapError) throw bootstrapError;
+      }
       return json({ ready: true, admin_email: email });
     }
 
