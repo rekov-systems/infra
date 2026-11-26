@@ -9,6 +9,12 @@ mkdir -p "$root/pos"
 mkdir -p "$root/desk-runtime"
 tar -xzf /tmp/rms-pos-dist.tgz -C "$root/pos"
 tar -xzf /tmp/desk-runtime.tgz -C "$root/desk-runtime"
+mkdir -p "$root/pos/rms"
+for item in "$root/pos"/*; do
+  name="${item##*/}"
+  [[ "$name" == "rms" || "$name" == "control" ]] && continue
+  cp -a "$item" "$root/pos/rms/"
+done
 if [[ ! -s "$root/desk-runtime/packages/dashboard/server.js" ]]; then
   echo "Desk standalone server is missing from the deployment artifact" >&2
   exit 1
