@@ -49,7 +49,26 @@ jq -e '.success == true' >/dev/null <<<"$queues_response" || {
   jq -c '{success, errors, messages}' <<<"$queues_response" >&2
   exit 1
 }
-mapfile -t queue_ids < <(jq -r '.result[]?.queue_id // empty' <<<"$queues_response")
+queue_pages="$(jq -r '.result_info.total_pages // 1' <<<"$queues_response")"
+queue_ids=()
+for page in $(seq 1 "$queue_pages"); do
+  if [[ "$page" == 1 ]]; then
+    queue_page="$queues_response"
+  else
+    queue_page="$(curl --fail-with-body --silent --show-error \
+      -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+      "${account_api}/queues?page=${page}&per_page=100")"
+    jq -e '.success == true' >/dev/null <<<"$queue_page" || {
+      echo "Could not enumerate Cloudflare Queue page ${page}." >&2
+      jq -c '{success, errors, messages}' <<<"$queue_page" >&2
+      exit 1
+    }
+  fi
+  while IFS= read -r queue_id; do
+    [[ -n "$queue_id" ]] && queue_ids+=("$queue_id")
+  done < <(jq -r '.result[]?.queue_id // empty' <<<"$queue_page")
+done
+echo "Inspecting ${#queue_ids[@]} Cloudflare Queues for Desk consumers."
 for queue_id in "${queue_ids[@]}"; do
   queue_response="$(curl --fail-with-body --silent --show-error \
     -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
