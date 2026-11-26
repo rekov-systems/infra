@@ -7,6 +7,11 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 mkdir -p "$root/pos"
 tar -xzf /tmp/rms-pos-dist.tgz -C "$root/pos"
+if [[ ! -s "$root/pos/control/index.html" ]]; then
+  echo "Control panel bundle is missing from the POS artifact" >&2
+  find "$root/pos" -maxdepth 2 -type f | head -50 >&2
+  exit 1
+fi
 install -m 0644 /tmp/nginx-pos.conf "$root/nginx-pos.conf"
 install -m 0644 /tmp/oci-compose.yml "$root/docker-compose.yml"
 install -m 0644 /tmp/Caddyfile.oci "$root/Caddyfile"
