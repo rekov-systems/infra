@@ -22,7 +22,9 @@ if [[ -f /tmp/oci.env ]]; then
 fi
 install -d -m 0750 "$root/caddy-data" "$root/caddy-config"
 docker compose -f "$root/docker-compose.yml" up -d --wait --force-recreate pos-web
+echo "Checking nginx health endpoint"
 curl --retry 20 --retry-delay 1 --retry-connrefused -fsS http://127.0.0.1:8080/health
+echo "Checking POS root document"
 curl --retry 20 --retry-delay 1 --retry-connrefused -fsS http://127.0.0.1:8080/ | grep -q '<div id="root">'
 echo "Checking the control panel document on the isolated hostname"
 curl --retry 10 --retry-delay 1 --retry-connrefused -fsS \
