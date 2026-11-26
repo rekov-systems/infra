@@ -1,0 +1,84 @@
+name: Retire legacy Pilot and ERPNext
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: rekov-rms-production
+  cancel-in-progress: false
+
+jobs:
+  retire:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Load existing VPS and state credentials from Infisical
+        uses: Infisical/secrets-action@v1.0.18
+        with:
+          method: oidc
+          identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
+          project-slug: ${{ vars.INFISICAL_PROJECT_SLUG }}
+          env-slug: ${{ vars.INFISICAL_ENV_SLUG }}
+
+      - name: Restore access to the existing Contabo VPS
+        env:
+          CONTABO_API_USER: ${{ env.CONTABO_API_USER }}
+          CONTABO_API_PASSWORD: ${{ env.CONTABO_API_PASSWORD }}
+          CONTABO_CLIENT_ID: ${{ env.CONTABO_CLIENT_ID }}
+          CONTABO_CLIENT_SECRET: ${{ env.CONTABO_CLIENT_SECRET }}
+          CONTABO_PRODUCT_ID: ${{ env.CONTABO_PRODUCT_ID }}
+          CONTABO_REGION: ${{ env.CONTABO_REGION }}
+          CONTABO_ROOT_PASSWORD: ${{ env.CONTABO_ROOT_PASSWORD }}
+          CONTABO_SSH_PRIVATE_KEY: ${{ env.CONTABO_SSH_PRIVATE_KEY }}
+          CONTABO_SSH_PUBLIC_KEY: ${{ env.CONTABO_SSH_PUBLIC_KEY }}
+        run: scripts/prepare-contabo-access.sh
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.9
+
+      - name: Resolve the existing OCI VPS from the encrypted Terraform state
+        env:
+          AWS_ACCESS_KEY_ID: ${{ env.R2_STORAGE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.R2_STORAGE_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ env.R2_STORAGE_REGION }}
+        run: |
+          terraform -chdir=terraform init -input=false \
+            -backend-config="bucket=$R2_STORAGE_BUCKET" \
+            -backend-config="key=$R2_STORAGE_STATE_KEY" \
+            -backend-config="region=$R2_STORAGE_REGION" \
+            -backend-config="endpoint=$R2_STORAGE_ENDPOINT" \
+            -backend-config="skip_credentials_validation=true" \
+            -backend-config="skip_metadata_api_check=true" \
+            -backend-config="skip_requesting_account_id=true" \
+            -backend-config="skip_region_validation=true" \
+            -backend-config="skip_s3_checksum=true" \
+            -backend-config="use_path_style=true"
+          echo "OCI_POS_IP=$(terraform -chdir=terraform output -raw oci_pos_public_ip)" >> "$GITHUB_ENV"
+
+      - name: Prepare OCI SSH access
+        run: |
+          umask 077
+          printf '%s\n' "$OCI_NEXT_SSH_PRIVATE_KEY" | perl -pe 's/\\\\n/\n/g; s/\r//g' > "$RUNNER_TEMP/oci_key"
+          chmod 600 "$RUNNER_TEMP/oci_key"
+          ssh-keygen -y -f "$RUNNER_TEMP/oci_key" >/dev/null
+
+      - name: Remove legacy application files from both existing VPS
+        run: |
+          scp -i "$RUNNER_TEMP/oci_key" -o StrictHostKeyChecking=accept-new \
+            scripts/retire-legacy-vps.sh "ubuntu@$OCI_POS_IP:/tmp/"
+          scp -i "$RUNNER_TEMP/contabo_key" -o StrictHostKeyChecking=accept-new \
+            scripts/retire-legacy-vps.sh "${CONTABO_SSH_USER:-ubuntu}@$CONTABO_PUBLIC_IP:/tmp/"
+          ssh -i "$RUNNER_TEMP/oci_key" -o StrictHostKeyChecking=accept-new \
+            "ubuntu@$OCI_POS_IP" 'sudo bash /tmp/retire-legacy-vps.sh'
+          ssh -i "$RUNNER_TEMP/contabo_key" -o StrictHostKeyChecking=accept-new \
+            "${CONTABO_SSH_USER:-ubuntu}@$CONTABO_PUBLIC_IP" 'sudo bash /tmp/retire-legacy-vps.sh'
+          ssh -i "$RUNNER_TEMP/contabo_key" -o StrictHostKeyChecking=accept-new \
+            "${CONTABO_SSH_USER:-ubuntu}@$CONTABO_PUBLIC_IP" \
+            "sudo test -d /opt/rms/supabase && sudo docker ps --format '{{.Names}}' | grep -q 'supabase'"
