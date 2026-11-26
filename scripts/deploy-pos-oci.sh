@@ -88,7 +88,7 @@ curl --retry 10 --retry-delay 2 --retry-connrefused --retry-all-errors -fsS \
 grep -qi 'desk' /tmp/desk-public-index.html
 curl --retry 10 --retry-delay 2 --retry-connrefused --retry-all-errors -fsS \
   --resolve desk.rekov.co:443:127.0.0.1 https://desk.rekov.co/login -o /tmp/desk-login.html
-grep -qi 'iniciar sesión' /tmp/desk-login.html
+grep -q 'app/login/page-' /tmp/desk-login.html
 curl --retry 10 --retry-delay 2 --retry-connrefused --retry-all-errors -fsS \
   --resolve desk.rekov.co:443:127.0.0.1 https://desk.rekov.co/rms/ -o /tmp/rms-app.html
 grep -q '<div id="root">' /tmp/rms-app.html
