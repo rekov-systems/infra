@@ -79,15 +79,8 @@ for queue_id in "${queue_ids[@]}"; do
     exit 1
   }
   mapfile -t queue_consumers < <(jq -r --argjson workers "$(printf '%s\n' "${workers[@]}" | jq -R . | jq -s .)" \
-    '.result[]? | select(.script_name as $s | $workers | index($s)) | [.consumer_id,.script_name] | @tsv' \
+    '.result[]? | select(.script as $s | $workers | index($s)) | [.consumer_id,.script] | @tsv' \
     <<<"$queue_response")
-  if ((${#queue_consumers[@]} == 0)); then
-    matches="$(jq -c --argjson workers "$(printf '%s\n' "${workers[@]}" | jq -R . | jq -s .)" \
-      '[.result[]? | select(tostring as $entry | any($workers[]; $entry | contains(.)))]' <<<"$queue_response")"
-    if [[ "$matches" != "[]" ]]; then
-      echo "Queue consumer data did not match the expected API fields: ${matches}" >&2
-    fi
-  fi
   for consumer in "${queue_consumers[@]}"; do
     consumer_id="${consumer%%$'\t'*}"
     consumer_worker="${consumer#*$'\t'}"
