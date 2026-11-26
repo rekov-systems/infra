@@ -24,10 +24,12 @@ install -d -m 0750 "$root/caddy-data" "$root/caddy-config"
 docker compose -f "$root/docker-compose.yml" up -d --wait --force-recreate pos-web
 curl --retry 20 --retry-delay 1 --retry-connrefused -fsS http://127.0.0.1:8080/health
 curl --retry 20 --retry-delay 1 --retry-connrefused -fsS http://127.0.0.1:8080/ | grep -q '<div id="root">'
-control_root_status="$(curl -sS -o /dev/null -w '%{http_code}' -H 'Host: control.rekov.co' http://127.0.0.1:8080/)"
-[[ "$control_root_status" == 302 ]]
+echo "Checking the control panel document on the isolated hostname"
 curl --retry 10 --retry-delay 1 --retry-connrefused -fsS \
-  -H 'Host: control.rekov.co' http://127.0.0.1:8080/control/ | grep -q '<div id="app">'
+  -H 'Host: control.rekov.co' http://127.0.0.1:8080/ | grep -q '<div id="app">'
+echo "Checking the control panel application bundle"
+curl --retry 10 --retry-delay 1 --retry-connrefused -fsS \
+  -H 'Host: control.rekov.co' http://127.0.0.1:8080/app.js | grep -q 'PANEL DE PLATAFORMA'
 
 # Switch the public web server only after the new POS is healthy on localhost.
 for service in nginx; do

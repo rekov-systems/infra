@@ -89,7 +89,7 @@ function logout(repaint = true) {
 }
 
 function brand(dark = false) {
-  return `<div class="${dark ? "login-brand" : "brand"}"><img src="/control/brand/desk-mark-gradient.jpg" alt="" /><span class="${dark ? "login-brand-copy" : "brand-copy"}"><strong>Desk</strong><small>by Rekov Systems</small></span></div>`;
+  return `<div class="${dark ? "login-brand" : "brand"}"><img src="./brand/desk-mark-gradient.jpg" alt="" /><span class="${dark ? "login-brand-copy" : "brand-copy"}"><strong>Desk</strong><small>by Rekov Systems</small></span></div>`;
 }
 
 function renderLogin(message = "") {
