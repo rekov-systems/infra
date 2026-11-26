@@ -348,7 +348,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ env.TF_VAR_cloudflare_api_token }}
           CLOUDFLARE_ACCOUNT_ID: ${{ env.TF_VAR_cloudflare_account_id }}
           CLOUDFLARE_ROOT_DOMAIN: ${{ env.CLOUDFLARE_ROOT_DOMAIN || env.PRESS_ROOT_DOMAIN }}
-        run: scripts/retire-desk-workers.sh
+        run: scripts/retire-desk-workers.sh detach
 
       - name: Cut over Desk DNS to the existing VPS
         env:
@@ -402,6 +402,13 @@ jobs:
             https://control.desk.rekov.co/app.js -o "$RUNNER_TEMP/rms-control-app.js"
           grep -q 'PANEL DE PLATAFORMA' "$RUNNER_TEMP/rms-control-app.js"
           echo "RMS deployed. Encrypted previous state: recovery/rms/$GITHUB_RUN_ID/"
+
+      - name: Delete the detached Desk application Workers
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ env.TF_VAR_cloudflare_api_token }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ env.TF_VAR_cloudflare_account_id }}
+          CLOUDFLARE_ROOT_DOMAIN: ${{ env.CLOUDFLARE_ROOT_DOMAIN || env.PRESS_ROOT_DOMAIN }}
+        run: scripts/retire-desk-workers.sh delete
 
       - name: Retire the backed-up Pilot and ERPNext installations
         run: |

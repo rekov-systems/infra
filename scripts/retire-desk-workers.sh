@@ -5,6 +5,12 @@ set -euo pipefail
 : "${CLOUDFLARE_ACCOUNT_ID:?CLOUDFLARE_ACCOUNT_ID is required}"
 : "${CLOUDFLARE_ROOT_DOMAIN:?CLOUDFLARE_ROOT_DOMAIN is required}"
 
+mode="${1:-all}"
+if [[ "$mode" != all && "$mode" != detach && "$mode" != delete ]]; then
+  echo "Usage: $0 [all|detach|delete]" >&2
+  exit 2
+fi
+
 api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers"
 workers=(desk-dashboard desk-api desk-ops-dashboard desk-dashboard-test desk-api-test desk-ops-dashboard-test)
 
@@ -16,6 +22,7 @@ jq -e '.success == true' >/dev/null <<<"$response" || {
 }
 mapfile -t old_domains < <(jq -r --argjson workers "$(printf '%s\n' "${workers[@]}" | jq -R . | jq -s .)" \
   '.result[]? | select(.service as $s | $workers | index($s)) | [.id,.hostname] | @tsv' <<<"$response")
+if [[ "$mode" != delete ]]; then
 for item in "${old_domains[@]}"; do
   id="${item%%$'\t'*}"
   host="${item#*$'\t'}"
@@ -28,6 +35,9 @@ for item in "${old_domains[@]}"; do
   }
   echo "Detached ${host} from its Desk Worker."
 done
+fi
+
+[[ "$mode" == detach ]] && exit 0
 
 for worker in "${workers[@]}"; do
   response_file="$(mktemp)"
@@ -40,8 +50,11 @@ for worker in "${workers[@]}"; do
     continue
   fi
   if [[ "$status" != 2* ]] || { [[ -s "$response_file" ]] && ! jq -e '.success == true' "$response_file" >/dev/null; }; then
+    echo "Could not delete Desk Worker ${worker} (HTTP ${status}); Cloudflare response:" >&2
+    if [[ -s "$response_file" ]]; then
+      jq -c '{success, errors, messages}' "$response_file" >&2 || cat "$response_file" >&2
+    fi
     rm -f "$response_file"
-    echo "Could not delete Desk Worker ${worker}; token needs Workers Scripts Write or Workers Admin." >&2
     exit 1
   fi
   rm -f "$response_file"
