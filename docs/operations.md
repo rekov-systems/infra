@@ -54,9 +54,10 @@ reemplazan secretos de una instalación existente.
 
 ## Puertos y DNS
 
-Solo se publican 22, 80 y 443. OCI sirve `pos.rekov.co`; Contabo sirve
-`api.pos.rekov.co` y Studio protegido en `studio.pos.rekov.co`. No publicar
-Postgres, Supavisor, Kong ni Studio por puertos directos.
+Solo se publican 22, 80 y 443. OCI sirve `pos.rekov.co`, el panel
+`control.pos.rekov.co` y los POS por negocio en `<slug>.pos.rekov.co`. Contabo
+sirve `api.pos.rekov.co` y Studio protegido en `studio.pos.rekov.co`. No
+publicar Postgres, Supavisor, Kong ni Studio por puertos directos.
 
 Los volúmenes persistentes Supabase viven en `/opt/rms/supabase/volumes`; los
 assets web en `/opt/rms/pos`. Cada ejecución crea un tar cifrado antes del

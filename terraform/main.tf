@@ -151,6 +151,17 @@ resource "cloudflare_dns_record" "tenants" {
   proxied = true
 }
 
+resource "cloudflare_dns_record" "pos_tenants" {
+  zone_id = var.cloudflare_zone_id
+  name    = "*.pos"
+  type    = "A"
+  content = oci_core_instance.control.public_ip
+  ttl     = 1
+  # Let Caddy terminate TLS with its DNS-validated wildcard certificate for
+  # the nested tenant hosts (Cloudflare Universal SSL only covers one level).
+  proxied = false
+}
+
 resource "cloudflare_dns_record" "supabase_api" {
   zone_id = var.cloudflare_zone_id
   name    = "api.pos"

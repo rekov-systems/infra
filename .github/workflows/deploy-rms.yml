@@ -286,6 +286,9 @@ jobs:
             'https://api.pos.rekov.co/rest/v1/tenants?select=id&limit=1' >/dev/null
           curl --retry 30 --retry-delay 3 --retry-connrefused -fsS \
             https://pos.rekov.co/health
+          curl --retry 30 --retry-delay 3 --retry-connrefused --retry-all-errors -fsS \
+            https://rms-wildcard-check.pos.rekov.co/ -o "$RUNNER_TEMP/rms-tenant-index.html"
+          grep -q '<div id="root">' "$RUNNER_TEMP/rms-tenant-index.html"
           curl --retry 30 --retry-delay 3 --retry-connrefused --retry-all-errors -fsSL \
             https://control.pos.rekov.co/ -o "$RUNNER_TEMP/rms-control-index.html"
           grep -q '<div id="app">' "$RUNNER_TEMP/rms-control-index.html"

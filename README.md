@@ -8,6 +8,7 @@ despliegue repartido entre OCI y Contabo, y extensiones opcionales como JCFlow.
 | Servicio | VPS / servicio | Dominio |
 | --- | --- | --- |
 | POS React PWA | OCI Always Free | `pos.rekov.co` |
+| POS de cada negocio | OCI Always Free | `<slug>.pos.rekov.co` |
 | Rekov platform administration | OCI Always Free | `control.pos.rekov.co` |
 | Supabase: Postgres, Auth, REST, Realtime, Storage, Functions y Studio | Contabo | `api.pos.rekov.co`, `studio.pos.rekov.co` |
 | IA oficial y Meta API de Desk | Cloudflare Workers, fuera de este repo | `docs/integrations-desk.md` |

@@ -269,7 +269,7 @@ function createModal() {
       <div class="form-section"><div class="form-section-title"><span>1</span> Datos del negocio</div><div class="form-grid">
         <div class="field full"><label for="business-name">Nombre comercial</label><input id="business-name" name="name" placeholder="Ej. Mercado La 14" autocomplete="organization" required maxlength="100" /></div>
         <div class="field"><label for="business-slug">Identificador de acceso</label><input id="business-slug" name="slug" placeholder="mercado-la-14" required minlength="3" maxlength="48" pattern="[a-z0-9]+(-[a-z0-9]+)*" /></div>
-        <div class="field"><label>Dirección del POS</label><div class="domain-input"><input value="" aria-label="Subdominio" id="domain-preview" disabled /><span>.rekov.co</span></div></div>
+        <div class="field"><label>Dirección del POS</label><div class="domain-input"><input value="" aria-label="Subdominio" id="domain-preview" disabled /><span>.pos.rekov.co</span></div></div>
         <div class="field full"><label for="branch-name">Sucursal inicial</label><input id="branch-name" name="branch_name" value="Sucursal principal" required maxlength="80" /></div>
       </div></div>
       <div class="form-section"><div class="form-section-title"><span>2</span> Dueño del negocio</div><div class="form-grid">

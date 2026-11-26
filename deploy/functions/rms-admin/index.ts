@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
       });
       if (userError || !createdUser.user) return json({ error: userError?.message ?? "No se pudo crear el usuario dueño" }, 400);
 
-      const domain = `${slug}.rekov.co`;
+      const domain = `${slug}.pos.rekov.co`;
       const { data: createdTenant, error: tenantError } = await admin.rpc("rms_create_tenant_with_owner", {
         _name: name,
         _slug: slug,

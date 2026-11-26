@@ -45,7 +45,7 @@ values = {
     "SUPABASE_PUBLIC_URL": "https://api.pos.rekov.co",
     "API_EXTERNAL_URL": "https://api.pos.rekov.co/auth/v1",
     "SITE_URL": "https://pos.rekov.co",
-    "ADDITIONAL_REDIRECT_URLS": "https://pos.rekov.co/**",
+    "ADDITIONAL_REDIRECT_URLS": "https://pos.rekov.co/**,https://*.pos.rekov.co/**",
     "DISABLE_SIGNUP": "true",
     "API_GW_HTTP_PORT": "127.0.0.1:8000",
     "FUNCTIONS_VERIFY_JWT": "false",
