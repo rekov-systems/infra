@@ -52,14 +52,15 @@ jq -e '.success == true' >/dev/null <<<"$queues_response" || {
 mapfile -t queue_ids < <(jq -r '.result[]?.queue_id // empty' <<<"$queues_response")
 for queue_id in "${queue_ids[@]}"; do
   queue_response="$(curl --fail-with-body --silent --show-error \
-    -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "${account_api}/queues/${queue_id}")"
+    -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+    "${account_api}/queues/${queue_id}/consumers?per_page=100")"
   jq -e '.success == true' >/dev/null <<<"$queue_response" || {
     echo "Could not inspect a Cloudflare Queue before removing Desk consumers." >&2
     jq -c '{success, errors, messages}' <<<"$queue_response" >&2
     exit 1
   }
   mapfile -t queue_consumers < <(jq -r --argjson workers "$(printf '%s\n' "${workers[@]}" | jq -R . | jq -s .)" \
-    '.result.consumers[]? | select(.script_name as $s | $workers | index($s)) | [.consumer_id,.script_name] | @tsv' \
+    '.result[]? | select(.script_name as $s | $workers | index($s)) | [.consumer_id,.script_name] | @tsv' \
     <<<"$queue_response")
   for consumer in "${queue_consumers[@]}"; do
     consumer_id="${consumer%%$'\t'*}"
