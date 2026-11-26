@@ -287,9 +287,11 @@ jobs:
           curl --retry 30 --retry-delay 3 --retry-connrefused -fsS \
             https://pos.rekov.co/health
           curl --retry 30 --retry-delay 3 --retry-connrefused --retry-all-errors -fsSL \
-            https://control.pos.rekov.co/ | grep -q '<div id="app">'
+            https://control.pos.rekov.co/ -o "$RUNNER_TEMP/rms-control-index.html"
+          grep -q '<div id="app">' "$RUNNER_TEMP/rms-control-index.html"
           curl --retry 10 --retry-delay 2 --retry-connrefused --retry-all-errors -fsS \
-            https://control.pos.rekov.co/app.js | grep -q 'PANEL DE PLATAFORMA'
+            https://control.pos.rekov.co/app.js -o "$RUNNER_TEMP/rms-control-app.js"
+          grep -q 'PANEL DE PLATAFORMA' "$RUNNER_TEMP/rms-control-app.js"
           echo "RMS deployed. Encrypted previous state: recovery/rms/$GITHUB_RUN_ID/"
 
       - name: Retire the backed-up Pilot and ERPNext installations

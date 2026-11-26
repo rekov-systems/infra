@@ -25,13 +25,16 @@ docker compose -f "$root/docker-compose.yml" up -d --wait --force-recreate pos-w
 echo "Checking nginx health endpoint"
 curl --retry 20 --retry-delay 1 --retry-connrefused -fsS http://127.0.0.1:8080/health
 echo "Checking POS root document"
-curl --retry 20 --retry-delay 1 --retry-connrefused -fsS http://127.0.0.1:8080/ | grep -q '<div id="root">'
+curl --retry 20 --retry-delay 1 --retry-connrefused -fsS http://127.0.0.1:8080/ -o /tmp/rms-pos-index.html
+grep -q '<div id="root">' /tmp/rms-pos-index.html
 echo "Checking the control panel document on the isolated hostname"
 curl --retry 10 --retry-delay 1 --retry-connrefused -fsS \
-  -H 'Host: control.pos.rekov.co' http://127.0.0.1:8080/ | grep -q '<div id="app">'
+  -H 'Host: control.pos.rekov.co' http://127.0.0.1:8080/ -o /tmp/rms-control-index.html
+grep -q '<div id="app">' /tmp/rms-control-index.html
 echo "Checking the control panel application bundle"
 curl --retry 10 --retry-delay 1 --retry-connrefused -fsS \
-  -H 'Host: control.pos.rekov.co' http://127.0.0.1:8080/app.js | grep -q 'PANEL DE PLATAFORMA'
+  -H 'Host: control.pos.rekov.co' http://127.0.0.1:8080/app.js -o /tmp/rms-control-app.js
+grep -q 'PANEL DE PLATAFORMA' /tmp/rms-control-app.js
 
 # Switch the public web server only after the new POS is healthy on localhost.
 for service in nginx; do
