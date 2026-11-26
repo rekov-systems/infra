@@ -226,7 +226,9 @@ jobs:
             > "$RUNNER_TEMP/contabo.env"
           tar -czf "$RUNNER_TEMP/rms-custom-functions.tgz" -C deploy/functions .
           scp -i "$RUNNER_TEMP/contabo_key" -o StrictHostKeyChecking=accept-new \
-            "$RUNNER_TEMP/contabo.env" "$RUNNER_TEMP/rms-custom-functions.tgz" "$target:/tmp/"
+            "$RUNNER_TEMP/contabo.env" "$target:/tmp/rms.env"
+          scp -i "$RUNNER_TEMP/contabo_key" -o StrictHostKeyChecking=accept-new \
+            "$RUNNER_TEMP/rms-custom-functions.tgz" "$target:/tmp/rms-custom-functions.tgz"
           ssh -i "$RUNNER_TEMP/contabo_key" -o StrictHostKeyChecking=accept-new "$target" \
             'sudo bash -lc "set -e; chmod 600 /tmp/rms.env; set -a; source /tmp/rms.env; set +a; install -m 0644 /tmp/supabase-compose.yml /tmp/rms-supabase-compose.yml; install -m 0644 /tmp/Caddyfile.contabo /tmp/rms-Caddyfile; rm -rf /tmp/rms-custom-functions; mkdir -p /tmp/rms-custom-functions; tar -xzf /tmp/rms-custom-functions.tgz -C /tmp/rms-custom-functions; bash /tmp/bootstrap-supabase-contabo.sh; mkdir -p /tmp/rms-migrations /tmp/rms-functions; cp -a /tmp/rms-pos-supabase/rms-migrations/. /tmp/rms-migrations/; cp -a /tmp/rms-pos-supabase/functions/. /tmp/rms-functions/; MIGRATIONS_DIR=/tmp/rms-migrations bash /tmp/migrate-pos-db.sh; bash /tmp/activate-supabase-contabo.sh"'
 
