@@ -454,7 +454,7 @@ export default function Inventory() {
                   <div
                     key={s.id}
                     className="grid items-center gap-3 px-5 py-3.5 transition-colors inv-table-grid inv-table-row"
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(43,124,255,0.025)")}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,90,31,0.025)")}
                     onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                   >
                     {/* Product */}

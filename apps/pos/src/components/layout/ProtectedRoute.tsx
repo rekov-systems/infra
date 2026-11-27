@@ -3,6 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTenantContext } from "@/hooks/useTenantContext";
 import { Loader2 } from "lucide-react";
 import { canAccessRoles, rolesForPath, type AppRole } from "@/lib/roles";
+import { deskLoginUrl, isTenantHost } from "@/lib/host";
 
 /** Ruta de aterrizaje según el rol principal del usuario */
 function homeForRoles(roles: string[]): string {
@@ -28,7 +29,17 @@ export function ProtectedRoute() {
     );
   }
 
-  if (!user) return <Navigate to="/auth" replace />;
+  if (!user) {
+    if (isTenantHost()) {
+      window.location.replace(deskLoginUrl(window.location.origin));
+      return (
+        <div className="min-h-screen grid place-items-center">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </div>
+      );
+    }
+    return <Navigate to="/auth" replace />;
+  }
 
   if (needsOnboarding && location.pathname !== "/onboarding") {
     return <Navigate to="/onboarding" replace />;

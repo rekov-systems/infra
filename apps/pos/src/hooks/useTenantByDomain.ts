@@ -80,13 +80,36 @@ export function useTenantByDomain() {
     let cancelled = false;
 
     async function resolve() {
+      // The root Desk host is a platform entry point. Tenant data is resolved
+      // after the Desk login hands the session to a business subdomain.
+      if (window.location.hostname === "desk.rekov.co" && window.location.pathname.startsWith("/rms")) {
+        setLoading(false);
+        setError(null);
+        return;
+      }
       const domain = resolveHostname();
 
-      const { data, error: qErr } = await supabase
+      let { data, error: qErr } = await supabase
         .from("tenants")
         .select("id, name, domain, logo_url, primary_color, theme_kind")
         .eq("domain", domain)
         .maybeSingle();
+
+      // Desk tenant subdomains resolve by their stable slug too. This also
+      // keeps existing tenants working while their stored legacy .pos domain
+      // is being retired.
+      if (!data && !qErr && domain.endsWith(".desk.rekov.co")) {
+        const slug = domain.slice(0, -".desk.rekov.co".length);
+        if (slug && !slug.includes(".")) {
+          const fallback = await supabase
+            .from("tenants")
+            .select("id, name, domain, logo_url, primary_color, theme_kind")
+            .eq("slug", slug)
+            .maybeSingle();
+          data = fallback.data;
+          qErr = fallback.error;
+        }
+      }
 
       if (cancelled) return;
 

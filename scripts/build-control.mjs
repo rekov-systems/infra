@@ -15,7 +15,7 @@ if (!supabaseUrl || !publishableKey) {
 const source = path.resolve(sourceArg);
 const output = path.resolve(outputArg);
 await mkdir(output, { recursive: true });
-for (const file of ["index.html", "app.js", "styles.css", "brand", "pos-upstream.json"]) {
+for (const file of ["index.html", "app.js", "styles.css", "brand", "fonts", "pos-upstream.json"]) {
   await cp(path.join(source, file), path.join(output, file), { recursive: true });
 }
 await writeFile(path.join(output, "config.js"), `window.RMS_CONTROL_CONFIG = ${JSON.stringify({

@@ -6,7 +6,7 @@ import { GearMark } from "@/components/shared/GearMark";
 
 export default function Forbidden() {
   useEffect(() => {
-    document.title = "Acceso Restringido (403) | POS S360T";
+    document.title = "Acceso Restringido (403) | Desk";
   }, []);
 
   return (

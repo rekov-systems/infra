@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useTenantContext } from "@/hooks/useTenantContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useOpenSession } from "@/hooks/useOpenSession";
+import { useCashRegisters } from "@/hooks/useCashRegisters";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,7 +16,6 @@ import {
   LockOpen, LockKeyhole, ArrowDownToLine, ArrowUpFromLine,
   Banknote, CreditCard, Smartphone, QrCode, TrendingUp, Wallet,
 } from "lucide-react";
-import { PendingTableOrders } from "./PendingTableOrders";
 import { cn } from "@/lib/utils";
 
 export default function Cash() {
@@ -27,7 +27,8 @@ export default function Cash() {
   const [moveDialog, setMoveDialog] = useState<null | "in" | "out">(null);
   const [counts, setCounts] = useState({ cash: "", card: "", transfer: "", qr: "" });
 
-  const { data: session } = useOpenSession(branchId);
+  const { registers, registerId, setRegisterId } = useCashRegisters(branchId, tenantId);
+  const { data: session } = useOpenSession(branchId, registerId);
   const canViewDifferences = hasRole("owner", "admin");
 
   const { data: history } = useQuery({
@@ -56,10 +57,12 @@ export default function Cash() {
 
   const openSession = async () => {
     if (!tenantId || !branchId || !user) return;
+    if (!registerId) return toast.error("Agrega o selecciona una caja registradora");
     const { error } = await supabase.rpc("open_cash_session" as any, {
       _tenant_id: tenantId,
       _branch_id: branchId,
       _opening_amount: Number(openAmount),
+      _register_id: registerId,
     });
     if (error) toast.error(error.message);
     else { toast.success("Caja abierta"); qc.invalidateQueries(); }
@@ -90,7 +93,7 @@ export default function Cash() {
       <div className="flex items-start justify-between gap-4">
         <div className="g-page-hd">
           <div className="g-page-hd-eyebrow">OPERACIÓN · CAJA</div>
-          <div className="h-display g-page-title">Caja</div>
+          <div className="h-display g-page-title">Multicaja</div>
           <div className="g-page-hd-meta">Apertura, cierre, arqueo y movimientos de efectivo</div>
         </div>
         {session && (
@@ -120,6 +123,24 @@ export default function Cash() {
 
         {/* ── Current session tab ── */}
         <TabsContent value="current" className="mt-4 space-y-4">
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-card p-4">
+            <label htmlFor="cash-register" className="text-sm font-medium">Puesto de caja</label>
+            <select id="cash-register" value={registerId} onChange={(e) => setRegisterId(e.target.value)} className="h-10 min-w-52 rounded-lg border bg-background px-3 text-sm" disabled={!registers.length}>
+              {registers.map((register) => <option key={register.id} value={register.id}>{register.name}</option>)}
+            </select>
+            {hasRole("owner", "admin", "manager") && (
+              <button type="button" className="g-btn g-btn-ghost" onClick={async () => {
+                const name = window.prompt("Nombre de la nueva caja (por ejemplo: Caja 2)")?.trim();
+                if (!name || !tenantId || !branchId) return;
+                const { data, error } = await supabase.from("cash_registers").insert({ tenant_id: tenantId, branch_id: branchId, name }).select("id").single();
+                if (error) return toast.error(error.message);
+                await qc.invalidateQueries({ queryKey: ["cash-registers", branchId] });
+                if (data?.id) setRegisterId(data.id);
+                toast.success("Caja registradora creada");
+              }}>Agregar caja</button>
+            )}
+            {!registers.length && <span className="text-sm text-muted-foreground">Esta sucursal aún no tiene cajas registradoras.</span>}
+          </div>
           {!session ? (
             <div className="glass rounded-2xl p-8 max-w-md">
               <div className="flex items-center gap-4 mb-6">
@@ -165,10 +186,6 @@ export default function Cash() {
                   accent
                 />
               </div>
-
-              {tenantId && branchId && (
-                <PendingTableOrders tenantId={tenantId} branchId={branchId} />
-              )}
 
               {/* Movements + summary */}
               <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6">

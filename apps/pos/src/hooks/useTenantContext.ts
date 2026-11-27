@@ -5,18 +5,6 @@ import { useAuth } from "./useAuth";
 import { Branch } from "@/types/branch";
 import { useEffect, useMemo } from "react";
 
-type TenantSummary = {
-  id: string;
-  name: string;
-  currency: string | null;
-  tax_rate: number | null;
-  active_channels: string[] | null;
-};
-
-function isTenantSummary(value: unknown): value is TenantSummary {
-  return !!value && typeof value === "object" && "id" in value;
-}
-
 export function useTenantContext() {
   const { user } = useAuth();
   // tenantId is now injected by useTenantByDomain via TenantProvider (domain-resolved).
@@ -28,7 +16,7 @@ export function useTenantContext() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("user_roles")
-        .select("tenant_id, role, branch_id, tenants(id, name, currency, tax_rate, active_channels)")
+        .select("tenant_id, role, branch_id, tenants(id, name, currency, tax_rate)")
         .eq("user_id", user!.id);
       if (error) throw error;
       return data ?? [];
@@ -83,15 +71,6 @@ export function useTenantContext() {
     !loadingRoles &&
     tenantMemberships.length > 0;
 
-  // Active channels from the domain tenant
-  const activeChannels = useMemo(() => {
-    const tenantObj = memberships?.find((m) => m.tenant_id === tenantId)?.tenants;
-    if (isTenantSummary(tenantObj) && Array.isArray(tenantObj.active_channels)) {
-      return tenantObj.active_channels;
-    }
-    return ["pos", "qr", "delivery", "tables"];
-  }, [memberships, tenantId]);
-
   return {
     tenantId,
     branchId,
@@ -104,6 +83,5 @@ export function useTenantContext() {
     isAuthorizedForDomain,
     isLoading: loadingRoles,
     needsOnboarding: !loadingRoles && (memberships?.length ?? 0) === 0,
-    activeChannels,
   };
 }

@@ -4,7 +4,7 @@
 .inv-stock-bar {
   position: relative;
   height: 6px;
-  background: rgba(43,124,255,0.08);
+  background: rgba(255,90,31,0.08);
   border-radius: 999px;
   width: 120px;
 }
@@ -57,14 +57,14 @@
 }
 .inv-table-header {
   border-bottom: 1px solid var(--g-hairline);
-  background: rgba(43,124,255,0.03);
+  background: rgba(255,90,31,0.03);
 }
 .inv-table-row {
   border-bottom: 1px solid var(--g-hairline);
 }
 .inv-table-footer {
   border-top: 1px solid var(--g-hairline);
-  background: rgba(43,124,255,0.02);
+  background: rgba(255,90,31,0.02);
 }
 .inv-forecast-grid {
   grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
@@ -81,8 +81,8 @@
   background: radial-gradient(120% 100% at 30% 25%, #FFFFFF 0%, rgba(255,255,255,0) 55%), radial-gradient(140% 120% at 70% 80%, #7A1E34 0%, var(--g-bad) 60%, #FFB3C6 100%);
 }
 .inv-card-transfer {
-  background: linear-gradient(135deg, rgba(43,124,255,0.10) 0%, rgba(43,124,255,0.05) 100%);
-  border-color: rgba(43,124,255,0.20);
+  background: linear-gradient(135deg, rgba(255,90,31,0.10) 0%, rgba(255,90,31,0.05) 100%);
+  border-color: rgba(255,90,31,0.20);
 }
 .inv-btn-sm {
   height: 34px;
@@ -107,7 +107,7 @@
 .inv-tab-active {
   background: rgba(255,255,255,0.85);
   color: var(--brand-700);
-  box-shadow: 0 2px 8px -2px rgba(43,124,255,0.18), inset 0 1px 0 rgba(255,255,255,0.9);
+  box-shadow: 0 2px 8px -2px rgba(255,90,31,0.18), inset 0 1px 0 rgba(255,255,255,0.9);
 }
 .inv-tab-inactive {
   background: transparent;

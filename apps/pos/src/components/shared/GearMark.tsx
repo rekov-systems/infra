@@ -3,23 +3,31 @@ interface GearMarkProps {
   mono?: boolean;
 }
 
+/** Same Desk mark as desk.rekov.co: orange tile, letter D. */
 export function GearMark({ size = 28, mono = false }: GearMarkProps) {
-  const blue  = mono ? "currentColor" : "#007BFF";
-  const green = mono ? "currentColor" : "#10B981";
+  const radius = Math.round(size * (9 / 31));
+  const corner = Math.max(2, Math.round(size * (3 / 31)));
   return (
-    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" aria-hidden="true">
-      <g stroke={blue} strokeWidth="3.5" strokeLinecap="round">
-        <circle cx="32" cy="32" r="14" fill="none" />
-        {Array.from({ length: 8 }).map((_, i) => {
-          const a  = (i / 8) * Math.PI * 2;
-          const x1 = 32 + Math.cos(a) * 18;
-          const y1 = 32 + Math.sin(a) * 18;
-          const x2 = 32 + Math.cos(a) * 24;
-          const y2 = 32 + Math.sin(a) * 24;
-          return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} />;
-        })}
-      </g>
-      <circle cx="32" cy="32" r="4.5" fill={green} />
-    </svg>
+    <span
+      aria-hidden="true"
+      style={{
+        width: size,
+        height: size,
+        borderRadius: `${radius}px ${radius}px ${radius}px ${corner}px`,
+        background: mono ? "currentColor" : "linear-gradient(145deg, #ff8a45, #ff5a1f)",
+        display: "grid",
+        placeItems: "center",
+        color: mono ? "inherit" : "#171717",
+        fontWeight: 900,
+        fontFamily: '"Space Grotesk", "DM Sans", sans-serif',
+        fontSize: Math.round(size * 0.62),
+        lineHeight: 1,
+        transform: "rotate(-8deg)",
+        boxShadow: mono ? undefined : "0 5px 18px rgba(255, 90, 31, 0.35)",
+        flexShrink: 0,
+      }}
+    >
+      D
+    </span>
   );
 }

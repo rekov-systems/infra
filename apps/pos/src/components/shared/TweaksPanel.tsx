@@ -8,7 +8,7 @@ export function TweaksPanel({ onClose }: TweaksPanelProps) {
   return (
     <div className="w-72 rounded-xl border bg-card shadow-xl p-5">
       <div className="flex items-center justify-between mb-3">
-        <span className="text-sm font-semibold text-foreground">Tweaks · POS360T</span>
+        <span className="text-sm font-semibold text-foreground">Tweaks · Desk</span>
         <button
           type="button"
           onClick={onClose}

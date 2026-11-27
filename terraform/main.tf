@@ -142,6 +142,15 @@ resource "cloudflare_dns_record" "control_panel" {
   proxied = false
 }
 
+resource "cloudflare_dns_record" "tenant_wildcard" {
+  zone_id = var.cloudflare_zone_id
+  name    = "*.desk"
+  type    = "A"
+  content = oci_core_instance.control.public_ip
+  ttl     = 1
+  proxied = false
+}
+
 resource "cloudflare_dns_record" "supabase_api" {
   zone_id = var.cloudflare_zone_id
   name    = "api.desk"

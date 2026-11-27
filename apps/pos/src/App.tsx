@@ -17,6 +17,7 @@ import { useSyncEngine } from "@/hooks/useSyncEngine";
 import { useAutoUpdater } from "@/hooks/useHardware";
 import { OfflineBanner } from "@/components/shared/OfflineBanner";
 import Auth from "./pages/Auth";
+import SsoCallback from "./pages/SsoCallback";
 import Landing from "./pages/Landing";
 import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
@@ -26,31 +27,19 @@ const Dashboard = lazy(() => import("./modules/dashboard/Dashboard"));
 const POS = lazy(() => import("./modules/pos/POS"));
 const Products = lazy(() => import("./modules/products/Products"));
 const Categories = lazy(() => import("./modules/products/Categories"));
-const Recipes = lazy(() => import("./modules/products/Recipes"));
 const Inventory = lazy(() => import("./modules/inventory/Inventory"));
 const Cash = lazy(() => import("./modules/cash/Cash"));
 const Sales = lazy(() => import("./modules/sales/Sales"));
-const Production = lazy(() => import("./modules/production/Production"));
-const KDS = lazy(() => import("./modules/kds/KDS"));
-const QRMenu = lazy(() => import("./pages/QRMenu"));
 const WhatsAppInbox = lazy(() => import("./modules/whatsapp/WhatsAppInbox"));
 const Reports = lazy(() => import("./modules/reports/Reports"));
 const Employees = lazy(() => import("./modules/staff/Employees"));
 const Shifts = lazy(() => import("./modules/staff/Shifts"));
 const Branches = lazy(() => import("./modules/branches/Branches"));
 const Catalog = lazy(() => import("./modules/catalog/Catalog"));
-const ChannelPrices = lazy(() => import("./modules/channel-prices/ChannelPrices"));
-const DigitalOrders = lazy(() => import("./modules/digital-orders/DigitalOrders"));
-const Delivery = lazy(() => import("./modules/delivery/Delivery"));
 const Settings = lazy(() => import("./modules/settings/Settings"));
-const Tables = lazy(() => import("./modules/tables/Tables"));
-const TableOrder = lazy(() => import("./modules/tables/TableOrder"));
-const WaiterDashboard = lazy(() => import("./modules/waiter/WaiterDashboard"));
-const CourierDashboard = lazy(() => import("./modules/courier/CourierDashboard"));
 const Customers = lazy(() => import("./modules/customers/Customers"));
 const Suppliers = lazy(() => import("./modules/suppliers/Suppliers"));
 const Expenses = lazy(() => import("./modules/expenses/Expenses"));
-const AIAgent  = lazy(() => import("./modules/ai-agent/AIAgent"));
 
 const PageFallback = () => (
   <div className="min-h-screen grid place-items-center">
@@ -86,39 +75,29 @@ const App = () => {
           <Toaster />
           <Sonner richColors closeButton />
           <PWAInstallPrompt />
-          <BrowserRouter>
+          <BrowserRouter basename={window.location.hostname === "desk.rekov.co" ? "/rms" : undefined}>
             <OfflineBanner />
             <Suspense fallback={<PageFallback />}>
               <Routes>
                 {/* ── Rutas públicas ── */}
                 <Route path="/" element={<Landing />} />
                 <Route path="/auth" element={<Auth />} />
+                <Route path="/sso" element={<SsoCallback />} />
                 <Route path="/403" element={<Forbidden />} />
-                <Route path="/qr/:branchId" element={<QRMenu />} />
 
                 {/* ── Rutas protegidas ── */}
                 <Route element={<ProtectedRoute />}>
                   <Route path="/onboarding" element={<Onboarding />} />
                   <Route path="/pos" element={<POS />} />
-                  <Route path="/tables/:id" element={<TableOrder />} />
                   <Route element={<AppShell />}>
-                    <Route path="/tables" element={<Tables />} />
-                    <Route path="/waiter" element={<WaiterDashboard />} />
-                    <Route path="/courier" element={<CourierDashboard />} />
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/products" element={<Products />} />
                     <Route path="/categories" element={<Categories />} />
-                    <Route path="/recipes" element={<Recipes />} />
                     <Route path="/catalog" element={<Catalog />} />
-                    <Route path="/channel-prices" element={<ChannelPrices />} />
                     <Route path="/inventory" element={<Inventory />} />
                     <Route path="/cash" element={<Cash />} />
                     <Route path="/sales" element={<Sales />} />
-                    <Route path="/production" element={<Production />} />
-                    <Route path="/kds" element={<KDS />} />
-                    <Route path="/digital-orders" element={<DigitalOrders />} />
                     <Route path="/whatsapp" element={<WhatsAppInbox />} />
-                    <Route path="/delivery" element={<Delivery />} />
                     <Route path="/branches" element={<Branches />} />
                     <Route path="/employees" element={<Employees />} />
                     <Route path="/shifts" element={<Shifts />} />
@@ -127,7 +106,6 @@ const App = () => {
                     <Route path="/suppliers" element={<Suppliers />} />
                     <Route path="/expenses" element={<Expenses />} />
                     <Route path="/settings" element={<Settings />} />
-                    <Route path="/ai" element={<AIAgent />} />
                   </Route>
                 </Route>
                 <Route path="*" element={<NotFound />} />

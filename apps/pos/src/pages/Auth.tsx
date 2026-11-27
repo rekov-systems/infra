@@ -1,29 +1,29 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { GearMark } from "@/components/shared/GearMark";
-import { LiveDot } from "@/components/shared/LiveDot";
 import { toast } from "sonner";
 import {
-  Loader2, Shield, Zap, Wifi, ArrowLeft,
-  ShoppingCart, UtensilsCrossed, BarChart3,
+  Loader2, Shield, Zap, Wifi,
+  ShoppingCart, MessageCircle, BarChart3,
 } from "lucide-react";
+import { deskLoginUrl, goToTenantSession, isTenantHost, tenantReturnOrigin } from "@/lib/host";
 
 /* ── Left panel features ── */
 const FEATURES = [
-  { icon: Zap,           text: "Táctil y rápido · Tiles con glow al pulsar" },
-  { icon: Wifi,          text: "Offline-first · Sync automático al reconectar" },
-  { icon: Shield,        text: "Multi-sucursal · Roles y canales granulares" },
+  { icon: Zap,           text: "Multicaja: cada puesto abre y cierra su propio turno" },
+  { icon: Wifi,          text: "Sigue vendiendo sin conexión; sincroniza al volver" },
+  { icon: Shield,        text: "Usuarios, permisos y datos aislados por negocio" },
 ];
 
 /* ── Social proof stats ── */
 const PROOF = [
-  { icon: ShoppingCart,   label: "Ventas procesadas",  value: "Sin límite" },
-  { icon: UtensilsCrossed, label: "Canales integrados",  value: "5+"         },
-  { icon: BarChart3,      label: "Reportes en tiempo real", value: "Siempre"   },
+  { icon: ShoppingCart,   label: "Multicaja",  value: "Por puesto" },
+  { icon: MessageCircle, label: "Atención",  value: "WhatsApp" },
+  { icon: BarChart3,      label: "Gestión", value: "Inventario y ventas" },
 ];
 
 export default function Auth() {
@@ -33,17 +33,23 @@ export default function Auth() {
   const [loading,  setLoading]  = useState(false);
 
   useEffect(() => {
-    document.title = "Iniciar sesión | POS S360T";
+    document.title = "Iniciar sesión | Desk";
+    if (isTenantHost()) window.location.replace(deskLoginUrl(window.location.origin));
   }, []);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+      const back = tenantReturnOrigin(new URLSearchParams(window.location.search).get("return"));
+      if (back && data.session) {
+        goToTenantSession(back, data.session.access_token, data.session.refresh_token);
+        return;
+      }
       toast.success("Bienvenido de vuelta");
-      navigate("/dashboard", { replace: true });
+      navigate("/onboarding", { replace: true });
     } catch (err: any) {
       toast.error(err.message ?? "Error de autenticación");
     } finally {
@@ -54,7 +60,7 @@ export default function Auth() {
   return (
     <div className="min-h-screen flex bg-background">
 
-      {/* ── Panel izquierdo: branding S360T ── */}
+      {/* Desk style with the RMS features customers use after signing in. */}
       <div className="hidden lg:flex lg:w-[52%] xl:w-[55%] flex-col relative overflow-hidden auth-panel-left">
         <div className="absolute inset-0 s-grid-texture pointer-events-none opacity-50" />
         <div className="absolute -top-40 -left-40 h-[500px] w-[500px] rounded-full pointer-events-none auth-glow-blue" />
@@ -70,32 +76,24 @@ export default function Auth() {
               <GearMark size={34} />
               <div>
                 <div className="auth-lockup-title">
-                  POS<span className="c-blue">360</span><span className="c-green">T</span>
+                  Desk
                 </div>
-                <div className="auth-lockup-sub">Open Source POS</div>
+                <div className="auth-lockup-sub">Gestión comercial</div>
               </div>
             </div>
-            <Link to="/" className="auth-back-link">
-              <ArrowLeft className="h-3.5 w-3.5" /> Volver al inicio
-            </Link>
+            <a href="https://desk.rekov.co" className="auth-back-link">
+              Volver a Desk
+            </a>
           </div>
 
           {/* Status pill */}
-          <div className="mt-6 self-start">
-            <span className="s-pill s-pill-green inline-flex items-center gap-2">
-              <LiveDot /> SISTEMA OPERATIVO · v1.0
-            </span>
-          </div>
-
-          {/* Hero copy */}
           <div className="mt-auto mb-auto pt-12">
             <h1 className="auth-hero-title">
-              Tu venta como<br />
-              <span className="gradient-text">sistema operativo.</span>
+              Gestiona tu negocio<br />
+              <span className="gradient-text">desde un solo lugar.</span>
             </h1>
             <p className="auth-hero-sub">
-              Multi-canal · Multi-sucursal · Offline-first.<br />
-              Del mostrador al repartidor, del salón al dashboard.
+              Caja, inventario y ventas conectados. Atiende y vende por WhatsApp, incluso cuando se cae internet.
             </p>
 
             {/* Features */}
@@ -123,7 +121,7 @@ export default function Auth() {
           </div>
 
           <div className="text-[11px] text-sidebar-foreground/25 tracking-wider">
-            © 2026 POS S360T Contributors · Apache 2.0
+            © 2026 Rekov Systems · Software de código abierto
           </div>
         </div>
       </div>
@@ -136,13 +134,11 @@ export default function Auth() {
           <div className="flex items-center justify-between lg:hidden">
             <div className="flex items-center gap-2.5">
               <GearMark size={28} />
-              <div className="auth-lockup-title">
-                POS<span className="c-blue">360</span><span className="c-green">T</span>
-              </div>
+              <div className="auth-lockup-title">Desk</div>
             </div>
-            <Link to="/" className="auth-back-link">
-              <ArrowLeft className="h-3.5 w-3.5" /> Inicio
-            </Link>
+            <a href="https://desk.rekov.co" className="auth-back-link">
+              Desk
+            </a>
           </div>
 
           {/* Form card */}

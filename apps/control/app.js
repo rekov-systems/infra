@@ -92,7 +92,7 @@ function logout(repaint = true) {
 }
 
 function brand(dark = false) {
-  return `<div class="${dark ? "login-brand" : "brand"}"><img src="./brand/desk-mark-gradient.jpg" alt="" /><span class="${dark ? "login-brand-copy" : "brand-copy"}"><strong>Desk</strong><small>by Rekov Systems</small></span></div>`;
+  return `<div class="${dark ? "login-brand" : "brand"}"><span class="desk-mark" aria-hidden="true">D</span><span class="${dark ? "login-brand-copy" : "brand-copy"}"><strong>Desk</strong><small>by Rekov Systems</small></span></div>`;
 }
 
 function renderLogin(message = "") {
@@ -100,9 +100,9 @@ function renderLogin(message = "") {
     <section class="login-story">
       ${brand(true)}
       <div class="login-copy">
-        <div class="eyebrow">REKOV RETAIL MANAGEMENT SYSTEM</div>
-        <h1>Una plataforma.<br /><em>Cada negocio,</em><br />en su lugar.</h1>
-        <p>Administra las empresas, accesos y espacios comerciales que viven en Rekov RMS.</p>
+        <div class="eyebrow">DESK · CENTRO DE CONTROL</div>
+        <h1>Tu plataforma.<br /><em>Cada negocio,</em><br />en su lugar.</h1>
+        <p>Administra los negocios y sus accesos a Desk.</p>
       </div>
       <div class="login-footer">© ${new Date().getFullYear()} Rekov Systems · Acceso interno</div>
     </section>
@@ -159,8 +159,9 @@ function sidebar() {
     <div class="nav-label">PLATAFORMA</div>
     <nav class="nav-list">${links.map(([id, label, icon]) => `<button class="nav-item ${state.page === id ? "active" : ""}" data-page="${id}">${ICONS[icon]}<span>${label}</span>${state.page === id ? ICONS.chevron : ""}</button>`).join("")}</nav>
     <div class="sidebar-bottom">
-      <div class="sidebar-note">Administración privada de empresas y accesos de Rekov RMS.</div>
-      <div class="profile"><span class="avatar">${escapeHtml(initials(state.emailHint))}</span><span class="profile-copy"><strong>${escapeHtml(state.session?.user?.user_metadata?.full_name || "Rekov Admin")}</strong><small>${escapeHtml(state.emailHint || state.session?.user?.email || "Administrador")}</small></span><button class="logout" id="logout" title="Cerrar sesión">${ICONS.close}</button></div>
+      <div class="sidebar-note">Administración de negocios y accesos de Desk.</div>
+      <div class="profile"><span class="avatar">${escapeHtml(initials(state.emailHint))}</span><span class="profile-copy"><strong>${escapeHtml(state.session?.user?.user_metadata?.full_name || "Rekov Admin")}</strong><small>${escapeHtml(state.emailHint || state.session?.user?.email || "Administrador")}</small></span></div>
+      <button class="logout" id="logout" type="button">Cerrar sesión</button>
     </div>
   </aside><div class="backdrop" id="backdrop"></div>`;
 }
@@ -168,14 +169,20 @@ function sidebar() {
 function shell(content) {
   const sectionName = ({ businesses: "Negocios", upstream: "Cambios del proyecto", overview: "Resumen" })[state.page] || "Resumen";
   ROOT.innerHTML = `<div class="app-shell">${sidebar()}<div class="main">
-    <header class="topbar"><div class="topbar-left"><button class="menu-toggle" id="menu-toggle" aria-label="Abrir menú">${ICONS.menu}</button><div class="crumb">Rekov RMS <span style="color:#bbb;padding:0 7px">/</span><b>${sectionName}</b></div></div>
-      <div class="topbar-right"><div class="online"><i></i> Plataforma activa</div><span class="top-divider"></span><span class="top-user"><strong>Rekov Systems</strong><small>Administración</small></span></div>
+    <header class="topbar"><div class="topbar-left"><button class="menu-toggle" id="menu-toggle" aria-label="Abrir menú">${ICONS.menu}</button><div class="crumb">Desk <span style="color:#bbb;padding:0 7px">/</span><b>${sectionName}</b></div></div>
+      <div class="topbar-right"><div class="online"><i></i> Plataforma activa</div><span class="top-divider"></span><span class="top-user"><strong>Rekov Systems</strong><small>Administración</small></span><button class="button button-quiet logout-top" id="logout-top" type="button">Cerrar sesión</button></div>
     </header>${content}</div>${state.modal ? modal() : ""}</div>`;
   ROOT.querySelectorAll("[data-page]").forEach((el) => el.addEventListener("click", () => {
-    state.page = el.dataset.page; state.search = ""; closeSidebar(); render();
+    state.page = el.dataset.page; state.search = ""; closeSidebar();
+    if (state.page === "upstream" && !state.upstream.data) {
+      state.upstream.loading = true;
+      state.upstream.error = "";
+    }
+    render();
     if (state.page === "upstream") void loadUpstream();
   }));
-  ROOT.querySelector("#logout").addEventListener("click", () => logout());
+  ROOT.querySelector("#logout")?.addEventListener("click", () => logout());
+  ROOT.querySelector("#logout-top")?.addEventListener("click", () => logout());
   ROOT.querySelector("#menu-toggle").addEventListener("click", openSidebar);
   ROOT.querySelector("#backdrop").addEventListener("click", closeSidebar);
   ROOT.querySelectorAll("[data-create]").forEach((el) => el.addEventListener("click", () => { state.modal = { type: "create" }; render(); }));
@@ -190,8 +197,10 @@ function shell(content) {
   if (form) {
     const name = form.elements.name;
     const slug = form.elements.slug;
-    name.addEventListener("input", () => { if (!slug.dataset.edited) slug.value = toSlug(name.value); });
-    slug.addEventListener("input", () => { slug.dataset.edited = "true"; slug.value = toSlug(slug.value); });
+    const preview = form.querySelector("#business-domain-preview");
+    const updatePreview = () => { if (preview) preview.value = `${slug.value || "tu-negocio"}.desk.rekov.co`; };
+    name.addEventListener("input", () => { if (!slug.dataset.edited) slug.value = toSlug(name.value); updatePreview(); });
+    slug.addEventListener("input", () => { slug.dataset.edited = "true"; slug.value = toSlug(slug.value); updatePreview(); });
     form.addEventListener("submit", createTenant);
   }
   ROOT.querySelectorAll("[data-copy]").forEach((el) => el.addEventListener("click", () => copyText(el.dataset.copy)));
@@ -202,21 +211,25 @@ function shell(content) {
 function openSidebar() { ROOT.querySelector("#sidebar")?.classList.add("open"); ROOT.querySelector("#backdrop")?.classList.add("show"); }
 function closeSidebar() { ROOT.querySelector("#sidebar")?.classList.remove("open"); ROOT.querySelector("#backdrop")?.classList.remove("show"); }
 function toSlug(value) { return String(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48); }
+function tenantAccessDomain(tenant) {
+  const slug = String(tenant.slug || "").trim().toLowerCase();
+  return slug && slug !== "rekov-platform" ? `${slug}.desk.rekov.co` : "desk.rekov.co";
+}
 
 function tenantRow(tenant) {
   const owner = tenant.owner || {};
+  const domain = tenantAccessDomain(tenant);
   return `<tr data-tenant-row="${escapeHtml(`${tenant.name} ${tenant.slug} ${tenant.domain} ${owner.email || ""}`.toLowerCase())}">
     <td><div class="business-cell"><span class="business-mark">${escapeHtml(initials(tenant.name))}</span><span class="business-name"><b>${escapeHtml(tenant.name)}</b><small>${escapeHtml(tenant.slug)}</small></span></div></td>
-    <td><a class="domain-link" href="https://${escapeHtml(tenant.domain || "desk.rekov.co")}" target="_blank" rel="noreferrer">${escapeHtml(tenant.domain || "desk.rekov.co")} ${ICONS.external}</a></td>
+    <td><a class="domain-link" href="https://${escapeHtml(domain)}" target="_blank" rel="noreferrer">${escapeHtml(domain)}</a></td>
     <td class="owner-email">${escapeHtml(owner.email || "Sin dueño")}</td>
     <td><span class="status ${tenant.status === "active" ? "" : "off"}"><i></i>${tenant.status === "active" ? "Activo" : "Inactivo"}</span></td>
     <td>${escapeHtml(formatDate(tenant.created_at))}</td>
-    <td><button class="table-action" data-details="${escapeHtml(tenant.id)}" aria-label="Ver negocio">${ICONS.arrow}</button></td>
   </tr>`;
 }
 function tenantTable(list, compact = false) {
   if (!list.length) return `<div class="empty"><span class="empty-icon">${ICONS.store}</span><h3>Aún no hay negocios</h3><p>Crea el primero y entrégale a su dueño un acceso seguro a su espacio.</p><button class="button button-primary" data-create>${ICONS.plus} Crear negocio</button></div>`;
-  return `<div class="table-wrap"><table><thead><tr><th>Negocio</th><th>Acceso</th><th>Dueño</th><th>Estado</th><th>Creado</th><th></th></tr></thead><tbody>${list.slice(0, compact ? 6 : undefined).map(tenantRow).join("")}</tbody></table></div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>Negocio</th><th>Acceso</th><th>Dueño</th><th>Estado</th><th>Creado</th></tr></thead><tbody>${list.slice(0, compact ? 6 : undefined).map(tenantRow).join("")}</tbody></table></div>`;
 }
 function statCard(label, value, meta, icon) {
   return `<article class="stat-card"><div class="stat-top"><span>${label}</span><span class="stat-icon">${ICONS[icon]}</span></div><div class="stat-value">${value}</div><div class="stat-meta">${meta}</div></article>`;
@@ -227,7 +240,7 @@ function overviewPage() {
   const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
   const newThisMonth = state.tenants.filter((tenant) => new Date(tenant.created_at) >= monthStart).length;
   return `<main class="content animate-rise">
-    <div class="page-head"><div><div class="eyebrow">CENTRO DE CONTROL</div><h1>Buenos días, Rekov</h1><p class="page-subtitle">Administra los negocios y accesos que operan en tu plataforma.</p></div><button class="button button-primary" data-create>${ICONS.plus}<span class="button-label">Crear negocio</span></button></div>
+    <div class="page-head"><div><div class="eyebrow">CENTRO DE CONTROL</div><h1>Buenos días, Rekov</h1><p class="page-subtitle">Administra los negocios y accesos de Desk.</p></div><button class="button button-primary" data-create>${ICONS.plus}<span class="button-label">Crear negocio</span></button></div>
     <section class="stats">
       ${statCard("Negocios registrados", state.tenants.length, "Empresas en la plataforma", "building")}
       ${statCard("Negocios activos", active, "Con acceso habilitado", "pulse")}
@@ -275,8 +288,10 @@ async function loadUpstream() {
 
 function upstreamPage() {
   const { loading, data, error } = state.upstream;
-  if (loading && !data) return `<main class="content animate-rise"><div class="page-head"><div><div class="eyebrow">UPSTREAM · AI POINT OF SALE</div><h1>Cambios del proyecto original</h1><p class="page-subtitle">Consultando commits y archivos nuevos…</p></div><span class="loader"></span></div></main>`;
-  if (error && !data) return `<main class="content animate-rise"><div class="page-head"><div><div class="eyebrow">UPSTREAM · AI POINT OF SALE</div><h1>Cambios del proyecto original</h1><p class="page-subtitle">${escapeHtml(error)}</p></div><button class="button button-primary" data-upstream-refresh>${ICONS.refresh} Reintentar</button></div><div class="panel panel-body upstream-note">GitHub limita las consultas anónimas. Si alcanzaste el límite, espera o revisa la comparación directamente.</div><a class="button button-quiet" href="https://github.com/mateopiza/ai-point-of-sale/commits/main" target="_blank" rel="noreferrer">Abrir commits del original ${ICONS.external}</a></main>`;
+  if (!data) {
+    if (error && !loading) return `<main class="content animate-rise"><div class="page-head"><div><div class="eyebrow">UPSTREAM · AI POINT OF SALE</div><h1>Cambios del proyecto original</h1><p class="page-subtitle">${escapeHtml(error)}</p></div><button class="button button-primary" data-upstream-refresh>${ICONS.refresh} Reintentar</button></div><div class="panel panel-body upstream-note">GitHub limita las consultas anónimas. Si alcanzaste el límite, espera o revisa la comparación directamente.</div><a class="button button-quiet" href="https://github.com/mateopiza/ai-point-of-sale/commits/main" target="_blank" rel="noreferrer">Abrir commits del original ${ICONS.external}</a></main>`;
+    return `<main class="content animate-rise"><div class="page-head"><div><div class="eyebrow">UPSTREAM · AI POINT OF SALE</div><h1>Cambios del proyecto original</h1><p class="page-subtitle">Consultando commits y archivos nuevos…</p></div><span class="loader"></span></div></main>`;
+  }
   const { manifest, result } = data;
   const commits = result.commits || [];
   const files = result.files || [];
@@ -289,7 +304,7 @@ function upstreamPage() {
       ${statCard("Estado upstream", escapeHtml(status), "Comparado con la base integrada", "branch")}
       ${statCard("Archivos cambiados", files.length, "Desde la última sincronización", "store")}
       ${statCard("Superposición posible", conflicts.length, "Mismo archivo en upstream y Rekov", "pulse")}
-      ${statCard("Base integrada", escapeHtml(manifest.base_sha.slice(0, 8)), "Commit fuente en esta versión", "check")}
+      ${statCard("Base integrada", escapeHtml(String(manifest.base_sha || "").slice(0, 8) || "—"), "Commit fuente en esta versión", "check")}
     </section>
     <div class="upstream-actions"><a class="button button-quiet" href="${escapeHtml(data.compareUrl)}" target="_blank" rel="noreferrer">Ver comparación en GitHub ${ICONS.external}</a><a class="button button-quiet" href="https://github.com/rekov-systems/infra/actions/workflows/sync-pos-upstream.yml" target="_blank" rel="noreferrer">Ver sincronización y validación ${ICONS.external}</a></div>
     ${conflicts.length ? `<section class="upstream-warning"><b>Revisión requerida: ${conflicts.length} archivo${conflicts.length === 1 ? "" : "s"} coinciden con el overlay Rekov.</b><span>El panel no aplica cambios. Abre la PR de sincronización y espera el check de compatibilidad antes de integrar.</span></section>` : `<section class="upstream-ok"><b>Sin superposición de archivos detectada.</b><span>El build de la PR sigue siendo la validación final de compatibilidad.</span></section>`}
@@ -325,7 +340,7 @@ function createModal() {
       <div class="form-section"><div class="form-section-title"><span>1</span> Datos del negocio</div><div class="form-grid">
         <div class="field full"><label for="business-name">Nombre comercial</label><input id="business-name" name="name" placeholder="Ej. Mercado La 14" autocomplete="organization" required maxlength="100" /></div>
         <div class="field"><label for="business-slug">Identificador interno</label><input id="business-slug" name="slug" placeholder="mercado-la-14" required minlength="3" maxlength="48" pattern="[a-z0-9]+(-[a-z0-9]+)*" /></div>
-        <div class="field"><label>Acceso de la empresa</label><div class="domain-input"><input value="desk.rekov.co" aria-label="Dirección de acceso" disabled /></div></div>
+        <div class="field"><label>Acceso de la empresa</label><div class="domain-input"><input id="business-domain-preview" value="tu-negocio.desk.rekov.co" aria-label="Dirección de acceso" disabled /></div></div>
         <div class="field full"><label for="branch-name">Sucursal inicial</label><input id="branch-name" name="branch_name" value="Sucursal principal" required maxlength="80" /></div>
       </div></div>
       <div class="form-section"><div class="form-section-title"><span>2</span> Dueño del negocio</div><div class="form-grid">
@@ -341,28 +356,30 @@ function createModal() {
 function detailsModal(tenant) {
   if (!tenant) return "";
   const owner = tenant.owner || {};
+  const domain = tenantAccessDomain(tenant);
   return `<div class="modal-backdrop" data-close-modal><section class="modal" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
     <div class="modal-head"><div><h2>${escapeHtml(tenant.name)}</h2><p>Ficha del negocio en Desk.</p></div><button class="modal-close" data-close-modal>${ICONS.close}</button></div>
     <div class="detail-grid">
-      <div class="detail-item"><small>URL de acceso</small><a href="https://desk.rekov.co" target="_blank" rel="noreferrer">${escapeHtml(tenant.domain || "desk.rekov.co")} ↗</a></div>
+      <div class="detail-item"><small>URL de acceso</small><a href="https://${escapeHtml(domain)}" target="_blank" rel="noreferrer">${escapeHtml(domain)} ↗</a></div>
       <div class="detail-item"><small>Estado</small><strong>${tenant.status === "active" ? "Activo" : "Inactivo"}</strong></div>
       <div class="detail-item"><small>Identificador</small><strong>${escapeHtml(tenant.slug)}</strong></div>
       <div class="detail-item"><small>Creado</small><strong>${escapeHtml(formatDate(tenant.created_at))}</strong></div>
       <div class="detail-item"><small>Dueño</small><strong>${escapeHtml(owner.full_name || "Sin nombre")}</strong></div>
       <div class="detail-item"><small>Correo</small><strong>${escapeHtml(owner.email || "Sin dueño")}</strong></div>
-    </div><div class="modal-actions" style="margin:0 23px 20px"><button class="button button-quiet" data-copy="https://${escapeHtml(tenant.domain || "desk.rekov.co")}">${ICONS.copy} Copiar URL</button><button class="button button-primary" data-close-modal>Aceptar</button></div>
+    </div><div class="modal-actions" style="margin:0 23px 20px"><button class="button button-quiet" data-copy="https://${escapeHtml(domain)}">${ICONS.copy} Copiar URL</button><button class="button button-primary" data-close-modal>Aceptar</button></div>
   </section></div>`;
 }
 function createdModal(data) {
+  const domain = tenantAccessDomain(data.tenant);
   return `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="created-title">
     <div class="modal-head"><div><div class="eyebrow">ALTA COMPLETADA</div></div><button class="modal-close" data-close-modal aria-label="Cerrar">${ICONS.close}</button></div>
     <div class="success-panel"><span class="success-mark">${ICONS.check}</span><h3 id="created-title">${escapeHtml(data.tenant.name)} está listo</h3><p>Entrégale estas credenciales al dueño. La contraseña temporal no volverá a mostrarse.</p>
       <div class="credential-box">
-        <div class="credential-row"><label>Desk</label><code>https://desk.rekov.co</code><button class="copy" data-copy="https://desk.rekov.co" title="Copiar">${ICONS.copy}</button></div>
+        <div class="credential-row"><label>Desk</label><code>https://${escapeHtml(domain)}</code><button class="copy" data-copy="https://${escapeHtml(domain)}" title="Copiar">${ICONS.copy}</button></div>
         <div class="credential-row"><label>Correo</label><code>${escapeHtml(data.owner.email)}</code><button class="copy" data-copy="${escapeHtml(data.owner.email)}" title="Copiar">${ICONS.copy}</button></div>
         <div class="credential-row"><label>Contraseña</label><code>${escapeHtml(data.temporary_password)}</code><button class="copy" data-copy="${escapeHtml(data.temporary_password)}" title="Copiar">${ICONS.copy}</button></div>
       </div><p class="password-warning">Guarda o comparte la contraseña antes de cerrar esta ventana.</p>
-      <div class="modal-actions"><button class="button button-quiet" data-copy="${escapeHtml(`Negocio: ${data.tenant.name}\nURL: https://desk.rekov.co\nCorreo: ${data.owner.email}\nContraseña temporal: ${data.temporary_password}`)}">${ICONS.copy} Copiar acceso</button><button class="button button-primary" data-close-modal>Listo</button></div>
+      <div class="modal-actions"><button class="button button-quiet" data-copy="${escapeHtml(`Negocio: ${data.tenant.name}\nURL: https://${domain}\nCorreo: ${data.owner.email}\nContraseña temporal: ${data.temporary_password}`)}">${ICONS.copy} Copiar acceso</button><button class="button button-primary" data-close-modal>Listo</button></div>
     </div>
   </section></div>`;
 }

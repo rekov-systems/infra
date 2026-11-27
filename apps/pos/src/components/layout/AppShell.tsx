@@ -32,6 +32,7 @@ function Shell() {
         .select("id")
         .eq("branch_id", branchId!)
         .eq("status", "open")
+        .limit(1)
         .maybeSingle();
       return data;
     },

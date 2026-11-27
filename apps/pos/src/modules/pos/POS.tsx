@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenantContext } from "@/hooks/useTenantContext";
 import { useOpenSession } from "@/hooks/useOpenSession";
+import { useCashRegisters } from "@/hooks/useCashRegisters";
 import { useCart } from "@/stores/cart";
 import { useHardware } from "@/hooks/useHardware";
 import { Button } from "@/components/ui/button";
@@ -16,10 +17,9 @@ import { PaymentDialog, type PayMethod } from "./PaymentDialog";
 import { useOfflineMutation } from "@/hooks/useOfflineMutation";
 import { db } from "@/lib/db";
 import { formatCurrency } from "@/lib/format";
-import { Search, Wallet, LockKeyhole, UtensilsCrossed, UserRound, X, Heart, ScanLine, Minus, Plus, LayoutDashboard } from "lucide-react";
+import { Search, Wallet, LockKeyhole, UserRound, X, Heart, ScanLine, Minus, Plus, LayoutDashboard } from "lucide-react";
 import { toast } from "sonner";
-import { CHANNELS, resolvePrice, type SalesChannel } from "@/lib/channels";
-import { cn } from "@/lib/utils";
+import { resolvePrice, type SalesChannel } from "@/lib/channels";
 import { ModifierSelector, validateModifiers, type SelectedModifier } from "@/components/shared/ModifierSelector";
 import { isCategoryActive } from "@/modules/products/Categories";
 import { useProducts } from "@/hooks/useProducts";
@@ -31,18 +31,18 @@ import { useDevMode } from "@/hooks/useDevMode";
 export default function POS() {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { tenantId, branchId, branches, activeChannels } = useTenantContext();
+  const { tenantId, branchId, branches } = useTenantContext();
   const { devMode } = useDevMode();
   const { lines, total, clear, add } = useCart();
-  const { data: openSession } = useOpenSession(branchId);
+  const { registers, registerId, setRegisterId } = useCashRegisters(branchId, tenantId);
+  const { data: openSession } = useOpenSession(branchId, registerId);
   const { onBarcodeScanned, printTicket, openDrawer } = useHardware();
 
   const [activeCat, setActiveCat] = useState<string | "all">("all");
   const [search, setSearch] = useState("");
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [channel, setChannel] = useState<SalesChannel>("pos");
-  const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
+  const channel: SalesChannel = "pos";
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerDropdown, setCustomerDropdown] = useState(false);
@@ -189,18 +189,6 @@ export default function POS() {
     },
   });
   
-  const { data: tables } = useQuery({
-    queryKey: ["pos-tables", branchId],
-    enabled: !!branchId && channel === "tables",
-    queryFn: async () => {
-      const { data } = await supabase.from("tables")
-        .select("id, name, status")
-        .eq("branch_id", branchId!)
-        .order("name");
-      return data ?? [];
-    },
-  });
-
   const selectedCustomer = customers?.find((c) => c.id === customerId);
   const filteredCustomers = customers?.filter(
     (c) =>
@@ -208,20 +196,6 @@ export default function POS() {
       (c.phone ?? "").includes(customerSearch) ||
       (c.document_number ?? "").includes(customerSearch)
   ) ?? [];
-
-  const { data: pendingTables } = useQuery({
-    queryKey: ["pos-pending-tables", branchId],
-    enabled: !!branchId,
-    refetchInterval: 15000,
-    queryFn: async () => {
-      const { count } = await supabase
-        .from("table_orders")
-        .select("id", { count: "exact", head: true })
-        .eq("branch_id", branchId!)
-        .eq("status", "sent_to_cashier");
-      return count ?? 0;
-    },
-  });
 
   const stockMap = useMemo(() => {
     const m: Record<string, number> = {};
@@ -354,6 +328,7 @@ export default function POS() {
   const finalize = async (method: PayMethod, _tendered: number, tipAmount: number, couponCode?: string, discountAmount = 0) => {
     if (!tenantId || !branchId) return;
     if (lines.length === 0) return toast.error("Agrega productos al ticket");
+    if (!registerId) return toast.error("Selecciona una caja registradora");
     if (isPos && !openSession) return toast.error("Debes abrir caja antes de vender en presencial");
 
     setSubmitting(true);
@@ -381,6 +356,7 @@ export default function POS() {
         _tip_amount: tipAmount,
         _coupon_code: couponCode ?? null,
         _client_mutation_id: crypto.randomUUID(),
+        _register_id: registerId,
       });
 
       const queuedOffline = !saleId || typeof saleId !== "string";
@@ -400,7 +376,7 @@ export default function POS() {
           const receiptConfig = (tenant?.receipt_config as Record<string, any>) ?? {};
           await printTicket({
             ticketNumber: sale?.ticket_number ?? saleId.slice(0, 8),
-            businessName: tenant?.name ?? "POSS360T",
+            businessName: tenant?.name ?? "Desk",
             branchName,
             items: lines.map((line) => ({
               name: line.product.name,
@@ -439,64 +415,6 @@ export default function POS() {
     } finally { setSubmitting(false); }
   };
 
-  const sendToTableMutation = useOfflineMutation({
-    type: "UPSERT_TABLE_ORDER_ITEMS",
-    mutationFn: async (payload: any) => upsertTableOrderItems(payload),
-  });
-
-  const handleSendToTable = async () => {
-    if (!selectedTableId) return toast.error("Selecciona una mesa primero");
-    if (lines.length === 0) return toast.error("Agrega productos al ticket");
-
-    setSubmitting(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-
-      const items = lines.map((l) => {
-        const unitPrice = Number(l.product.price);
-        const qty = l.quantity;
-        const disc = l.discount || 0;
-        const taxRate = Number((l.product as any).tax_rate || 0);
-        const lineBase = unitPrice * qty - disc;
-        return {
-          product_id: l.product.id,
-          product_name: l.product.name,
-          product_type: l.product.product_type || "simple",
-          quantity: qty,
-          unit_price: unitPrice,
-          tax_rate: taxRate,
-          discount: disc,
-          modifiers: l.product._modifiers ?? [],
-          line_total: lineBase + (lineBase * taxRate) / 100,
-        };
-      });
-      
-      const result = await sendToTableMutation.mutateAsync({
-        tenant_id: tenantId!,
-        branch_id: branchId!,
-        table_id: selectedTableId,
-        waiter_id: user?.id ?? null,
-        items,
-      });
-
-      toast.success(
-        result && typeof result === "string"
-          ? "Comanda enviada a la mesa"
-          : "Comanda guardada en cola offline"
-      );
-      clear();
-      setSelectedTableId(null);
-      qc.invalidateQueries({ queryKey: ["pos-tables"] });
-      qc.invalidateQueries({ queryKey: ["table-orders-open"] });
-      qc.invalidateQueries({ queryKey: ["tables"] });
-      qc.invalidateQueries({ queryKey: ["pending-table-orders"] });
-    } catch (e: any) {
-      toast.error(e.message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -520,8 +438,8 @@ export default function POS() {
         <div className="flex-1">
           <BrandBar
             branch={branchName}
-            session={`Caja · ${branchName}`}
-            channel={CHANNELS.find((c) => c.id === channel)?.label ?? "Local"}
+            session={`Caja · ${registers.find((r) => r.id === registerId)?.name ?? branchName}`}
+            channel="Presencial"
             showSync={!!openSession}
           />
         </div>
@@ -535,45 +453,16 @@ export default function POS() {
         </Link>
       </div>
 
-      {/* ── Sub-header: channels + metrics ticker ─────────── */}
+      {/* ── Sub-header: active register ─────────────────────── */}
       <div className="flex items-center gap-2 px-4 py-2 border-b bg-card/60 flex-wrap shrink-0">
-        <span className="eyebrow eyebrow-muted text-[9px] shrink-0">CANAL</span>
+        <span className="eyebrow eyebrow-muted text-[9px] shrink-0">CAJA · VENTA PRESENCIAL</span>
+        <label className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
+          Caja
+          <select aria-label="Caja registradora" value={registerId} onChange={(e) => setRegisterId(e.target.value)} className="h-9 max-w-44 rounded-lg border bg-card px-2 text-sm text-foreground" disabled={!registers.length}>
+            {registers.map((register) => <option key={register.id} value={register.id}>{register.name}</option>)}
+          </select>
+        </label>
 
-        {CHANNELS.filter(c => activeChannels.includes(c.id)).map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            onClick={() => setChannel(c.id)}
-            className={cn("chan-chip", channel === c.id && "is-active")}
-          >
-            {c.label}
-          </button>
-        ))}
-
-        {/* Table selector (inline when tables channel active) */}
-        {channel === "tables" && (tables ?? []).length > 0 && (
-          <>
-            <div className="h-5 w-px bg-border mx-1 shrink-0" />
-            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hidden">
-              {(tables ?? []).map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setSelectedTableId(t.id)}
-                  className={cn(
-                    "chan-chip shrink-0",
-                    selectedTableId === t.id && "is-active",
-                    t.status === "occupied" && selectedTableId !== t.id && "border-amber-400/40 text-amber-600"
-                  )}
-                >
-                  <span className={cn("live-dot shrink-0 w-1.5 h-1.5",
-                    t.status === "available" ? "bg-[#10B981]" : "live-dot-amber")} />
-                  {t.name}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
 
         <div className="flex-1" />
 
@@ -586,17 +475,6 @@ export default function POS() {
           ]} />
         )}
 
-        {/* Pending tables badge */}
-        {(pendingTables ?? 0) > 0 && (
-          <button
-            type="button"
-            onClick={() => navigate("/cash")}
-            className="s-pill s-pill-blue gap-1"
-          >
-            <UtensilsCrossed className="h-3 w-3" />
-            {pendingTables} mesa{pendingTables !== 1 ? "s" : ""}
-          </button>
-        )}
 
         {/* Cash session status */}
         {isPos && (openSession ? (
@@ -747,7 +625,6 @@ export default function POS() {
           canCharge={canCharge}
           reasonDisabled={isPos && !openSession ? "Abre caja para cobrar" : undefined}
           onCharge={() => setPaymentOpen(true)}
-          onSendToTable={channel === "tables" ? handleSendToTable : undefined}
         />
       </div>
 
@@ -808,24 +685,4 @@ export default function POS() {
       </Dialog>
     </div>
   );
-}
-
-async function upsertTableOrderItems(payload: {
-  tenant_id: string;
-  branch_id: string;
-  table_id: string;
-  waiter_id: string | null;
-  items: any[];
-  _client_mutation_id?: string;
-}) {
-  const { data, error } = await supabase.rpc("upsert_table_order_items", {
-    _tenant_id: payload.tenant_id,
-    _branch_id: payload.branch_id,
-    _table_id: payload.table_id,
-    _waiter_id: payload.waiter_id,
-    _items: payload.items,
-    _client_mutation_id: payload._client_mutation_id ?? null,
-  });
-  if (error) throw error;
-  return data as string;
 }

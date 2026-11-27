@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTenantStore } from "@/stores/tenant";
 import { useQueryClient } from "@tanstack/react-query";
 import { GearMark } from "@/components/shared/GearMark";
+import { goToTenantSession, loginHref } from "@/lib/host";
 
 export default function Onboarding() {
   const navigate = useNavigate();
@@ -18,7 +19,7 @@ export default function Onboarding() {
   const { setTenant, setBranch } = useTenantStore();
 
   useEffect(() => {
-    document.title = "Configuración de Negocio | POS S360T";
+    document.title = "Configuración de Negocio | Desk";
   }, []);
 
   const [checking, setChecking] = useState(true);
@@ -44,6 +45,16 @@ export default function Onboarding() {
       setBranch(br?.id ?? null);
     }
     await qc.invalidateQueries({ queryKey: ["my-roles"] });
+    if (window.location.hostname === "desk.rekov.co") {
+      const { data: tenant } = await supabase.from("tenants").select("slug").eq("id", tenantId).maybeSingle();
+      const slug = tenant?.slug?.trim().toLowerCase();
+      const { data: sessionWrap } = await supabase.auth.getSession();
+      const session = sessionWrap.session;
+      if (slug && slug !== "rekov-platform" && session) {
+        goToTenantSession(`https://${slug}.desk.rekov.co`, session.access_token, session.refresh_token);
+        return;
+      }
+    }
     navigate("/dashboard", { replace: true });
   };
 
@@ -141,7 +152,7 @@ export default function Onboarding() {
           <button
             type="button"
             className="g-btn g-btn-ghost w-full mt-4"
-            onClick={async () => { await signOutFully(); navigate("/auth", { replace: true }); }}
+            onClick={async () => { await signOutFully(); window.location.assign(loginHref()); }}
           >
             Cerrar sesión
           </button>
@@ -166,7 +177,7 @@ export default function Onboarding() {
           <button
             type="button"
             className="g-btn g-btn-ghost w-full"
-            onClick={async () => { await signOutFully(); navigate("/auth", { replace: true }); }}
+            onClick={async () => { await signOutFully(); window.location.assign(loginHref()); }}
           >
             Cerrar sesión
           </button>

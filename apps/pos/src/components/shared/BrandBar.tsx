@@ -21,7 +21,7 @@ export function BrandBar({
       <div className="flex items-center gap-2.5">
         <GearMark size={28} />
         <div className="lockup-text text-[15px] leading-none">
-          POS<span className="text-[#007BFF]">360</span><span className="text-[#10B981]">T</span>
+          <span className="text-[#ff5a1f]">Desk</span>
         </div>
       </div>
 

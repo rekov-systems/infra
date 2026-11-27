@@ -181,7 +181,7 @@ export default function ReceiptSettings() {
           </div>
 
           <div className="mt-6 text-center whitespace-pre-line italic opacity-70">
-            {config.footer_text || "¡Gracias por su compra!\nDesarrollado por S360T"}
+            {config.footer_text || "¡Gracias por su compra!\nDesarrollado por Desk"}
           </div>
         </div>
       </div>

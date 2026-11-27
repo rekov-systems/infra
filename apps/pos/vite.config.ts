@@ -33,11 +33,11 @@ export default defineConfig(async ({ mode }) => {
           enabled: false,
         },
         manifest: {
-          name: "POS S360T",
-          short_name: "POS S360T",
+          name: "Desk",
+          short_name: "Desk",
           description:
-            "Multi-branch POS system. Sales, cash register, inventory, production, and reports.",
-          theme_color: "#1469A1",
+            "Ventas, inventario, caja y atención por WhatsApp para tu negocio.",
+          theme_color: "#ff5a1f",
           background_color: "#ffffff",
           display: "standalone",
           orientation: "any",
@@ -46,22 +46,22 @@ export default defineConfig(async ({ mode }) => {
           lang: "es",
           icons: [
             {
-              src: "/pwa-192x192.png",
-              sizes: "192x192",
-              type: "image/png",
-              purpose: "any",
-            },
-            {
-              src: "/pwa-512x512.png",
+              src: "/desk-brand-icon.png",
               sizes: "512x512",
               type: "image/png",
               purpose: "any",
             },
             {
-              src: "/pwa-maskable-512x512.png",
+              src: "/desk-brand-icon.png",
               sizes: "512x512",
               type: "image/png",
-              purpose: "maskable",
+              purpose: "any",
+            },
+            {
+              src: "/desk-brand-icon.png",
+              sizes: "512x512",
+              type: "image/png",
+              purpose: "any",
             },
           ],
         },
@@ -147,7 +147,8 @@ export default defineConfig(async ({ mode }) => {
       ],
     },
     // En modo electron, no se necesita la base URL relativa
-    base: isElectronMode ? "./" : "/",
+    // One build serves Desk at /rms and tenant subdomains at /.
+    base: isElectronMode ? "./" : "/rms/",
     build: {
       rollupOptions: {
         output: {

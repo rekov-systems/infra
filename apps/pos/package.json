@@ -1,12 +1,12 @@
 {
-  "name": "poss360t",
-  "productName": "POS S360T",
-  "description": "Open-source, AI-powered, offline-first point of sale for retail and restaurants.",
+  "name": "desk-retail",
+  "productName": "Desk",
+  "description": "Gestión de ventas, inventario, caja y atención comercial por WhatsApp.",
   "private": true,
   "version": "1.0.0",
   "type": "module",
   "license": "MIT",
-  "author": "POS S360T Contributors",
+  "author": "Rekov Systems",
   "repository": {
     "type": "git",
     "url": "https://github.com/mateopiza/ai-point-of-sale.git"

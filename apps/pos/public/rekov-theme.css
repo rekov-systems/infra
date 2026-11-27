@@ -9,3 +9,6 @@
   --accent: 22 100% 96% !important;
   --accent-foreground: 16 80% 24% !important;
 }
+
+@font-face { font-family: "DM Sans"; src: url("/fonts/dm-sans-latin.woff2") format("woff2"); font-style: normal; font-weight: 400 700; font-display: swap; }
+@font-face { font-family: "Space Grotesk"; src: url("/fonts/space-grotesk-latin.woff2") format("woff2"); font-style: normal; font-weight: 500 700; font-display: swap; }

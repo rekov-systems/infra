@@ -2,29 +2,27 @@ import { useState } from "react";
 import BusinessSettings from "./BusinessSettings";
 import BranchesSettings from "./BranchesSettings";
 import UsersSettings from "./UsersSettings";
-import TablesSettings from "./TablesSettings";
-import SalesChannelsSettings from "./SalesChannelsSettings";
 import ReceiptSettings from "./ReceiptSettings";
 import AppearanceSettings from "./AppearanceSettings";
 import WhatsAppSettings from "./WhatsAppSettings";
 import AiAgentSettings from "./AiAgentSettings";
 import { DataManagement } from "./DataManagement";
 import { SystemMaintenance } from "./SystemMaintenance";
+import JcflowSettings from "./JcflowSettings";
 import { cn } from "@/lib/utils";
 import {
-  Building2, GitBranch, UtensilsCrossed, Users, Globe,
-  MessageCircle, Bot, Receipt, Palette, Database, Wrench,
+  Building2, GitBranch, Users,
+  MessageCircle, Bot, Receipt, Palette, Database, Wrench, FileCheck2,
   ChevronRight,
 } from "lucide-react";
 
 const TABS = [
   { id: "business",   label: "Mi negocio",       icon: Building2 },
   { id: "branches",   label: "Sucursales",        icon: GitBranch },
-  { id: "tables",     label: "Mesas",             icon: UtensilsCrossed },
   { id: "users",      label: "Usuarios y permisos", icon: Users },
-  { id: "canales",    label: "Canales de venta",  icon: Globe },
-  { id: "whatsapp",   label: "WhatsApp IA",       icon: MessageCircle },
-  { id: "agente",     label: "Agente IA",         icon: Bot },
+  { id: "whatsapp",   label: "WhatsApp",           icon: MessageCircle },
+  { id: "agente",     label: "Asistente IA",       icon: Bot },
+  { id: "jcflow",     label: "Facturación electrónica", icon: FileCheck2 },
   { id: "receipt",    label: "Recibo",            icon: Receipt },
   { id: "apariencia", label: "Apariencia",        icon: Palette },
   { id: "datos",      label: "Datos",             icon: Database },
@@ -66,11 +64,10 @@ export default function Settings() {
       <div className="g-cfg-content">
         {active === "business"   && <BusinessSettings />}
         {active === "branches"   && <BranchesSettings />}
-        {active === "tables"     && <TablesSettings />}
         {active === "users"      && <UsersSettings />}
-        {active === "canales"    && <SalesChannelsSettings />}
         {active === "whatsapp"   && <WhatsAppSettings />}
         {active === "agente"     && <AiAgentSettings />}
+        {active === "jcflow"     && <JcflowSettings />}
         {active === "receipt"    && <ReceiptSettings />}
         {active === "apariencia" && <AppearanceSettings />}
         {active === "datos"      && <DataManagement />}

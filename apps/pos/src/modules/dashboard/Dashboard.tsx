@@ -4,47 +4,46 @@ import { useTenantContext } from "@/hooks/useTenantContext";
 import { Link } from "react-router-dom";
 import { formatCurrency } from "@/lib/format";
 import {
-  TrendingUp, Wallet, Package, Factory, ShoppingCart,
-  BarChart3, Globe, CheckCircle, Cloud, ArrowUpRight, ArrowDownRight,
+  TrendingUp, Wallet, Package, ShoppingCart,
+  BarChart3, CheckCircle, Cloud, ArrowUpRight, ArrowDownRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /* ── Sparkline data ── */
-const SPARK = [55,62,58,71,68,78,82,76,89,94,88,102,110,105,118,124,121,132,128,140,138,145,152,148,155,150,158];
-const YMAX = 200;
-
 /* ── Area chart ── */
-function AreaChart() {
+function AreaChart({ values }: { values: number[] }) {
   const W = 480, H = 180;
   const pl = 36, pr = 16, pt = 18, pb = 24;
   const iW = W - pl - pr, iH = H - pt - pb;
-  const n = SPARK.length;
+  const points = values.length ? values : [0, 0, 0, 0, 0, 0, 0];
+  const n = points.length;
+  const ymax = Math.max(...points, 1) * 1.15;
   const toX = (i: number) => pl + (i / (n - 1)) * iW;
-  const toY = (v: number) => pt + (1 - v / YMAX) * iH;
-  const linePath = SPARK.map((p, i) => `${i === 0 ? "M" : "L"} ${toX(i).toFixed(1)} ${toY(p).toFixed(1)}`).join(" ");
+  const toY = (v: number) => pt + (1 - v / ymax) * iH;
+  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${toX(i).toFixed(1)} ${toY(p).toFixed(1)}`).join(" ");
   const areaPath = `${linePath} L ${toX(n-1).toFixed(1)} ${pt+iH} L ${toX(0).toFixed(1)} ${pt+iH} Z`;
-  const lX = toX(n-1), lY = toY(SPARK[n-1]);
+  const lX = toX(n-1), lY = toY(points[n-1]);
   return (
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="g-chart-glow w-full">
       <defs>
         <linearGradient id="aFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#2B7CFF" stopOpacity="0.30" />
-          <stop offset="100%" stopColor="#2B7CFF" stopOpacity="0.0" />
+          <stop offset="0%" stopColor="#ff5a1f" stopOpacity="0.30" />
+          <stop offset="100%" stopColor="#ff5a1f" stopOpacity="0.0" />
         </linearGradient>
         <linearGradient id="aLine" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#7FA8FF" />
-          <stop offset="100%" stopColor="#1E63E6" />
+          <stop offset="0%" stopColor="#ff8a45" />
+          <stop offset="100%" stopColor="#e04a12" />
         </linearGradient>
       </defs>
       <path d={areaPath} fill="url(#aFill)" />
       <path d={linePath} fill="none" className="line" stroke="url(#aLine)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-      {SPARK.map((p, i) => (
-        <circle key={i} cx={toX(i)} cy={toY(p)} r={i === n-1 ? 4 : 2.3} fill="#fff" stroke="#2B7CFF" strokeWidth={i === n-1 ? 2.5 : 1.5} />
+      {points.map((p, i) => (
+        <circle key={i} cx={toX(i)} cy={toY(p)} r={i === n-1 ? 4 : 2.3} fill="#fff" stroke="#ff5a1f" strokeWidth={i === n-1 ? 2.5 : 1.5} />
       ))}
       <g transform={`translate(${lX}, ${lY - 24})`}>
-        <rect x="-32" y="-13" width="64" height="20" rx="10" fill="#2B7CFF" />
+        <rect x="-32" y="-13" width="64" height="20" rx="10" fill="#ff5a1f" />
         <text x="0" y="2" textAnchor="middle" fontSize="11" fontWeight="700" fill="#fff" fontFamily="var(--g-font-display)">
-          ${(SPARK[n-1] * 1000).toLocaleString()}
+          {formatCurrency(points[n-1])}
         </text>
       </g>
     </svg>
@@ -60,7 +59,7 @@ function Donut({ size = 160, segments, total }: { size?: number; segments: Donut
   let offset = 0;
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <circle cx={cx} cy={cy} r={R} stroke="rgba(43,124,255,0.08)" strokeWidth="18" fill="none" />
+      <circle cx={cx} cy={cy} r={R} stroke="rgba(255,90,31,0.08)" strokeWidth="18" fill="none" />
       {segments.map((s, i) => {
         const dash = (s.value / sum) * C;
         const el = <circle key={i} cx={cx} cy={cy} r={R} stroke={s.color} strokeWidth="18" fill="none"
@@ -69,8 +68,8 @@ function Donut({ size = 160, segments, total }: { size?: number; segments: Donut
         offset += dash;
         return el;
       })}
-      <text x={cx} y={cy - 4} textAnchor="middle" fontSize="12" fill="#7986A8" fontFamily="var(--g-font-body)">Total</text>
-      <text x={cx} y={cy + 16} textAnchor="middle" fontSize="18" fontWeight="800" fill="#0E1F3D" fontFamily="var(--g-font-display)">{total}</text>
+      <text x={cx} y={cy - 4} textAnchor="middle" fontSize="12" fill="#939397" fontFamily="var(--g-font-body)">Total</text>
+      <text x={cx} y={cy + 16} textAnchor="middle" fontSize="18" fontWeight="800" fill="#171717" fontFamily="var(--g-font-display)">{total}</text>
     </svg>
   );
 }
@@ -125,12 +124,13 @@ export default function Dashboard() {
     queryFn: async () => {
       const today = new Date(); today.setHours(0, 0, 0, 0);
       const iso = today.toISOString();
-      const [salesRes, paymentsRes, sessionRes, lowStockRes, prodRes] = await Promise.all([
+      const week = new Date(today); week.setDate(week.getDate() - 6);
+      const [salesRes, trendRes, paymentsRes, sessionRes, lowStockRes] = await Promise.all([
         supabase.from("sales").select("id,total").eq("branch_id", branchId!).eq("status", "completed").gte("created_at", iso),
+        supabase.from("sales").select("total,created_at").eq("branch_id", branchId!).eq("status", "completed").gte("created_at", week.toISOString()),
         supabase.from("payments").select("method, amount, sales!inner(branch_id, created_at, status)").eq("sales.branch_id", branchId!).eq("sales.status", "completed").gte("sales.created_at", iso),
-        supabase.from("cash_sessions").select("id, opening_amount, total_cash, total_in, total_out").eq("branch_id", branchId!).eq("status", "open").maybeSingle(),
+        supabase.from("cash_sessions").select("id, opening_amount, total_cash, total_in, total_out").eq("branch_id", branchId!).eq("status", "open"),
         supabase.from("inventory_stocks").select("quantity, products!inner(id, name, min_stock, status, color)").eq("branch_id", branchId!).eq("products.status", "active"),
-        supabase.from("production_orders").select("id, produced_quantity").eq("branch_id", branchId!).gte("created_at", iso),
       ]);
       const salesCount  = salesRes.data?.length ?? 0;
       const totalSales  = salesRes.data?.reduce((s, r) => s + Number(r.total), 0) ?? 0;
@@ -141,13 +141,21 @@ export default function Dashboard() {
       const methodsMix  = Object.entries(byMethod).sort((a, b) => b[1] - a[1]).map(([method, amount]) => ({ method, amount, pct: methodTotal ? Math.round((amount / methodTotal) * 100) : 0 }));
       const stockItems  = lowStockRes.data ?? [];
       const lowStock    = stockItems.filter((r: any) => Number(r.quantity) <= Number(r.products.min_stock || 0));
+      const outOfStockCount = stockItems.filter((r: any) => Number(r.quantity) <= 0).length;
+      const trendByDay = new Map<string, number>();
+      for (let i = 0; i < 7; i++) {
+        const day = new Date(week); day.setDate(week.getDate() + i);
+        trendByDay.set(day.toISOString().slice(0, 10), 0);
+      }
+      trendRes.data?.forEach((sale) => {
+        const key = new Date(sale.created_at).toISOString().slice(0, 10);
+        trendByDay.set(key, (trendByDay.get(key) ?? 0) + Number(sale.total));
+      });
       const totalSKUs   = stockItems.length;
       const stockHealth = totalSKUs ? Math.round(((totalSKUs - lowStock.length) / totalSKUs) * 100) : 100;
-      const expectedCash = sessionRes.data
-        ? Number(sessionRes.data.opening_amount) + Number(sessionRes.data.total_cash) + Number(sessionRes.data.total_in) - Number(sessionRes.data.total_out)
-        : 0;
-      const productionToday = prodRes.data?.reduce((s, r) => s + Number(r.produced_quantity ?? 0), 0) ?? 0;
-      return { salesCount, totalSales, avgTicket, methodsMix, lowStock, lowStockCount: lowStock.length, totalSKUs, stockHealth, expectedCash, cashOpen: !!sessionRes.data, productionToday };
+      const openSessions = sessionRes.data ?? [];
+      const expectedCash = openSessions.reduce((sum, session) => sum + Number(session.opening_amount) + Number(session.total_cash) + Number(session.total_in) - Number(session.total_out), 0);
+      return { salesCount, totalSales, avgTicket, methodsMix, lowStock, lowStockCount: lowStock.length, outOfStockCount, totalSKUs, stockHealth, expectedCash, cashOpen: openSessions.length > 0, salesTrend: [...trendByDay.values()] };
     },
   });
 
@@ -164,32 +172,22 @@ export default function Dashboard() {
     },
   });
 
-  const totalSales = metrics?.totalSales ?? 0;
-  const CHANNEL_SEGS: DonutSeg[] = [
-    { value: 52, color: "#1E63E6", label: "Tienda Física", amount: formatCurrency(totalSales * 0.52) },
-    { value: 24, color: "#5B95FF", label: "Web",           amount: formatCurrency(totalSales * 0.24) },
-    { value: 16, color: "#9CC0FF", label: "App Móvil",     amount: formatCurrency(totalSales * 0.16) },
-    { value:  8, color: "#FFB54A", label: "Delivery",      amount: formatCurrency(totalSales * 0.08) },
-  ];
-  const TOP_PRODUCTS = [
-    { name: "Capuchino Clásico",     cat: "Bebidas",   qty: 1245, pct: 96 },
-    { name: "Croissant Mantequilla", cat: "Panadería", qty: 978,  pct: 78 },
-    { name: "Latte Vainilla",        cat: "Bebidas",   qty: 854,  pct: 68 },
-    { name: "Cheesecake de Fresa",   cat: "Postres",   qty: 642,  pct: 51 },
-    { name: "Pan de Masa Madre",     cat: "Panadería", qty: 523,  pct: 41 },
-  ];
+  const paymentColors = ["#ff5a1f", "#171717", "#777b83", "#ff8a45"];
+  const paymentLabels: Record<string, string> = { cash: "Efectivo", card: "Tarjeta", transfer: "Transferencia", other: "Otro" };
+  const paymentSegs: DonutSeg[] = (metrics?.methodsMix ?? []).map((m, i) => ({
+    value: m.pct, color: paymentColors[i % paymentColors.length],
+    label: paymentLabels[m.method] ?? m.method, amount: formatCurrency(m.amount),
+  }));
 
   return (
     <div className="flex flex-col gap-4">
 
       {/* KPI row */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3.5">
-        <KPICard label="Ventas del día"  value={formatCurrency(metrics?.totalSales ?? 0)} delta="18.5%" sub="vs. ayer"     icon={<TrendingUp size={16} />} />
-        <KPICard label="Órdenes activas" value={String(metrics?.salesCount ?? 0)}          delta="12%"   sub="vs. ayer"     icon={<ShoppingCart size={16} />} />
+      <div className="grid grid-cols-2 md:grid-cols-2 xl:grid-cols-4 gap-3.5">
+        <KPICard label="Ventas del día"  value={formatCurrency(metrics?.totalSales ?? 0)} sub="Total confirmado" icon={<TrendingUp size={16} />} />
+        <KPICard label="Tickets" value={String(metrics?.salesCount ?? 0)} sub="Ventas completadas" icon={<ShoppingCart size={16} />} />
         <KPICard label="Caja actual"     value={formatCurrency(metrics?.expectedCash ?? 0)} sub={metrics?.cashOpen ? "Caja abierta" : "Sin sesión"} icon={<Wallet size={16} />} />
         <KPICard label="Stock saludable" value={`${metrics?.stockHealth ?? 100}%`}          sub="Inventario"               icon={<Package size={16} />} />
-        <KPICard label="Producción"      value={String(metrics?.productionToday ?? 0)}      sub="Unidades hoy"             icon={<Factory size={16} />} />
-        <KPICard label="Canales activos" value="4 / 5"                                       sub="80% en línea"             icon={<Globe size={16} />} />
       </div>
 
       {/* Middle row */}
@@ -205,7 +203,7 @@ export default function Dashboard() {
             <span className="g-pill g-pill-ghost g-pill-h28">Este mes <TrendingUp size={12} /></span>
           </div>
           <div className="flex-1 flex items-center justify-center min-w-0 overflow-hidden">
-            <AreaChart />
+            <AreaChart values={metrics?.salesTrend ?? []} />
           </div>
           <div className="flex items-end justify-between gap-2.5">
             <div>
@@ -213,40 +211,41 @@ export default function Dashboard() {
               <div className="h-meta">Total del día</div>
             </div>
             <div className="text-right">
-              <span className="inline-flex items-center gap-1 font-bold text-[14px] text-g-ok">
-                <ArrowUpRight size={12} /> 18.5%
+              <span className="inline-flex items-center gap-1 font-bold text-[14px] text-ink-700">
+                {metrics?.salesCount ?? 0} tickets
               </span>
-              <div className="h-meta">vs. mes anterior</div>
+              <div className="h-meta">hoy</div>
             </div>
           </div>
         </div>
 
-        {/* Top products */}
+        {/* Critical stock */}
         <div className="glass flex flex-col gap-3.5 g-panel-20">
           <div className="flex items-center justify-between">
-            <div className="g-title-16">Top productos</div>
-            <span className="g-pill g-pill-ghost g-pill-h28">Este mes</span>
+            <div className="g-title-16">Existencias críticas</div>
+            <span className="g-pill g-pill-ghost g-pill-h28">{metrics?.lowStockCount ?? 0}</span>
           </div>
           <div className="flex flex-col gap-3 flex-1">
-            {TOP_PRODUCTS.map((r, i) => (
-              <BarRow key={i} label={r.name} sub={r.cat} pct={r.pct} value={r.qty.toLocaleString()} />
+            {(metrics?.lowStock ?? []).slice(0, 5).map((row: any, i: number) => (
+              <BarRow key={row.products.id ?? i} label={row.products.name} sub="Stock bajo" pct={Math.max(0, Math.min(100, Number(row.quantity) / Math.max(1, Number(row.products.min_stock)) * 100))} value={String(row.quantity)} />
             ))}
+            {(metrics?.lowStock ?? []).length === 0 && <p className="h-meta text-center py-4">No hay productos por debajo del mínimo</p>}
           </div>
           <Link to="/products" className="g-link justify-between">
             Ver todos los productos <ArrowUpRight size={12} />
           </Link>
         </div>
 
-        {/* Channel donut */}
+        {/* Payment mix */}
         <div className="glass flex flex-col gap-3.5 g-panel-20">
           <div className="flex items-center justify-between">
-            <div className="g-title-16">Canal de ventas</div>
-            <span className="g-pill g-pill-ghost g-pill-h28">Este mes</span>
+            <div className="g-title-16">Medios de pago</div>
+            <span className="g-pill g-pill-ghost g-pill-h28">Hoy</span>
           </div>
           <div className="flex items-center gap-4 flex-1">
-            <Donut size={160} segments={CHANNEL_SEGS} total={formatCurrency(totalSales)} />
+            {paymentSegs.length ? <Donut size={160} segments={paymentSegs} total={formatCurrency(metrics?.totalSales ?? 0)} /> : <p className="h-meta">Aún no hay pagos registrados hoy.</p>}
             <div className="flex flex-col gap-2.5 flex-1 min-w-0">
-              {CHANNEL_SEGS.map((s, i) => (
+              {paymentSegs.map((s, i) => (
                 <div key={i} className="flex items-center justify-between gap-1.5">
                   <div className="flex items-center gap-2">
                     <span className="g-dot-color" ref={(el) => { if (el) el.style.background = s.color; }} />
@@ -278,7 +277,7 @@ export default function Dashboard() {
           <div className="grid grid-cols-3 gap-2.5">
             <div>
               <div className="h-meta mb-1">Total SKUs</div>
-              <div className="g-num-20">{metrics?.totalSKUs ?? 1248}</div>
+              <div className="g-num-20">{metrics?.totalSKUs ?? 0}</div>
             </div>
             <div>
               <div className="h-meta mb-1">Bajo stock</div>
@@ -286,7 +285,7 @@ export default function Dashboard() {
             </div>
             <div>
               <div className="h-meta mb-1">Sin stock</div>
-              <div className="g-num-20 text-g-bad">12</div>
+              <div className="g-num-20 text-g-bad">{metrics?.outOfStockCount ?? 0}</div>
             </div>
           </div>
           <div>
@@ -398,7 +397,7 @@ export default function Dashboard() {
       </div>
 
       <p className="g-footer-note">
-        POS-S360T © 2026 — POS S360T Contributors · Apache 2.0
+        Desk © 2026 — Rekov Systems · Software de código abierto
       </p>
     </div>
   );

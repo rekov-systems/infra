@@ -13,3 +13,11 @@ desk.rekov.co {
 	}
 	reverse_proxy 127.0.0.1:8080
 }
+
+*.desk.rekov.co {
+	encode zstd gzip
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+	}
+	reverse_proxy 127.0.0.1:8080
+}

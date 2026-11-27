@@ -5,7 +5,7 @@ const NotFound = () => {
   const location = useLocation();
 
   useEffect(() => {
-    document.title = "Página No Encontrada (404) | POS S360T";
+    document.title = "Página No Encontrada (404) | Desk";
     console.error("404 Error: User attempted to access non-existent route:", location.pathname);
   }, [location.pathname]);
 

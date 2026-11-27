@@ -2291,12 +2291,17 @@ export type Database = {
         | {
             Args: {
               _branch_id: string
+              _channel?: Database["public"]["Enums"]["sales_channel"]
+              _client_mutation_id?: string
+              _coupon_code?: string
               _customer_id?: string
               _discount_total?: number
               _items: Json
               _notes?: string
               _payments: Json
               _tenant_id: string
+              _tip_amount?: number
+              _register_id?: string
             }
             Returns: string
           }

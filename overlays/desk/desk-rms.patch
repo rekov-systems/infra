@@ -24,26 +24,45 @@ index 2a2c104..76d84d8 100644
  
  export default nextConfig;
 diff --git a/packages/dashboard/src/app/login/page.tsx b/packages/dashboard/src/app/login/page.tsx
-index fba9e2b..4bc82f6 100644
+index fba9e2b..165f3fa 100644
 --- a/packages/dashboard/src/app/login/page.tsx
 +++ b/packages/dashboard/src/app/login/page.tsx
-@@ -15,6 +15,28 @@ const MAGIC_SENT =
+@@ -15,6 +15,47 @@ const MAGIC_SENT =
  
  type OrgPick = { id: string; name: string; role: string };
  
 +type SupabaseLogin = { access_token: string; refresh_token: string };
 +
++function tenantReturnOrigin(value: string | null) {
++  if (!value) return null;
++  try {
++    const url = new URL(value);
++    if (url.protocol !== "https:" || url.pathname !== "/" || url.search || url.hash) return null;
++    const host = url.hostname;
++    if (!host.endsWith(".desk.rekov.co") || host === "desk.rekov.co" || host.startsWith("control.") || host.startsWith("api.") || host.startsWith("studio.")) return null;
++    return url.origin;
++  } catch {
++    return null;
++  }
++}
++
 +function finishWithSupabaseSession(
 +  searchParams: ReturnType<typeof useSearchParams>,
 +  session: SupabaseLogin,
 +) {
-+  const requested = safeNextPath(searchParams.get("next"), "/rms/onboarding");
-+  const next = requested.startsWith("/rms/") ? requested : "/rms/onboarding";
 +  const fragment = new URLSearchParams({
 +    access_token: session.access_token,
 +    refresh_token: session.refresh_token,
-+    next,
++    next: "/rms/dashboard",
 +  });
++  const back = tenantReturnOrigin(searchParams.get("return"));
++  if (back) {
++    window.location.assign(`${back}/sso#${fragment.toString()}`);
++    return;
++  }
++  const requested = safeNextPath(searchParams.get("next"), "/rms/onboarding");
++  const next = requested.startsWith("/rms/") ? requested : "/rms/onboarding";
++  fragment.set("next", next);
 +  window.location.assign(`/rms/sso#${fragment.toString()}`);
 +}
 +
@@ -56,7 +75,7 @@ index fba9e2b..4bc82f6 100644
  function finishWithToken(
    router: ReturnType<typeof useRouter>,
    searchParams: ReturnType<typeof useSearchParams>,
-@@ -125,28 +147,17 @@ function LoginForm() {
+@@ -125,28 +166,17 @@ function LoginForm() {
      setError(null);
      setBanner(null);
      try {
@@ -94,7 +113,7 @@ index fba9e2b..4bc82f6 100644
      } catch (err) {
        setError(err instanceof Error ? err.message : "No se pudo iniciar sesión");
      } finally {
-@@ -201,10 +212,21 @@ function LoginForm() {
+@@ -201,10 +231,21 @@ function LoginForm() {
      setLoading(true);
      setError(null);
      try {
@@ -118,3 +137,274 @@ index fba9e2b..4bc82f6 100644
        setMagicHint(MAGIC_SENT);
      } catch (err) {
        setError(err instanceof Error ? err.message : "No se pudo enviar el enlace");
+diff --git a/packages/dashboard/src/app/page.tsx b/packages/dashboard/src/app/page.tsx
+index 63a5c99..dda3e37 100644
+--- a/packages/dashboard/src/app/page.tsx
++++ b/packages/dashboard/src/app/page.tsx
+@@ -1,183 +1,103 @@
+ import Link from "next/link";
+-import { PRICING_FAQ, TRIAL_MARKETING_LINE } from "@chatbot/domain";
+ import { MarketingShell } from "@/components/marketing-shell";
+ import { MarketingHero } from "@/components/marketing-hero";
+-import { PlanCards } from "@/components/plan-cards";
+-import { ChatPreview } from "@/components/chat-preview";
+-import { ProductPanelPreview } from "@/components/product-panel-preview";
+-import { KnowledgeDocumentsPreview } from "@/components/knowledge-documents-preview";
+-import { InboxMarketingPreview } from "@/components/inbox-marketing-preview";
+-import { DataFlowPreview } from "@/components/data-flow-preview";
+-import { FaqAccordion } from "@/components/faq-accordion";
+-import {
+-  homeHeroStats,
+-  howDeskWorksSteps,
+-  MARKETING_TAGLINE,
+-  trustPoints,
+-  useCases,
+-} from "@/content/marketing";
++import { MarketingHeroScene } from "@/components/marketing-hero-scene";
++import { Shell } from "@/components/shell";
++import "@/styles/desk-mock-html.css";
+ 
+-export default function LandingPage() {
+-  const homeFaq = PRICING_FAQ.slice(0, 4);
++const featureCards = [
++  {
++    icon: "▦",
++    title: "Multicaja",
++    body: "Cada puesto abre, cobra y cierra su turno. El efectivo de una caja no se mezcla con el de otra.",
++    href: "/plataforma",
++    shapeClass: "mini-shape",
++  },
++  {
++    icon: "◈",
++    title: "Sucursales, también sin internet",
++    body: "Varios locales, el mismo catálogo. La venta sigue si se cae la conexión y se sincroniza al volver.",
++    href: "/plataforma",
++    shapeClass: "mini-shape dark",
++  },
++  {
++    icon: "✦",
++    title: "Del mostrador al tablero",
++    body: "Salón, WhatsApp y caja terminan en el mismo resumen del negocio.",
++    href: "/plataforma",
++    shapeClass: "mini-shape ringmini",
++  },
++] as const;
+ 
++export default function LandingPage() {
+   return (
+     <MarketingShell>
+       <MarketingHero
+-        eyebrow="Atención y ventas en tu chat web"
+-        title="Deja de perder clientes por responder tarde."
+-        description="Desk responde en tu chat y tienda hosted con tus políticas y los datos de tu negocio, a cualquier hora."
++        variant="scene"
++        eyebrow="Plataforma todo en uno"
++        title={
++          <>
++            Tu negocio.
++            <br />
++            <span className="text-[var(--signal)]">Todo en movimiento.</span>
++          </>
++        }
++        description="Caja, inventario y ventas en el mismo Desk. Multicaja, varias sucursales, y la venta sigue si se cae internet."
+         primaryHref="/register"
+-        primaryLabel="Empezar ahora"
+-        secondaryHref="/pricing"
+-        secondaryLabel="Ver planes"
+-        footnote={TRIAL_MARKETING_LINE}
+-        stats={homeHeroStats}
+-        aside={<ChatPreview compact />}
++        primaryLabel="Comenzar gratis →"
++        secondaryHref="/plataforma"
++        secondaryLabel="Ver demo"
++        aside={<MarketingHeroScene />}
+       />
+ 
+-      <section className="border-b border-[var(--border)] bg-[var(--muted-bg)]/50">
+-        <div className="mx-auto max-w-6xl px-6 py-12 md:py-14">
+-          <p className="max-w-3xl text-sm leading-relaxed text-[var(--muted)] md:text-base">
+-            {MARKETING_TAGLINE}
+-          </p>
+-          <p className="mt-4 max-w-3xl text-xs leading-relaxed text-[var(--muted)] md:text-sm">
+-            <strong className="font-medium text-[var(--foreground)]">IA y automatización:</strong> Desk usa
+-            modelos de lenguaje para generar respuestas a partir de tu configuración y tus datos. Pueden existir
+-            errores; revisa casos sensibles con tu equipo. Operado por Rekov Systems S.A.S. —{" "}
+-            <Link href="/privacidad" className="underline underline-offset-2">privacidad</Link>
+-            {" · "}
+-            <Link href="/terminos" className="underline underline-offset-2">términos</Link>.
+-          </p>
+-        </div>
+-      </section>
+-
+-      <section className="mx-auto max-w-6xl px-6 py-14">
+-        <h2 className="font-display text-2xl md:text-3xl">Donde más te duele hoy</h2>
+-        <p className="mt-2 max-w-2xl text-sm text-[var(--muted)]">
+-          Quitar carga real de ventas y soporte en el chat web.
+-        </p>
+-        <ul className="mt-10 grid gap-5 sm:grid-cols-2">
+-          {useCases.map((c) => (
+-            <li
+-              key={c.title}
+-              className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] p-5"
+-            >
+-              <h3 className="font-medium">{c.title}</h3>
+-              <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]">{c.body}</p>
+-            </li>
+-          ))}
+-        </ul>
+-      </section>
+-
+-      <section className="border-y border-[var(--border)] bg-[var(--muted-bg)]/40">
+-        <div className="mx-auto grid max-w-6xl gap-10 px-6 py-14 lg:grid-cols-2 lg:items-center">
+-          <div>
+-            <p className="text-xs font-medium uppercase tracking-widest text-[var(--muted)]">02</p>
+-            <h2 className="mt-2 font-display text-2xl md:text-3xl">
+-              Lo que ya sabes de tu negocio, al instante para el cliente
+-            </h2>
+-            <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">
+-              Políticas, precios y reglas dejan de depender de quién esté conectado ese día.
+-            </p>
+-            <Link href="/register" className="mt-4 inline-block text-sm font-medium underline underline-offset-2">
+-              Probar con mi empresa
+-            </Link>
+-          </div>
+-          <ProductPanelPreview />
+-        </div>
+-      </section>
++      <Shell>
++        <HomeMockSections />
++      </Shell>
+ 
+-      <section className="mx-auto max-w-6xl px-6 py-14">
+-        <p className="text-xs font-medium uppercase tracking-widest text-[var(--muted)]">03</p>
+-        <h2 className="mt-2 font-display text-2xl md:text-3xl">
+-          Catálogo, documentos y — si lo conectas — tu tienda o ERP
+-        </h2>
+-        <p className="mt-2 max-w-2xl text-sm text-[var(--muted)]">
+-          La IA responde con lo que subes al panel y lo que expongas por integración; si no hay dato, escala a tu
+-          bandeja en el mismo chat.
+-        </p>
+-        <div className="mt-8 grid gap-8 lg:grid-cols-2">
+-          <DataFlowPreview />
+-          <InboxMarketingPreview compact />
+-        </div>
+-      </section>
+-
+-      <section className="border-y border-[var(--border)] bg-[var(--muted-bg)]/30">
+-        <div className="mx-auto grid max-w-6xl gap-10 px-6 py-14 lg:grid-cols-2 lg:items-start">
+-          <KnowledgeDocumentsPreview />
+-          <div className="lg:pt-8">
+-            <p className="text-xs font-medium uppercase tracking-widest text-[var(--muted)]">Bandeja</p>
+-            <h2 className="mt-2 font-display text-2xl md:text-3xl">
+-              Un humano entra en el mismo hilo
+-            </h2>
+-            <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">
+-              Cuando la IA escala, tu equipo responde desde el panel con el historial completo.
++      <Shell className="pb-[75px]">
++        <div className="marketing-cta-band flex flex-col items-start justify-between gap-5 px-[42px] py-[38px] md:flex-row md:items-center">
++          <div className="relative z-[1]">
++            <h2 className="font-display text-[30px] leading-tight">Tu próximo gran paso empieza aquí.</h2>
++            <p className="mt-2 text-[13px] text-[#b7bac0]">
++              Más control para tu negocio. Más confianza para tus clientes.
+             </p>
+           </div>
++          <Link href="/register" className="btn-primary relative z-[1] transition duration-[250ms]">
++            Descubrir Desk →
++          </Link>
+         </div>
+-      </section>
+-
+-      <section className="mx-auto max-w-6xl px-6 py-14">
+-        <h2 className="font-display text-2xl">Lo que compras</h2>
+-        <ol className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+-          {howDeskWorksSteps.map((s) => (
+-            <li
+-              key={s.step}
+-              className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] p-5"
+-            >
+-              <span className="text-xs font-medium text-[var(--muted)]">{s.step}</span>
+-              <h3 className="mt-1 font-medium">{s.title}</h3>
+-              <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]">{s.body}</p>
+-            </li>
+-          ))}
+-        </ol>
+-      </section>
++      </Shell>
++    </MarketingShell>
++  );
++}
+ 
+-      <section className="border-t border-[var(--border)] bg-[var(--muted-bg)]/40">
+-        <div className="mx-auto max-w-6xl px-6 py-14">
+-          <h2 className="font-display text-2xl">Sin sorpresas para ti ni para finanzas</h2>
+-          <ul className="mt-8 grid gap-5 sm:grid-cols-2">
+-            {trustPoints.map((t) => (
+-              <li
+-                key={t.title}
+-                className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] p-5"
+-              >
+-                <h3 className="font-medium">{t.title}</h3>
+-                <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]">{t.body}</p>
+-              </li>
+-            ))}
+-          </ul>
+-          <p className="mt-6 text-sm">
+-            <Link href="/legal" className="underline underline-offset-2">
+-              Términos, privacidad, IA y seguridad
+-            </Link>
++function HomeMockSections() {
++  return (
++    <div className="desk-mock-home">
++      <section className="below">
++        <div className="intro">
++          <span className="kicker">Operación</span>
++          <h2>
++            La venta, en el mismo Desk.
++            <br />
++            Multicaja incluida.
++          </h2>
++          <p>
++            Del mostrador al tablero: cada caja con su turno, cada sucursal con sus ventas, y el resumen cuando vuelve la conexión.
+           </p>
+         </div>
+-      </section>
+-
+-      <section className="mx-auto max-w-6xl px-6 py-14">
+-        <h2 className="font-display text-2xl md:text-3xl">Elige el plan que aguanta tu volumen</h2>
+-        <p className="mt-2 max-w-2xl text-sm text-[var(--muted)]">
+-          Empieza donde estás hoy; sube cuando crezca el tráfico o el equipo.
+-        </p>
+-        <div className="mt-10">
+-          <PlanCards />
+-        </div>
+-        <p className="mt-8 text-sm">
+-          <Link href="/pricing" className="font-medium underline underline-offset-2">
+-            Ver todos los planes y objeciones frecuentes
+-          </Link>
+-        </p>
+-      </section>
+-
+-      <section className="border-t border-[var(--border)] bg-[var(--muted-bg)]/40">
+-        <div className="mx-auto max-w-3xl px-6 py-14 pb-16">
+-          <h2 className="font-display text-xl">Preguntas frecuentes</h2>
+-          <div className="mt-6">
+-            <FaqAccordion items={homeFaq} />
+-          </div>
++        <div className="cards">
++          {featureCards.map((card) => (
++            <article key={card.title} className="card">
++              <div className="ico">{card.icon}</div>
++              <h3>{card.title}</h3>
++              <p>{card.body}</p>
++              <Link href={card.href}>Saber más →</Link>
++              <div className={card.shapeClass} aria-hidden />
++            </article>
++          ))}
+         </div>
+       </section>
+-    </MarketingShell>
++    </div>
+   );
+-}
++}
+\ No newline at end of file

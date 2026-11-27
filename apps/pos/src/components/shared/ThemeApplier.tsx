@@ -6,16 +6,16 @@ type ColorSet = { primary: string; glow: string; sidebar: string; gradient: stri
 
 const ACCENT_COLORS: Record<string, { light: ColorSet; dark: ColorSet }> = {
   azul: {
-    light: { primary: '204 78% 35%', glow: '204 78% 48%', sidebar: '204 78% 55%', gradient: 'linear-gradient(135deg, hsl(204 78% 35%), hsl(204 78% 50%))' },
-    dark:  { primary: '204 78% 52%', glow: '204 78% 62%', sidebar: '204 78% 60%', gradient: 'linear-gradient(135deg, hsl(204 78% 46%), hsl(204 78% 60%))' },
+    light: { primary: '18 100% 56%', glow: '26 100% 64%', sidebar: '18 100% 62%', gradient: 'linear-gradient(135deg, #ff5a1f, #ff8a45)' },
+    dark:  { primary: '18 100% 56%', glow: '26 100% 64%', sidebar: '18 100% 62%', gradient: 'linear-gradient(135deg, #ff5a1f, #ff8a45)' },
   },
   indigo: {
-    light: { primary: '240 58% 50%', glow: '240 58% 63%', sidebar: '240 58% 68%', gradient: 'linear-gradient(135deg, hsl(240 58% 44%), hsl(240 58% 58%))' },
-    dark:  { primary: '240 58% 65%', glow: '240 58% 75%', sidebar: '240 58% 70%', gradient: 'linear-gradient(135deg, hsl(240 58% 58%), hsl(240 58% 72%))' },
+    light: { primary: '18 100% 56%', glow: '26 100% 64%', sidebar: '18 100% 62%', gradient: 'linear-gradient(135deg, #ff5a1f, #ff8a45)' },
+    dark:  { primary: '18 100% 56%', glow: '26 100% 64%', sidebar: '18 100% 62%', gradient: 'linear-gradient(135deg, #ff5a1f, #ff8a45)' },
   },
   teal: {
-    light: { primary: '175 65% 33%', glow: '175 65% 45%', sidebar: '175 65% 52%', gradient: 'linear-gradient(135deg, hsl(175 65% 28%), hsl(175 65% 44%))' },
-    dark:  { primary: '175 65% 48%', glow: '175 65% 60%', sidebar: '175 65% 55%', gradient: 'linear-gradient(135deg, hsl(175 65% 42%), hsl(175 65% 57%))' },
+    light: { primary: '18 100% 56%', glow: '26 100% 64%', sidebar: '18 100% 62%', gradient: 'linear-gradient(135deg, #ff5a1f, #ff8a45)' },
+    dark:  { primary: '18 100% 56%', glow: '26 100% 64%', sidebar: '18 100% 62%', gradient: 'linear-gradient(135deg, #ff5a1f, #ff8a45)' },
   },
 }
 
@@ -57,9 +57,8 @@ export function ThemeApplier() {
 
     if (accent === 'azul' && primaryColor) {
       const hsl = hexToHsl(primaryColor)
-      // Only accept colors in a "cool" hue range (blue 170°–270°, teal 150°–195°).
-      // Olive / yellow-green (40°–140°) are off-brand and get rejected → fall back to S360T blue.
-      const isBrandHue = hsl && hsl.s >= 35 && (hsl.h >= 150 && hsl.h <= 270)
+      // Tenant supplied orange shades may vary while preserving the Desk palette.
+      const isBrandHue = hsl && hsl.s >= 35 && (hsl.h <= 42 || hsl.h >= 345)
       if (hsl && isBrandHue) {
         const glowL = Math.min(hsl.l + 11, 95)
         const sidebarL = Math.min(hsl.l + 20, 95)
